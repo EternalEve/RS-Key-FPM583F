@@ -409,6 +409,19 @@ impl FidoState {
         self.mse_pub = [0; 65];
     }
 
+    /// ICC reset ends CCID walks without revoking device-wide token authorization.
+    pub fn end_channel_sequences(&mut self, channel: u32) {
+        if self.gna.channel == channel {
+            self.gna.reset();
+        }
+        if self.cm.channel == channel {
+            self.cm = CredMgmtState::new();
+        }
+        if self.mse_cid == channel {
+            self.clear_mse();
+        }
+    }
+
     /// Drop the unlocked seed copy (disable / reset), zeroizing it first.
     pub fn clear_keydev_dec(&mut self) {
         if let Some(k) = self.keydev_dec.as_mut() {
@@ -638,6 +651,13 @@ impl FidoState {
     /// only correct together with the decision that would set it.
     pub fn user_present(&self) -> bool {
         self.paut.in_use && self.paut.user_present
+    }
+
+    /// Fingerprint UP expires independently of rolling token use (§6.5.2.1).
+    pub(crate) fn expire_user_presence(&mut self, now_ms: u64) {
+        if now_ms.saturating_sub(self.paut.issued_at_ms) >= PUAT_INITIAL_USAGE_LIMIT_MS {
+            self.paut.user_present = false;
+        }
     }
 
     /// Verify a `pinUvAuthParam` MAC over `data` under the current token.

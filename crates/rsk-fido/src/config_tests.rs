@@ -97,6 +97,7 @@ fn run(state: &mut FidoState, req: &[u8]) -> CtapResult {
     let mut out = [0u8; 64];
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -112,6 +113,7 @@ fn run_fs<S: Storage>(fs: &mut Fs<S>, state: &mut FidoState, req: &[u8]) -> Ctap
     let mut out = [0u8; 64];
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs,

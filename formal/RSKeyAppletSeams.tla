@@ -15,7 +15,7 @@
 (* management / rescue / vendor (crates/rsk-device/src/ccid.rs:91-109),      *)
 (* while the CTAPHID side owns a SEPARATE Dispatcher whose applet array is   *)
 (* literally one element, its own VendorApplet                               *)
-(* (crates/rsk-device/src/ctap.rs:177-181). PIV, OpenPGP and OATH are not    *)
+(* (crates/rsk-device/src/ctap.rs:198-202). PIV, OpenPGP and OATH are not    *)
 (* reachable over CTAPHID at all, so no status can be established on one     *)
 (* transport and honoured on the other. A product of the two models would    *)
 (* therefore multiply 17 million states by this module's own and buy exactly *)
@@ -40,7 +40,7 @@ CONSTANTS
     \* 637ed98 taken back out: PIV and OpenPGP used to reset on EVERY select,
     \* ignoring the `reselect` flag the trait hands them.
     BugReselectResetsStatus,
-    \* crates/rsk-device/src/ccid.rs:354-369 -- the ICC power transition.
+    \* crates/rsk-device/src/ccid.rs:362-377 -- the ICC power transition.
     BugCardResetKeepsStatus,
     \* e5da38b taken back out: PW3, the admin PIN, standing in for PW1/PW2 on
     \* PSO:CDS, PSO:DECIPHER and INTERNAL AUTHENTICATE.
@@ -517,7 +517,7 @@ PivKeyOp ==
 
 \* SCardDisconnect(SCARD_RESET_CARD) / CCID_POWER_OFF / CCID_POWER_ON:
 \* `Dispatcher::reset_card` deselects, which drops the selected applet's
-\* security status (crates/rsk-device/src/ccid.rs:354-369,
+\* security status (crates/rsk-device/src/ccid.rs:362-377,
 \* crates/rsk-sdk/src/applet.rs:222-230). This is the one the `cross_applet`
 \* fuzz target already watches, one layer down.
 \* Its own trailing UNCHANGED named `psig` while the ELSE branch assigned it, so
@@ -557,14 +557,14 @@ PowerCycle ==
 \* `authenticatorReset` is FIDO's and reaches none of these: `is_fido_fid` is an
 \* explicit enumeration plus four credential ranges precisely because the applets
 \* interleave in the 0x10xx band, and 0x10A0 inside it is OATH's EF_OTP_PIN
-\* rather than OpenPGP's (crates/rsk-fido/src/reset.rs:263-305). Modelled as a
+\* rather than OpenPGP's (crates/rsk-fido/src/reset.rs:263-306). Modelled as a
 \* step that changes nothing, so a mutant that made it reach would be visible.
 FidoReset == UNCHANGED vars
 
 \* `Fs::factory_wipe` (crates/rsk-fs/src/fs.rs:462-513) is FLASH-only: it never
 \* sees an applet, so every in-RAM status here stands over freshly-defaulted
 \* verifiers until the reboot both callers queue immediately after
-\* (crates/rsk-device/src/ccid.rs:310-319, crates/rsk-display/src/pin.rs:713-721).
+\* (crates/rsk-device/src/ccid.rs:318-327, crates/rsk-display/src/pin.rs:713-721).
 \* Modelled as the wipe AND its reboot in one step, which is what makes the
 \* window unobservable -- and that is exactly the assumption to attack if anyone
 \* ever separates them.

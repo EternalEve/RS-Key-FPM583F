@@ -145,7 +145,7 @@ OUTCOMES_RATCHET = "@TraceSecurityOutcomesMin"
 # command space, so it cannot collide with a real command byte.
 POWER_CYCLE = 0xFF
 
-# `crates/rsk-fido/src/consts.rs:404`, applied at `crates/rsk-fido/src/reset.rs:260`
+# `crates/rsk-fido/src/consts.rs:408`, applied at `crates/rsk-fido/src/reset.rs:260`
 # as `!warm_boot && now_ms <= RESET_WINDOW_MS`. The model abstracts the clock to
 # `ResetWindow` plus a `Tick`; the mapper needs the real bound.
 RESET_WINDOW_MS = 10_000
@@ -218,7 +218,7 @@ NO_OPINION_EXEMPTIONS = {
     ),
     "pseudo-command": (
         "a power cycle is not a CTAP command and has no response: `outcome_raw` is"
-        " the literal 0 that `tools/emu/src/device.rs:755-756` passes as the status,"
+        " the literal 0 that `tools/emu/src/device.rs:788-789` passes as the status,"
         " so agreeing with `delta_c` of it would be agreeing with a placeholder",
         1,
     ),
@@ -605,7 +605,7 @@ def no_opinion_class(event: dict, action_names: set[str]) -> str | None:
     """
     if event["command_raw"] == POWER_CYCLE:
         # The class's whole reason is that `outcome_raw` here is the literal 0
-        # `tools/emu/src/device.rs:755-756` passes for a replug, not a response.
+        # `tools/emu/src/device.rs:788-789` passes for a replug, not a response.
         # Asserted rather than described: with this unchecked, a power cycle
         # carrying 0x31 was excused and the row stayed green at 15/18.
         if event["outcome_raw"] != 0x00:

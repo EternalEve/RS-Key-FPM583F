@@ -4,8 +4,8 @@
 //! Presence-scope arbitration: one physical button, four transports, and the
 //! rules deciding whose ceremony a press satisfies and whose cancel may end it.
 //!
-//! [`Arbiter`] holds the three cross-executor flags — is a touch pending, has a
-//! cancel been raised, and which transport the wait belongs to — and every
+//! [`Arbiter`] holds cross-executor presence and cancellation state, including
+//! which transport the wait belongs to, and every
 //! transport hook is the *conjunction* of a flag with the scope, never the bare
 //! flag. Without that, an unprivileged FIDO-HID process could `CTAPHID_CANCEL` a
 //! CCID (OpenPGP/PIV/OATH) or keyboard-frame (Yubico-OTP) ceremony, and an
@@ -69,13 +69,14 @@ pub trait Board {
     fn block_for_ms(&mut self, ms: u64);
 }
 
-/// The three cross-executor presence flags plus the runtime touch-wait timeout.
+/// Cross-executor presence/cancellation state and the runtime touch-wait timeout.
 ///
 /// One instance per device — the firmware keeps it in a `static`, because the
 /// transport (interrupt) and worker (thread) executors both reach it. Every
 /// method takes `&self` for that reason.
 pub struct Arbiter {
     up_pending: AtomicBool,
+    cancellable: AtomicBool,
     cancel_requested: AtomicBool,
     wait_scope: AtomicU8,
     timeout_ms: AtomicU32,
@@ -91,6 +92,7 @@ impl Arbiter {
     pub const fn new() -> Self {
         Self {
             up_pending: AtomicBool::new(false),
+            cancellable: AtomicBool::new(false),
             cancel_requested: AtomicBool::new(false),
             wait_scope: AtomicU8::new(SCOPE_NONE),
             timeout_ms: AtomicU32::new(DEFAULT_TIMEOUT_MS),
@@ -157,6 +159,14 @@ impl Arbiter {
 
     pub fn set_up_pending(&self, pending: bool) {
         self.up_pending.store(pending, Ordering::Release);
+    }
+
+    pub fn set_cancellable(&self, cancellable: bool) {
+        self.cancellable.store(cancellable, Ordering::Release);
+    }
+
+    pub fn cancellable_for(&self, scope: u8) -> bool {
+        self.cancellable.load(Ordering::Acquire) && self.wait_scope.load(Ordering::Acquire) == scope
     }
 
     pub fn set_cancel_requested(&self, requested: bool) {

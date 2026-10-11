@@ -34,6 +34,7 @@ fn run_ctx<S: Storage, T>(
     let mut rng = SeqRng(1);
     let mut presence = AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         dev: dev(),
         fs,
         rng: &mut rng,
@@ -209,6 +210,7 @@ fn config_write_coalesce_is_noop_when_off() {
         let mut rng = SeqRng(1);
         let mut presence = AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             dev: dev(),
             fs: &mut fs,
             rng: &mut rng,
@@ -318,6 +320,7 @@ fn append_is_noop_when_off() {
         let mut rng = SeqRng(1);
         let mut presence = AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             dev: dev(),
             fs: &mut fs,
             rng: &mut rng,

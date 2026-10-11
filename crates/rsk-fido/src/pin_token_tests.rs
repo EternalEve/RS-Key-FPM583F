@@ -45,6 +45,7 @@ fn spend_token(fs: &mut Fs<RamStorage>, state: &mut FidoState, token: &[u8; 32])
     let mut presence = crate::AlwaysConfirm;
     let mut out = [0u8; 256];
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs,

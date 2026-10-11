@@ -19,6 +19,7 @@ pub struct Signals {
     /// streams `STATUS_UPNEEDED` rather than `STATUS_PROCESSING` — that is what
     /// makes a client say "touch your security key".
     up_pending: AtomicBool,
+    cancellable: AtomicBool,
     /// Which transport that wait belongs to ([`SCOPE_FIDO`] &c).
     ///
     /// One presence backend serves every transport, so an unscoped flag tells
@@ -53,6 +54,15 @@ impl Signals {
         self.up_pending.store(v, Ordering::Release);
     }
 
+    #[cfg(feature = "fingerprint-fixture")]
+    pub fn set_cancellable(&self, v: bool) {
+        self.cancellable.store(v, Ordering::Release);
+    }
+
+    pub fn cancellable_for(&self, scope: u8) -> bool {
+        self.cancellable.load(Ordering::Acquire) && self.wait_scope.load(Ordering::Acquire) == scope
+    }
+
     /// Whose the next presence wait is. Set by the job dispatcher, which is the
     /// only place that knows which transport asked — the presence backend serves
     /// all of them through one object.
@@ -77,6 +87,7 @@ impl Signals {
     pub fn end(&self) {
         self.active_cid.store(0, Ordering::Release);
         self.up_pending.store(false, Ordering::Release);
+        self.cancellable.store(false, Ordering::Release);
     }
 
     pub fn request_cancel(&self, cid: u32) {

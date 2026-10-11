@@ -17,6 +17,8 @@ mod bcd;
 mod ccid;
 mod device;
 mod display;
+#[cfg(feature = "fingerprint-fixture")]
+mod fingerprint;
 mod hid;
 mod otp_kbd;
 mod park;
@@ -67,6 +69,9 @@ usage: rsk-emu [options]
   --fido-port <n>     CTAPHID port, 0 disables (default 7799)
   --ccid-port <n>     APDU/card port, 0 disables (default 7800)
   --store <path>      persist the file system here (default: memory only)
+  --fingerprint-script <path>
+                      fingerprint-fixture feature only: isolated scripted sensor
+  --fingerprint-init   initialize its test UV budget (first provisioning only)
   --touch             ask for every user presence on the terminal
   --auto-touch-ms <n> mark presence pending, then approve it after n milliseconds
   --display           open the trusted display in a window; presence is an
@@ -111,6 +116,8 @@ fn main() {
         security_trace: None,
         yubico: false,
         power_cut: None,
+        fingerprint_script: None,
+        fingerprint_init: false,
     };
     let mut touch = false;
     let mut auto_touch = None;
@@ -133,6 +140,10 @@ fn main() {
             "--ccid-port" => ccid_port = parse_port(&value("--ccid-port")),
             "--store" => cfg.store = Some(value("--store").into()),
             "--touch" => touch = true,
+            "--fingerprint-script" => {
+                cfg.fingerprint_script = Some(value("--fingerprint-script").into())
+            }
+            "--fingerprint-init" => cfg.fingerprint_init = true,
             "--auto-touch-ms" => auto_touch = Some(parse_millis(&value("--auto-touch-ms"))),
             "--display" => cfg.display = true,
             "--taps" => tap_script = Some(read_taps(&value("--taps"))),
@@ -160,6 +171,23 @@ fn main() {
 
     if fido_port == 0 && ccid_port == 0 {
         die("both transports are disabled — nothing to serve");
+    }
+    if cfg.fingerprint_script.is_some() {
+        if !cfg!(feature = "fingerprint-fixture") {
+            die("--fingerprint-script requires --features fingerprint-fixture");
+        }
+        if cfg.display
+            || cfg.usbip.is_some()
+            || !touch
+            || host != "127.0.0.1"
+            || cfg.store.is_none()
+        {
+            die(
+                "fingerprint fixtures require loopback, --touch and an owned --store, without display or USB/IP",
+            );
+        }
+    } else if cfg.fingerprint_init {
+        die("--fingerprint-init requires --fingerprint-script");
     }
     if auto_touch.is_some() && (touch || cfg.display) {
         die("--auto-touch-ms is mutually exclusive with --touch and --display");

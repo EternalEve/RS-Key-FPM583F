@@ -87,6 +87,7 @@ fn register_without_touch_is_refused() {
         let mut state = crate::FidoState::new();
         let mut presence = Fixed(crate::Presence::Timeout);
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -128,6 +129,7 @@ fn u2f_disabled_when_always_uv() {
     let mut state = crate::FidoState::new();
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -204,6 +206,7 @@ fn u2f_survives_always_uv_behind_builtin_uv() {
     let (sw, n) = {
         let mut state = crate::FidoState::new();
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut pad,
             dev: dev(),
             fs: &mut fs,
@@ -232,6 +235,7 @@ fn u2f_survives_always_uv_behind_builtin_uv() {
     let sw = {
         let mut state = crate::FidoState::new();
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut pad,
             dev: dev(),
             fs: &mut fs,
@@ -252,6 +256,7 @@ fn u2f_survives_always_uv_behind_builtin_uv() {
     let sw = {
         let mut state = crate::FidoState::new();
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut wrong,
             dev: dev(),
             fs: &mut fs,
@@ -285,6 +290,7 @@ fn u2f_disabled_under_always_uv_when_the_pad_has_no_pin() {
     };
     let mut state = crate::FidoState::new();
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut pad,
         dev: dev(),
         fs: &mut fs,
@@ -320,6 +326,7 @@ fn u2f_dont_enforce_still_runs_builtin_uv() {
         let mut state = crate::FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -348,6 +355,7 @@ fn u2f_dont_enforce_still_runs_builtin_uv() {
     };
     let mut state = crate::FidoState::new();
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut wrong,
         dev: dev(),
         fs: &mut fs,
@@ -387,6 +395,7 @@ fn register_then_authenticate() {
         let mut state = crate::FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -439,6 +448,7 @@ fn register_then_authenticate() {
         let mut state = crate::FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -482,6 +492,7 @@ fn check_only_and_bad_handle() {
         let mut state = crate::FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -505,6 +516,7 @@ fn check_only_and_bad_handle() {
     let mut state = crate::FidoState::new();
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -553,6 +565,7 @@ fn enforce_auth_rejects_unknown_handle_without_touch() {
         calls: 0,
     };
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -588,6 +601,7 @@ fn authenticate_p1_matrix() {
         let mut state = crate::FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -640,6 +654,7 @@ fn authenticate_p1_matrix() {
         };
         let (sw, n) = {
             let mut ctx = Ctx {
+                fingerprint: None,
                 presence: &mut presence,
                 dev: dev(),
                 fs: &mut fs,
@@ -672,6 +687,7 @@ fn version() {
     let mut state = crate::FidoState::new();
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -692,6 +708,7 @@ fn bad_cla_and_ins() {
     let mut state = crate::FidoState::new();
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -728,6 +745,7 @@ fn no_enforce_authenticate_cannot_flush_the_audit_journal() {
     let mut state = crate::FidoState::new();
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -796,6 +814,7 @@ fn a_faulted_counter_probe_does_not_sign_a_fabricated_u2f_counter() {
         let mut state = crate::FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs,
@@ -864,6 +883,7 @@ fn a_refused_counter_advance_signs_nothing() {
         let mut state = crate::FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs,

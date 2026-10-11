@@ -3,29 +3,25 @@
 
 # 第一阶段执行记录
 
-2026-10-11。状态：前置准备与第一阶段（1.1–1.8）完成。无屏 2MB 基线、真正重建、模拟器构建及实际布局核对通过；用户授权删除无用 ZIP 后，原始完整 gate 从头重跑退出 0，日志明确显示 `ALL CHECKS PASSED`。
+2026-10-11。状态：前置准备与第一阶段（1.1–1.8）完成。无屏 2MB 基线、真正重建、模拟器构建及实际布局核对通过；原始完整 gate 从头运行退出 0，日志明确显示 `ALL CHECKS PASSED`。
 
-本记录对应[第一阶段计划](RSKEY-FPM583F-PHASE-1-PLAN.md)的 1.1–1.8。保留未经业务修改的基线；本轮只进行主机环境准备、构建、测试、静态审查和说明更新。实机、指纹驱动、授权分流和标准客户端认证闭环属于后续阶段。
+本记录对应[第一阶段计划](RSKEY-FPM583F-PHASE-1-PLAN.md)的 1.1–1.8。保留未经业务修改的基线；本轮只进行主机环境准备、构建、测试、静态审查和说明更新。本记录保留第一阶段当时的基线结论；后续软件结果见第二、三阶段记录。完整日志、PDF 副本和构建产物仅作[本地归档](RSKEY-FPM583F-REFERENCES.md#上传与本地保留)。
 
 ## 1. 当前目标、源码与依赖身份（1.1）
 
-用户说明当前为全空板，板内无必要数据；当前开发不要求保留既有凭据/PIN。目标按计划采用 RP2350-Zero-CM、2MB Flash。本轮未连接设备，实物型号、序列号、芯片修订、实际 Flash 容量、OTP 状态及指纹模块库存未验证；空板说明不是 OTP 空白证据。
+用户说明目标为全空板，无需保留既有凭据/PIN。计划采用 RP2350-Zero-CM、2MB Flash；本阶段未连接设备，实物型号、芯片修订、实际容量、OTP 和模块库存未验证。
 
 - 业务基线：`7c9a57836647c363a9f006da1892e886869afb61`。
-- 当前 HEAD：`f1e09b70918df9d194ce98e813e19eb5d18bc25c`，已提交删除资料 ZIP；相对业务基线仅有 `.gitignore` 差异，业务源码和锁文件相同。此前构建、重建和 `gate-full.log` 的源码 HEAD 为 `3863440c8b4737bd110c06fb7bd95ca5de7f24c3`，运行完整 gate 时 ZIP 已在工作树删除；保留原产物身份。
-- 分支：`fpm583f-dev`，跟踪 `origin/fpm583f-dev`；远端使用 `git@github.com:EternalEve/RS-Key-FPM583F.git`。本轮没有提交、推送或标签操作。
-- 原 ZIP 共 11 项计划/记录/协议文本，不含模块 PDF 或测试 EXE；用户明确指示“删除该zip，这是没有用的文件”后，根文件与临时保留的同字节副本均已删除，现已由维护者提交。当前受跟踪的本地差异为维护者添加 PDF 忽略规则的 `.gitignore`；本次保持其字节不变。历史 `F:/...` 路径不代表本机可用文件。
-- 计划、执行记录、证据目录和 SAFETY.md 被既有规则忽略，按用户要求不改 ignore、不强制加入 Git；这些交付物保存在本地，需另行备份。
+- 基线构建 HEAD：`3863440c8b4737bd110c06fb7bd95ca5de7f24c3`；最终复核 HEAD：`f1e09b70918df9d194ce98e813e19eb5d18bc25c`。其业务源码与锁文件均与业务基线一致，保留原产物身份。
+- 第一阶段没有提交、推送或设备操作。
 
-当前 Linux 文件字节 SHA256，已与 `git show <业务基线>:<路径>` 逐一比较相同：
+第一阶段 Linux 文件字节的 SHA256 已与业务基线逐一核对；以下是历史身份，不声明后续修改后的锁文件仍同字节：
 
 | 文件 | SHA256 |
 | --- | --- |
 | Cargo.lock | `f46dc8fb06060a5c07116f27b523f51c95f02a71974043ab702e3215b328576b` |
 | flake.lock | `329b2d37efcae49a4dec8a14d28a8257304d999f78f6cfdd4e219b7d944b281b` |
 | tools/emu/Cargo.lock | `7fb1e8eba983b8eaeb8a509238fb9498f081725b9a57e4bf9748e05230f7adf0` |
-
-旧记录的 Windows 哈希可由上述文件 LF→CRLF 逐一复现，差异不来自依赖升级。历史值分别为 Cargo `641aa0bda7d81a8eeea3eb242f4aba1e506e8ba435b14833e61e23a69e759201`、flake `1c49bc97f3cf8267c4437619a0dc0487b758e8d6d781dc3c62e0d67f0caf413c`、emu `3bb59a89033a5b37d245e8fd5ecb6954eae136fb42bdd0b7c967d24c793a6d54`。
 
 根、emu、fuzz 的 Embassy Git 修订均为 `6c28443489ad5940ab8c1824c090b1f8a7233bf6`。各工作区保留 `third_party/sequential-storage` 8.0.0 本地补丁，没有替换成同版本 crates.io 包。
 
@@ -44,52 +40,30 @@
 
 ## 2. 固定环境与复现入口（1.2）
 
-实际主机为 Ubuntu 26.04.1、Linux `7.0.0-38-generic`、x86_64。用户安装官方 Nix daemon 后，本次工具会话使用：
+所有 Cargo 构建、检查与 ELF 工具在固定 Nix 环境执行；本次观察到 Nix 2.35.2、Rust/Cargo 1.96.0、Python 3.13.13、ARM GCC 15.2.1、flip-link 0.1.12、rust-lld 22.1.2、picotool v2.2.0-a4。固件目标为 `thumbv8m.main-none-eabihf`，主机目标为 `x86_64-unknown-linux-gnu`。gate 使用的 Node v24.21.0 来自主机 PATH，当前 flake 不固定它。
+
+主要输入为 nixpkgs `331800de5053fcebacf6813adb5db9c9dca22a0c`、fenix `3a556b6fbd42412b6f3f0ea8d35959b1826f86ff`；完整输入以 `flake.lock` 为准。开发环境原有 python-fido2 2.1.1 未作为指定客户端验收，第二阶段另行隔离固定 2.2.1。
 
 ```sh
-export PATH="/nix/var/nix/profiles/default/bin:$PATH"
 export NIX_CONFIG='experimental-features = nix-command flakes'
-```
-
-所有 Cargo 构建、检查和 ELF 工具调用均在固定 `nix develop` 中执行；Nix 包直接用锁定 flake 构建，不使用浮动 rustup stable。观察到的版本见 [cargo-prepare.log](RSKEY-FPM583F-PHASE-1-EVIDENCE/cargo-prepare.log)：
-
-| 工具 | 实际版本/身份 |
-| --- | --- |
-| Nix | 2.35.2 |
-| Rust | 1.96.0；`ac68faa20c58cbccd01ee7208bf3b6e93a7d7f96`，2026-05-25；LLVM 22.1.2 |
-| Cargo | 1.96.0；`30a34c6821b57de0aaec83a901aca39f88f6778c`，2026-05-25 |
-| 固件目标 | `thumbv8m.main-none-eabihf` |
-| 主机目标 | `x86_64-unknown-linux-gnu` |
-| ARM GCC | Arm GNU Toolchain 15.2.Rel1，15.2.1 20251203，build arm-15.86 |
-| flip-link | Nix 包 0.1.12；工具不支持普通 `--version`，以实际可执行文件所在包名记录 |
-| rust-lld | 22.1.2，`-flavor gnu --version` |
-| picotool | v2.2.0-a4，Linux GNU-15.2.0 Release |
-| Python | 3.13.13；开发环境 python-fido2 2.1.1、cryptography 48.0.0，见 [client-environment.log](RSKEY-FPM583F-PHASE-1-EVIDENCE/client-environment.log) |
-| Node（gate 使用） | v24.21.0，继承主机 PATH 的 `~/.nvm/.../bin/node`，不由当前 flake 固定 |
-
-主要 Nix 输入：nixpkgs `331800de5053fcebacf6813adb5db9c9dca22a0c`，fenix `3a556b6fbd42412b6f3f0ea8d35959b1826f86ff`；SDL2 输入 nixpkgs `50ab793786d9de88ee30ec4e4c24fb4236fc2674`。完整输入以保留的 `flake.lock` 为准。
-
-先准备 Nix 输入和 Cargo 缓存；根、emu、tui、fuzz 四个工作区的 `cargo fetch --locked` 已全部退出 0。首次准备受仓库默认 embedded target 限制，未覆盖 cargo-deny 读取的全部平台；现已从仓库外的临时工作目录按绝对 manifest 路径补齐全平台锁定依赖，见 [cargo-prepare-all-platforms.log](RSKEY-FPM583F-PHASE-1-EVIDENCE/cargo-prepare-all-platforms.log)。随后 Nix 固件构建在 vendor 环境执行 `cargo build --release --offline --frozen`；emu 使用 `--frozen`；完整 gate 设置 `CARGO_NET_OFFLINE=true`，不自行解析更新依赖。安全数据库检查仍需要获取外部数据库，不能把首次环境下载或安全数据库查询称为完全断网。
-
-```sh
 nix build --no-update-lock-file --max-jobs 1 --cores 2 \
   .#firmware-2mb -o result-phase1-2mb -L
 nix build --no-update-lock-file --max-jobs 1 --cores 2 \
   --rebuild .#firmware-2mb -o result-phase1-2mb -L
-nix develop --no-update-lock-file --max-jobs 1 --cores 2 -c \
+nix develop --no-update-lock-file -c \
   cargo build --frozen --manifest-path tools/emu/Cargo.toml \
   --target x86_64-unknown-linux-gnu -j 2
-nix develop --no-update-lock-file --max-jobs 1 --cores 2 -c \
+nix develop --no-update-lock-file -c \
   env HOST_TARGET=x86_64-unknown-linux-gnu CARGO_BUILD_JOBS=2 \
   CARGO_NET_OFFLINE=true ./scripts/check.sh
 ```
 
-重建环境时，全平台依赖准备也需保留；Cargo 从工作目录向上读取配置，不能在嵌入式默认 target 下仅下载当前两种 target 后就认定 license 扫描缓存完整：
+根、emu、tui、fuzz 四个工作区的锁定依赖均已准备。cargo-deny 读取全平台依赖；补齐缓存需避开仓库默认 embedded target，不能只 fetch 固件/主机两个 target 后就认定完整：
 
 ```sh
 nix develop -c env -u CARGO_BUILD_TARGET bash -c '
   set -euo pipefail
-  task_repo="/home/ee/桌面/dsh/RS-Key-FPM583F"
+  task_repo="$(git rev-parse --show-toplevel)"
   cd /tmp
   for manifest in Cargo.toml tools/tui/Cargo.toml tools/emu/Cargo.toml fuzz/Cargo.toml; do
     cargo fetch --locked --manifest-path "$task_repo/$manifest"
@@ -97,13 +71,11 @@ nix develop -c env -u CARGO_BUILD_TARGET bash -c '
 '
 ```
 
-恢复时系统盘约 61GB 可用，容量阻塞已解除。先前两次 2MB 构建因磁盘不足和用户暂停中断，不能作为源码失败；Nix optimise 通过硬链接释放 1.6GiB。首次工具探测因 `flip-link --version` 不受支持退出，修正探测后依赖准备通过。保存链接脚本时首次未转义中文 `git+file` URL 被 Nix 拒绝，使用百分号编码后通过；均未改工具链 pin、gate 或业务源码。
-
-Windows 原生路线仅为历史替代方案：原会话未找到 Nix/Rust/ARM GCC/picotool，未取得可用 WSL/Docker 环境，未完成编译。原生路线还需要 SDL2、系统熵入口及完整 gate 的 Nix 支持；既有 emu `/dev/urandom` 与明确测试用途的 `--seed` 不能互相替代。这些不影响本轮 Linux 路线的结论。
+固件 Nix 构建使用 `--offline --frozen`，emu 使用 `--frozen`，完整 gate 设置 `CARGO_NET_OFFLINE=true`；未升级 pin。首次环境准备及安全数据库获取需要网络，不将整个流程描述为断网。
 
 ## 3. 板级配置与预留（1.3）
 
-实际使用上游 `nix/firmware.nix` 的 `firmware-2mb`：`FLASH_SIZE=2M`、`KVMAIN=896K`，计数器区固定 128KiB；未启用 display、no-touch、bench、always-uv 或 strict-config。实际构建输出见 [build-script-output.log](RSKEY-FPM583F-PHASE-1-EVIDENCE/baseline/build-script-output.log)。未发现意外的 BOARD、LED、presence 或假密钥环境覆盖。
+实际使用上游 `nix/firmware.nix` 的 `firmware-2mb`：`FLASH_SIZE=2M`、`KVMAIN=896K`，计数器区固定 128KiB；未启用 display、no-touch、bench、always-uv 或 strict-config。实际构建输出见 `build-script-output.log`。未发现意外的 BOARD、LED、presence 或假密钥环境覆盖。
 
 | 项目 | 基线实际配置/板级依据 | 后续预留或验证 |
 | --- | --- | --- |
@@ -119,9 +91,9 @@ Windows 原生路线仅为历史替代方案：原会话未找到 Nix/Rust/ARM G
 | 电源 | CM 原理图 U3 ME6217C33M5G，VBUS→3V3；厂商标称 LDO 800mA | 模块 VCC/V_TOUCH、启动/峰值电流、USB 供电预算、掉电倒灌均未知，接线前核算 |
 
 构建生成的 display/wake 常量即使有值，也不表示无屏基线占用对应引脚；其使用在 display feature 下。原理图按官方固定提交保存并视觉核对完整单页：
-[CM 原理图](RSKEY-FPM583F-PHASE-1-EVIDENCE/sources/RP2350-Zero-CM.pdf)，来源 [Waveshare 固定提交](https://github.com/waveshareteam/RP2350-Zero-CM/tree/fd66fd7e9106a4de42d5f1a4dc42938b4aa9ac59)，SHA256 `8fc9ee2bf8c8aaabd3f0c9934e5ea009cdffe666ec9a90e1f54aa57093363686`。
+板级依据为[官方 CM 原理图](RSKEY-FPM583F-REFERENCES.md#rp2350-zero-cm)，固定来源与副本校验值见资料索引。
 
-[RP2350 数据手册](RSKEY-FPM583F-PHASE-1-EVIDENCE/sources/rp2350-datasheet.pdf)来自[芯片官方资料](https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf)，SHA256 `a638d6780da919162660691bfa02c6dcf7c2a0b6e9f18e2d7519c80b664a2e39`。已视觉核对 GPIO Table 3（印刷页 17）和 RP2350-E9（印刷页 1358–1359）：E9 影响 A2 输入漏电，A3 已修复；若实物为 A2，输入被悬空或需要下拉时不能依赖内部下拉，手册给出 3V3 下拉 ≤8.2kΩ 的条件。实物 stepping 未确认，原理图元件标签不是实测身份，也不能替代模块输出电气核对。
+[RP2350 数据手册身份](RSKEY-FPM583F-REFERENCES.md#rp2350)见资料索引。已视觉核对 GPIO Table 3（印刷页 17）和 RP2350-E9（印刷页 1358–1359）：E9 影响 A2 输入漏电，A3 已修复；若实物为 A2，输入被悬空或需要下拉时不能依赖内部下拉，手册给出 3V3 下拉 ≤8.2kΩ 的条件。实物 stepping 未确认，原理图元件标签不是实测身份，也不能替代模块输出电气核对。
 
 现有 `EF_PHY` 可在启动时覆写 LED/power/presence 引脚，使用 `AnyPin::steal`；步骤 3 引入 UART/TOUCH 时必须将预留引脚纳入所有运行时碰撞校验，不能只靠编译期默认配置。当前无屏基线与 GP0/1/2 设计预留没有发现既有冲突；供电和模块端仍未确认。
 
@@ -145,39 +117,30 @@ Windows 原生路线仅为历史替代方案：原会话未找到 Nix/Rust/ARM G
 
 ## 5. 构建、重建与现有检查（1.5）
 
-| 检查 | 实际结果及证据 |
+| 检查 | 第一阶段实际结果 |
 | --- | --- |
-| 固定开发环境与四工作区依赖准备 | 退出 0，[cargo-prepare.log](RSKEY-FPM583F-PHASE-1-EVIDENCE/cargo-prepare.log) |
-| 原始无屏 2MB 构建、PT 打包、UF2 转换 | 退出 0，[build-2mb-expanded.log](RSKEY-FPM583F-PHASE-1-EVIDENCE/build-2mb-expanded.log) |
-| `nix build --rebuild` 真正重编译 | 退出 0，实际编译而非只读缓存；Nix 输出一致性检查通过，[rebuild-2mb.log](RSKEY-FPM583F-PHASE-1-EVIDENCE/rebuild-2mb.log) |
-| 保存实际 memory.x / raw ELF | 退出 0，[capture-layout-encoded.log](RSKEY-FPM583F-PHASE-1-EVIDENCE/capture-layout-encoded.log)；仅增加 postInstall 复制，PT ELF/UF2 哈希与原包一致 |
-| 模拟器独立主机构建 | `cargo build --frozen ... --target x86_64-unknown-linux-gnu` 退出 0，[build-emu.log](RSKEY-FPM583F-PHASE-1-EVIDENCE/build-emu.log)；未启动认证闭环 |
-| 完整仓库 gate | 删除 ZIP 后从头重跑退出 0，明确显示 `ALL CHECKS PASSED`，见 [gate-full.log](RSKEY-FPM583F-PHASE-1-EVIDENCE/gate-full.log)。脚本 3713、CLI 312、interop 45 项测试通过；脚本测试耗时 675.18s，gitleaks 未发现秘密 |
-| 首次完整 gate / cargo-deny 原行复查 | 首次退出 1：离线缓存缺 `winapi-util 0.1.11`，见 [gate-first-offline.log](RSKEY-FPM583F-PHASE-1-EVIDENCE/gate-first-offline.log)；补齐全平台依赖后原 `cargo deny check -D unused-wrapper` 退出 0，见 [cargo-deny-preflight.log](RSKEY-FPM583F-PHASE-1-EVIDENCE/cargo-deny-preflight.log)；随后重新执行完整 gate |
-| 第二次完整 gate / ZIP 删除复查 | 第二次退出 1，停在未登记的 ZIP 类型，见 [gate-spdx-zip.log](RSKEY-FPM583F-PHASE-1-EVIDENCE/gate-spdx-zip.log)；用户授权删除后，原 SPDX 行退出 0，见 [spdx-after-zip-removal.log](RSKEY-FPM583F-PHASE-1-EVIDENCE/spdx-after-zip-removal.log) |
-| SPDX 后的诊断续跑 | 退出 0；脚本 3713、CLI 312、interop 45 项测试通过，gitleaks 未发现秘密，见 [gate-tail-diagnostic.log](RSKEY-FPM583F-PHASE-1-EVIDENCE/gate-tail-diagnostic.log)；仅用于查找独立问题，不替代完整 gate |
-| UF2 地址、块索引及 ELF 内容一致性 | 退出 0，[uf2-conformance.log](RSKEY-FPM583F-PHASE-1-EVIDENCE/uf2-conformance.log) |
+| 固定环境及四工作区依赖准备 | 退出 0；全平台缓存补齐后原 cargo-deny 行通过 |
+| 无屏 2MB 构建、PT 打包、UF2 转换 | 退出 0，逐块地址及 ELF 内容核对通过 |
+| `nix build --rebuild` | 真正重新编译，Nix 输出一致性检查通过；PT ELF/UF2 前后哈希相同 |
+| 捕获实际 memory.x / raw ELF | 仅增加归档复制；PT ELF/UF2 与原包逐一相同 |
+| 模拟器独立主机构建 | 显式 host target 的 frozen 构建退出 0，尚未运行认证闭环 |
+| 原始完整 gate | 从头运行退出 0，`ALL CHECKS PASSED`；脚本 3713、CLI 312、interop 45 项通过，gitleaks 无泄漏 |
+| 手册样例核算及最终引用复核 | 11 组明确示例的长度/双层校验重算通过，88B 位图帧预算核对；最终原始完整 gate 再次通过 |
 
-完整 gate 沿用仓库既定的默认、16M、display、no-touch 和 wipe 构建矩阵及主机测试。无屏 2MB 的验收另外依据本轮 `firmware-2mb` 构建、强制重建、实际链接脚本及逐块打包核对；下面所有资源数字均取自该 2MB 产物。
+完整 gate 使用既定默认、16M、display、no-touch 和 wipe 构建矩阵；2MB 验收另依据本阶段的构建、强制重建及实际布局，不能从默认矩阵推断目标容量。保留的基线产物身份为：
 
-原始包路径 `/nix/store/vpcn8nyfzdp6k7szmsmcly4vf9wnn3qv-firmware-2mb-5.8.0`。实际链接脚本捕获表达式 [capture-memory.nix](RSKEY-FPM583F-PHASE-1-EVIDENCE/capture-memory.nix)将源码固定为当前 HEAD、保留原构建配置，只增存档；捕获包为 `/nix/store/d73glfppsqxagy1pzsjnv5yn8vwmw7wl-firmware-2mb-5.8.0`。捕获包重新编译产生的 PT ELF/UF2 也逐一等于原包。
-
-Nix 原包强制重建前后 SHA256 相同，见 [before](RSKEY-FPM583F-PHASE-1-EVIDENCE/baseline-hashes-before.log)、[after](RSKEY-FPM583F-PHASE-1-EVIDENCE/baseline-hashes-after.log)。本地另存不依赖 Nix GC 的基线产物：
-
-| 产物 | SHA256 |
+| 本地原件 | SHA256 |
 | --- | --- |
-| [未签名 PT ELF](RSKEY-FPM583F-PHASE-1-EVIDENCE/baseline/firmware-2mb.elf) | `5430da11d3d7f0ba351ceb1ddf6e3bbf36917f311d580bf827a8cfede990c7f3` |
-| [未签名 UF2](RSKEY-FPM583F-PHASE-1-EVIDENCE/baseline/firmware-2mb.uf2) | `6967a172bc892d400b74798b60380dab8606f7b22328f629f9673a104e7390a4` |
+| 未签名 PT ELF | `5430da11d3d7f0ba351ceb1ddf6e3bbf36917f311d580bf827a8cfede990c7f3` |
+| 未签名 UF2 | `6967a172bc892d400b74798b60380dab8606f7b22328f629f9673a104e7390a4` |
 
-另外保存 [raw ELF](RSKEY-FPM583F-PHASE-1-EVIDENCE/baseline/firmware-raw.elf)、[实际 memory.x](RSKEY-FPM583F-PHASE-1-EVIDENCE/baseline/memory.x)、[构建配置输出](RSKEY-FPM583F-PHASE-1-EVIDENCE/baseline/build-script-output.log)。raw ELF 不带 PT。`check.sh` 结束时会覆盖 target 下的 firmware 为 no-touch 测试配置；不能将该文件误认为本表的 2MB 基线或直接用作设备候选镜像。
+raw ELF、memory.x、完整日志与上述镜像保存在忽略的第一阶段证据目录；不作为源码交付物。`check.sh` 最终覆盖 target 下的 firmware 为 no-touch 测试配置，不能将其误认作此处的 2MB 基线；raw ELF 也不带分区表。
 
-保留既有 RSA C/汇编 `.data.bignum_hl/.data.bignum_asm` section attributes 警告；它们不是 Clippy 失败。未删除保护或修改编译器使日志安静。可重现结论仅针对本次固定输入与工具链，不保证不同平台/编译器天然同字节。
-
-供应链扫描还报告现有未维护包 bare-metal、paste、proc-macro-error2，以及被 yanked 的 wnaf 0.14.0；这是原工具策略允许的警告，不是本轮新增豁免或“没有任何依赖维护问题”。首次 audit 已正常取得数据库并完成扫描；没有借升级 pin 或删除警告来恢复 gate。
+已有 RSA section attributes 和原策略允许的未维护/yanked 依赖警告保持原样，没有借升级 pin、删除警告或新增豁免恢复 gate。可重现结论仅针对当次固定输入与工具链，不能外推不同平台/编译器的字节一致性；文档向量核算不等于驱动或实物兼容验收。
 
 ## 6. 实际布局与增量门槛（1.6）
 
-以实际 memory.x、ELF LOAD、符号、分区表和 UF2 测量，工具原始输出见 [layout-2mb.log](RSKEY-FPM583F-PHASE-1-EVIDENCE/layout-2mb.log)及 [uf2-blocks.log](RSKEY-FPM583F-PHASE-1-EVIDENCE/uf2-blocks.log)。以下范围均为半开区间：
+以第一阶段实际 memory.x、ELF LOAD、符号、分区表和 UF2 测量；完整工具输出留在本地归档。以下范围均为半开区间：
 
 | 区域 | 实际范围/容量 | 基线占用与剩余 | 增量/复测依据 |
 | --- | --- | --- | --- |
@@ -209,14 +172,9 @@ Nix 原包强制重建前后 SHA256 相同，见 [before](RSKEY-FPM583F-PHASE-1-
 
 ## 7. 模块必要能力及候选资料（1.7）
 
-当前资料已补齐并切换依据：
+电气、排线和标称容量依据 [583F 规格书 V1.0.2](RSKEY-FPM583F-REFERENCES.md#fpm583f)；命令与报文按用户指定的 [583F/383C 通用协议 V1.2.0](RSKEY-FPM583F-REFERENCES.md#fpm383c583f)。资料索引保留原件版本与 SHA256，PDF 不随源码上传。
 
-| 当前文件 | 文档身份与用途 | SHA256 |
-| --- | --- | --- |
-| [583F 规格书](FPM583F.pdf) | HLK-FPM583F V1.0.2，封面日期 2021.12.23；电气、排线、100 枚容量、6 次拼接及启动流程 | `27b19563afffec537b37cee7445c93b85af8da86900d666f5103005ead6c40d4` |
-| [583F/383C 通用协议](FPM383C583F通用用户通信协议手册V1.2.pdf) | 按用户指定作为 583F/383C 通用命令依据；46 页，封面 V1.2.0 / 2020.09.11，封面型号为 HLK-FPM383C，部分页眉为 V1.1.10 | `b3a42649f5c7e608d4c276a929000b1cfd5cce986cbc6a9a46a9d689175e96d9` |
-
-原 TXT 已由用户删除，不再作为当前协议依据。文档版本不等于实物固件版本；采用用户指定的通用适用范围，实际模块型号/固件与行为仍在第六阶段核对。以下页码均为相应 PDF 的印刷页；已经核对相关完整页面的图表与文字。
+文档版本不等于实物固件版本；实际模块型号/行为留待第六阶段核对。以下页码均为对应 PDF 的印刷页，已核对相关完整页面的图表与文字。
 
 ### 报文依据
 
@@ -261,7 +219,7 @@ Nix 原包强制重建前后 SHA256 相同，见 [before](RSKEY-FPM583F-PHASE-1-
 | [a608_embedded 帧定义](https://github.com/NightSling/a608_embedded_hal/blob/e8ae902a469aa165a78a76389de5302c75232e21/src/lib.rs#L7) | Rust，同步 I/O/固定缓冲；当前匹配状态保存在对象中 | manifest 标识 MIT；只参考缓冲/测试，零进度循环、丢弃校验和及旧结果保留须另评估 |
 | [FPM-C 帧定义](https://github.com/brianrho/FPM-C/blob/2255a7feab69ecf493bc743fd67e88db59463e4d/src/fpm.h#L61) | C；UART/时钟回调、解析状态参考 | 同一头文件声明 MIT；只参考状态/超时思路，不引入 EF01 协议与跨语言运行层 |
 
-此前 web/API 查询曾返回 403/cache miss；本次通过固定提交的原始文件补充帧头和 FPM-C 许可声明核对，不把访问失败当成不存在许可。第五阶段按新手册做最小适配；如真实能力与第三、四阶段契约冲突，先暂停受影响实现，不能以旧协议字段补齐。
+第五阶段按新手册做最小适配；如真实能力与第三、四阶段契约冲突，先暂停受影响实现，不能以旧协议字段补齐。
 
 ## 8. 后续接入索引、风险与阶段判定（1.8）
 
@@ -276,30 +234,13 @@ Nix 原包强制重建前后 SHA256 相同，见 [before](RSKEY-FPM583F-PHASE-1-
 | `crates/rsk-fs`、`crates/rsk-store` | 主控版本化目录、pending、持久重试与隔离恢复；记录更新需保持既有凭据/密封兼容 |
 | `tools/emu/src/device.rs`、`presence.rs`、`signals.rs`、`hid.rs`、`rng.rs`、`store.rs` | 复用实际 applet/存储；脚本模块/确认注入；OS 熵；CTAPHID reports 和待取消响应 |
 
-同步 FIDO worker 不能等待同一执行器内无法被调度的 async 任务。候选 BufferedUart IRQ 接收配合有界轮询尚未实现；共享 RefCell 借用、Flash/XIP 停顿、IRQ RX 溢出及 Keepalive/CANCEL 都是步骤 3 的模型和步骤 6 的板上验证项，本阶段只建立索引，没有证明执行桥可行。
+第一阶段尚未实现执行桥或标准客户端认证；上述源码索引与第 6 节预算用于后续工作，不代表对应能力已通过。标准客户端与指纹软件闭环的后续结果分别见[第二阶段记录](RSKEY-FPM583F-PHASE-2-RECORD.md)及[第三阶段记录](RSKEY-FPM583F-PHASE-3-RECORD.md)。
 
-第二阶段可以复用 `tests/emu.py` 的 64B CTAPHID TCP shim（默认 HID 7799、CCID 7800），但该 shim 替代 hid/smartcard 模块，并明确拒绝 61/65 第三方套件。真实 python-fido2 使用自己的 HID backend，尚无现成 TCP 适配。步骤 2 需要最小 report transport 适配，同时保留真实标准客户端编码/处理/签名验证，不能用 socket 预制响应替代。
+| 未决边界 | 后续验证 |
+| --- | --- |
+| 最终 Flash/RAM 与最坏运行时栈 | 每阶段重新链接测量；板上栈、IRQ/XIP 与响应时延在阶段六验证 |
+| 2MB 存储压力与恢复 | 按目标 224/32 页几何验证凭据、生物目录、日志及 GC，不外推默认 emu 的 352/32 页 |
+| 手册矛盾与真实模块行为 | 阶段五准备逐命令独立向量及最小适配；阶段六核对电气、时序、取消与耐久 |
+| 实物身份、OTP、启动及恢复 | 任何设备动作前按 SAFETY 单独核对和具体授权 |
 
-当前 devshell python-fido2 是 2.1.1，工程计划指定 2.2.1；这是第二阶段进入前需解决的版本来源和隔离依赖问题。本轮未更改 flake/toolchain pin，也未把 2.1.1 当作指定客户端版本验收。libfido2/USB-IP 和浏览器实际 USB 互通留待计划对应阶段。
-
-| 未决项 | 影响/下一动作 | 必须解决阶段 |
-| --- | --- | --- |
-| 新增 Flash/RAM 的可信增量 | 保持本记录 227KiB Flash / 9120B 静态增量天花板；实现后逐项测量及运行时验证，必要时先调整范围 | 3/4/5；运行时 6 |
-| 标准客户端版本和 TCP bridge | 准备计划版本的可追溯环境，再证明原基线 PIN→注册→断言→签名验证 | 2 |
-| 2MB 存储压力与共享依赖差异 | 使用实际目标几何和最大正常业务集合，不将默认 emu 容量结果外推 | 4/后续互通 |
-| 手册矛盾与实物固件一致性 | 规格/协议 PDF 已齐；处理第 7 节矛盾、逐命令独立向量及最小适配，真实保存/清理另验 | 5；电气/真实时序/耐久 6 |
-| 实物身份/电气/OTP/启动恢复 | 按 SAFETY 完成独立目标核对和具体动作授权 | 任何设备动作前 |
-
-第一阶段按计划完成。第二次完整运行退出 1，停在 `SPDX headers`：当时 HEAD 新增的 `RS-Key-FPM583F.zip` 不在既有文件类型分类中。用户授权删除该无用文件后，根 ZIP 及证据目录中的临时副本均已删除；原文件 SHA256 为 `8e27a71a675735a14d8af489fd10b91b8f20aebc6c9d2aee551560e40bc51fb0`。删除后原 SPDX 行及第三次原始完整 gate 均退出 0；首次执行未改 ignore、文件类型分类或正式 gate，也未提交删除。后续删除由维护者提交，当前状态见第 1 节。
-
-独立[诊断续跑](RSKEY-FPM583F-PHASE-1-EVIDENCE/gate-tail-diagnostic.log)用于查清 SPDX 后的问题，已退出 0；最终验收依据是随后从头运行、退出 0 的原始完整 gate。真实 2MB 链接有明确余量，能力未知与增量未定没有被当作已支持；依第一阶段计划，可进入步骤 2、3 的可逆软件工作，并保留资源复测门槛。工程步骤 1 完成不等于产品里程碑 1 的标准客户端及执行桥验证完成。本轮没有进入这两个实现阶段，也未进行设备动作或生产签名。
-
-## 9. 通用协议替换与引用复核（2026-10-11）
-
-本次按用户提供的新 PDF 更新 8 份本地说明：主计划、工程计划、阶段 1/2/4/5 计划、本记录与 SAFETY.md；阶段 3 计划的授权/执行契约保持原样。当前项目链接采用相对路径，旧 TXT 已退出当前依据；Pico FIDO 的 32 个历史 Windows 链接改为明确的来源路径文本，保留历史结论，不假称文件在本机可用。
-
-- [引用检查](RSKEY-FPM583F-PHASE-1-EVIDENCE/protocol-reference-check.log)：9 份本地文档的目标、锚点、引用定义及代码围栏通过；源码与 5 个锁文件相对业务基线不变，两份 PDF 和原 2MB 基线镜像哈希匹配。外部 HTTP 链接未做全量可用性检查。
-- [手册样例核算](RSKEY-FPM583F-PHASE-1-EVIDENCE/protocol-document-vectors.log)：11 组明确示例的长度与两层校验逐字节重算通过，并核对 88B 位图帧预算。这是文档算术核对，没有实现驱动或证明实物兼容。
-- [完整 gate 复核](RSKEY-FPM583F-PHASE-1-EVIDENCE/gate-protocol-reference-update.log)：HEAD `f1e09b70` 下原始 `check.sh` 从头运行，已观察退出 0 和 `ALL CHECKS PASSED`；gate 脚本测试 3713 通过，CLI 312 通过，interop 45 通过，gitleaks 未发现泄漏。使用既有锁定环境及已授权的临时密钥离线签名测试，未修改 gate。
-
-`.gitignore` 与本次开始时的快照逐字节相同（SHA256 `195b1dd85ffed0a02d5dde5e62914c3783298ffa7160d204ff8cbda48a964a40`）。维护者已有的 CRLF 修改使 `git diff --check` 对该文件第 54–55 行报告尾随空白；按用户要求保留，不修改 ignore。上述本地说明仍被忽略，本次没有提交、推送或设备动作。
+第一阶段按 1.1–1.8 完成。工程步骤验收不等于产品实物里程碑完成；本阶段没有设备动作或生产签名。

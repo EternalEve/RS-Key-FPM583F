@@ -50,6 +50,7 @@ impl Harness {
     fn with<T>(&mut self, f: impl FnOnce(&mut Ctx<RamStorage, SeqRng>) -> T) -> T {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut self.fs,

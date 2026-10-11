@@ -374,10 +374,17 @@ impl<'a> Worker<'a> {
         // slot bits, and any that landed earlier got `OtpHid::new`'s placeholder.
         otp_kbd::set_status(otp_kbd::make_status_frame(self.ccid.otp_status_record()));
         loop {
+            self.ctap.service_fingerprint();
             match select3(
                 REQ.wait(),
                 otp_kbd::OTP_REQ.wait(),
-                embassy_time::Timer::after(Duration::from_millis(BTN_POLL_MS)),
+                embassy_time::Timer::after(Duration::from_millis(
+                    if cfg!(feature = "fingerprint") {
+                        rsk_device::fingerprint_io::SERVICE_INTERVAL_MS
+                    } else {
+                        BTN_POLL_MS
+                    },
+                )),
             )
             .await
             {
@@ -412,6 +419,18 @@ impl<'a> Worker<'a> {
                 }
             }
         }
+    }
+
+    #[cfg(all(feature = "fingerprint", not(feature = "display")))]
+    pub fn set_fingerprint(
+        &mut self,
+        sensor: &'a RefCell<dyn rsk_fido::fingerprint::Sensor>,
+        bindings: &'a RefCell<
+            dyn rsk_fido::fingerprint::Bindings<crate::flash_storage::FlashStorage>,
+        >,
+    ) {
+        self.ctap.set_fingerprint(sensor, bindings);
+        self.ccid.set_fingerprint(sensor, bindings);
     }
 
     /// One transport (CTAPHID/CCID) request: run the synchronous dispatch and
@@ -488,8 +507,11 @@ impl<'a> Worker<'a> {
                         if forced || changed {
                             self.ctap.deselect_msg();
                         }
-                        self.ctap
-                            .handle_msg(&req[..*req_len], crate::usb_attach::elapsed_ms())
+                        self.ctap.handle_msg(
+                            *cid,
+                            &req[..*req_len],
+                            crate::usb_attach::elapsed_ms(),
+                        )
                     }
                     Kind::Apdu => self
                         .ccid

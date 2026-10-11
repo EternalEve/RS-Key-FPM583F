@@ -77,14 +77,8 @@ pub fn keepalive_status(is_cbor: bool, up_pending: bool) -> Option<u8> {
     }
 }
 
-/// Whether a report read while a request is in flight is a `CTAPHID_CANCEL` for
-/// the active channel `cid` — the signal to abort the worker's user-presence
-/// wait. `n` is the number of bytes read. The transport reads frames
-/// concurrently with the worker only to catch this; everything else is ignored.
-///
-/// Public because `tools/emu` has to make the same judgement on its own socket:
-/// the CANCEL rule is one sentence of protocol, and a second copy of it is a
-/// second thing to keep in step.
+/// Recognize the active channel's CANCEL header. `interruption` also checks
+/// report completeness and length before requesting cancellation.
 pub fn is_cancel_frame(frame: &[u8; HID_RPT_SIZE], n: usize, cid: u32) -> bool {
     n >= 5
         && frame[4] == CTAPHID_CANCEL
@@ -94,6 +88,53 @@ pub fn is_cancel_frame(frame: &[u8; HID_RPT_SIZE], n: usize, cid: u32) -> bool {
 /// because `tools/emu` bounds the read on its own socket with it: one deadline
 /// for both transports, or the emulator wedges where the device recovers.
 pub const RX_TIMEOUT_MS: u64 = 500;
+
+pub const INIT_NONCE_LEN: usize = 8;
+pub const INIT_RESPONSE_LEN: usize = 17;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Interruption {
+    None,
+    Cancel,
+    Resync([u8; INIT_NONCE_LEN]),
+    Error(u32, u8),
+}
+
+pub fn interruption(frame: &[u8; HID_RPT_SIZE], n: usize, active: u32) -> Interruption {
+    if n != HID_RPT_SIZE {
+        return Interruption::None;
+    }
+    if is_cancel_frame(frame, n, active) && frame[5..7] == [0, 0] {
+        return Interruption::Cancel;
+    }
+    if frame[4] & 0x80 == 0 || frame[4] == CTAPHID_CANCEL {
+        return Interruption::None;
+    }
+    let cid = u32::from_le_bytes(frame[..4].try_into().unwrap());
+    if cid == 0 || (cid == CID_BROADCAST && frame[4] != CTAPHID_INIT) {
+        return Interruption::Error(cid, ERR_INVALID_CHANNEL);
+    }
+    if cid == active && frame[4] == CTAPHID_INIT {
+        if u16::from_be_bytes([frame[5], frame[6]]) as usize != INIT_NONCE_LEN {
+            return Interruption::Error(cid, ERR_INVALID_LEN);
+        }
+        return Interruption::Resync(frame[7..7 + INIT_NONCE_LEN].try_into().unwrap());
+    }
+    Interruption::Error(cid, ERR_CHANNEL_BUSY)
+}
+
+pub fn init_response(nonce: &[u8], cid: u32, can_wink: bool) -> [u8; INIT_RESPONSE_LEN] {
+    let mut response = [0; INIT_RESPONSE_LEN];
+    let n = nonce.len().min(INIT_NONCE_LEN);
+    response[..n].copy_from_slice(&nonce[..n]);
+    response[INIT_NONCE_LEN..INIT_NONCE_LEN + 4].copy_from_slice(&cid.to_le_bytes());
+    response[12] = CTAPHID_IF_VERSION;
+    response[13] = VERSION_MAJOR;
+    response[14] = VERSION_MINOR;
+    response[15] = VERSION_BUILD;
+    response[16] = init_capabilities(can_wink);
+    response
+}
 // Abandon a response if the host stops draining the IN endpoint for this long.
 // `HidWriter::write` only completes once the host reads the report, so a client
 // that walks away mid-response would otherwise block the transport task forever
@@ -545,6 +586,7 @@ pub struct CtapHid<'d, D: Driver<'d>, H: MsgHandler> {
     /// selects the `KEEPALIVE` status byte (`UPNEEDED` vs `PROCESSING`). The firmware
     /// reads its worker flag; a `|| false` stand-in keeps the status at `PROCESSING`.
     up_pending: fn() -> bool,
+    cancellable: fn() -> bool,
     /// Signal the worker (on its own executor) to abort an in-flight touch wait,
     /// invoked when a `CTAPHID_CANCEL` arrives for the channel being processed.
     /// The aborted command returns `CTAP2_ERR_KEEPALIVE_CANCEL`. A `|| {}` stand-in
@@ -571,10 +613,15 @@ impl<'d, D: Driver<'d>, H: MsgHandler> CtapHid<'d, D, H> {
             asm: Reassembler::new(),
             scratch: [0; CTAP_MAX_MESSAGE],
             up_pending,
+            cancellable: || false,
             request_cancel,
             cids: CidAllocator::new(),
             lock: ChannelLock::default(),
         }
+    }
+
+    pub fn set_cancellable(&mut self, cancellable: fn() -> bool) {
+        self.cancellable = cancellable;
     }
 
     /// Read frames forever, reassemble messages, answer native commands. While a
@@ -645,9 +692,6 @@ impl<'d, D: Driver<'d>, H: MsgHandler> CtapHid<'d, D, H> {
                 self.handler.reset_app_selection();
                 // resp: nonce(8) | newcid(4) | iface(1) | major | minor | build | caps
                 let nonce = self.asm.message();
-                let mut resp = [0u8; 17];
-                let k = nonce.len().min(8);
-                resp[..k].copy_from_slice(&nonce[..k]);
                 // §11.2.9.1.3: on the broadcast CID this allocates a fresh channel;
                 // on an already-allocated one it only resynchronises that channel,
                 // and the response names the CID it arrived on.
@@ -656,12 +700,7 @@ impl<'d, D: Driver<'d>, H: MsgHandler> CtapHid<'d, D, H> {
                 } else {
                     cid
                 };
-                resp[8..12].copy_from_slice(&assigned.to_le_bytes());
-                resp[12] = CTAPHID_IF_VERSION;
-                resp[13] = VERSION_MAJOR;
-                resp[14] = VERSION_MINOR;
-                resp[15] = VERSION_BUILD;
-                resp[16] = init_capabilities(self.handler.can_wink());
+                let resp = init_response(nonce, assigned, self.handler.can_wink());
                 write_message(&mut self.writer, cid, CTAPHID_INIT, &resp).await;
             }
             CTAPHID_PING | CTAPHID_SYNC => {
@@ -742,16 +781,17 @@ impl<'d, D: Driver<'d>, H: MsgHandler> CtapHid<'d, D, H> {
             asm,
             scratch,
             up_pending,
+            cancellable,
             request_cancel,
             ..
         } = self;
         let up_pending = *up_pending;
+        let cancellable = *cancellable;
         let request_cancel = *request_cancel;
         let data = asm.message();
-        // Frames read while the worker runs are inspected only for CTAPHID_CANCEL,
-        // never reassembled (the message buffer is in use), so a scratch buffer
-        // disjoint from `asm` is enough.
+        // The worker still borrows `asm`; interrupt reports need separate storage.
         let mut watch = [0u8; HID_RPT_SIZE];
+        let mut resync = None;
         let n = {
             let mut fut = core::pin::pin!(async {
                 if is_cbor {
@@ -761,15 +801,9 @@ impl<'d, D: Driver<'d>, H: MsgHandler> CtapHid<'d, D, H> {
                 }
             });
             loop {
-                // Only watch the reader for CTAPHID_CANCEL while a touch is
-                // pending. That is the only window the platform sends CANCEL, and
-                // the only time it is not pipelining the next request. Reading
-                // frames during fast/crypto processing would consume — and then
-                // drop — a pipelined next command (e.g. the rapid getPinToken loop
-                // in conformance ClientPin-GetRetries), wedging the transport. So
-                // off the touch wait we race only the worker and the keepalive,
-                // exactly like before the CANCEL support was added.
-                if up_pending() {
+                // Matching remains cancellable after input has been collected.
+                // Fast commands leave pipelined reports for the next dispatch.
+                if up_pending() || cancellable() {
                     match select3(
                         fut.as_mut(),
                         Timer::after_millis(KEEPALIVE_MS),
@@ -783,12 +817,21 @@ impl<'d, D: Driver<'d>, H: MsgHandler> CtapHid<'d, D, H> {
                                 write_message(writer, cid, CTAPHID_KEEPALIVE, &[status]).await;
                             }
                         }
-                        // A CTAPHID_CANCEL on the active channel aborts the worker's
-                        // touch wait; the command then returns KEEPALIVE_CANCEL
-                        // itself. Any other mid-flight frame is ignored.
                         Either3::Third(read) => {
-                            if matches!(read, Ok(k) if is_cancel_frame(&watch, k, cid)) {
-                                request_cancel();
+                            if let Ok(n) = read {
+                                match interruption(&watch, n, cid) {
+                                    Interruption::Cancel => request_cancel(),
+                                    Interruption::Resync(nonce) => {
+                                        // Dropping the future would release the worker's
+                                        // exchange buffer before its reply is drained.
+                                        resync = Some(nonce);
+                                        request_cancel();
+                                    }
+                                    Interruption::Error(other, code) => {
+                                        write_message(writer, other, CTAPHID_ERROR, &[code]).await
+                                    }
+                                    Interruption::None => {}
+                                }
                             }
                         }
                     }
@@ -804,8 +847,19 @@ impl<'d, D: Driver<'d>, H: MsgHandler> CtapHid<'d, D, H> {
                 }
             }
         };
-        let cmd = if is_cbor { CTAPHID_CBOR } else { CTAPHID_MSG };
-        write_message(writer, cid, cmd, &scratch[..n]).await;
+        if let Some(nonce) = resync {
+            handler.reset_app_selection();
+            write_message(
+                writer,
+                cid,
+                CTAPHID_INIT,
+                &init_response(&nonce, cid, handler.can_wink()),
+            )
+            .await;
+        } else {
+            let cmd = if is_cbor { CTAPHID_CBOR } else { CTAPHID_MSG };
+            write_message(writer, cid, cmd, &scratch[..n]).await;
+        }
         // Request and response both carried secrets (PINs, tokens, key blobs).
         use zeroize::Zeroize;
         scratch[..n].zeroize();

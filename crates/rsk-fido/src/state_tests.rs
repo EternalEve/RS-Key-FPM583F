@@ -195,6 +195,7 @@ fn next_rp(state: &mut FidoState) -> CtapResult {
     let mut presence = AlwaysConfirm;
     let mut out = [0u8; 256];
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,

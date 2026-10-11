@@ -38,6 +38,7 @@ fuzz_target!(|data: &[u8]| {
     let mut state = rsk_fido::FidoState::new();
     let mut presence = rsk_fido::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev,
         fs: &mut fs,

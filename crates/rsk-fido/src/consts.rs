@@ -356,6 +356,10 @@ pub const RP_NICK_MAX_LEN: usize = 24;
 /// is flashed with next.
 pub const EF_CRED_BLOB: u16 = 0xD500;
 pub const EF_PIN: u16 = 0x1080; // PIN: [retries, len, format, verifier(32)]
+pub const EF_UV_STATE: u16 = 0x1092; // fingerprint UV: [version, retries, !retries]
+pub const MAX_UV_RETRIES: u8 = 8;
+/// CCID has no CTAPHID channel; zero is invalid on the HID transport.
+pub const CHANNEL_NONE: u32 = 0;
 /// The **persistent** pinUvAuthToken (CTAP 2.2 §6.5.2.2): a bearer secret the
 /// platform keeps across power cycles, so it is kbase-sealed like the seed. Minted
 /// at provisioning and by a pcmr request; HOLDING it is the grant. Dropped

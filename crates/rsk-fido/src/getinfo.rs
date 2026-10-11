@@ -58,6 +58,42 @@ pub fn get_info(
     enc_cred_store_state: Option<&[u8; ENC_GETINFO_MEMBER_LEN]>,
     out: &mut [u8],
 ) -> CtapResult {
+    get_info_with_uv(
+        pin_set,
+        min_pin_len,
+        force_change,
+        ea_enabled,
+        always_uv,
+        BuiltinUv {
+            supported: builtin_uv,
+            configured: pin_set,
+        },
+        remaining_rk,
+        enc_identifier,
+        enc_cred_store_state,
+        out,
+    )
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct BuiltinUv {
+    pub supported: bool,
+    pub configured: bool,
+}
+
+#[allow(clippy::too_many_arguments)] // same getInfo inputs as the public encoder
+pub(crate) fn get_info_with_uv(
+    pin_set: bool,
+    min_pin_len: u8,
+    force_change: bool,
+    ea_enabled: bool,
+    always_uv: bool,
+    builtin_uv: BuiltinUv,
+    remaining_rk: u16,
+    enc_identifier: Option<&[u8; ENC_GETINFO_MEMBER_LEN]>,
+    enc_cred_store_state: Option<&[u8; ENC_GETINFO_MEMBER_LEN]>,
+    out: &mut [u8],
+) -> CtapResult {
     let mut enc = Encoder::new(minicbor::encode::write::Cursor::new(out));
     write_info(
         &mut enc,
@@ -83,7 +119,7 @@ fn write_info<W: Write>(
     force_change: bool,
     ea_enabled: bool,
     always_uv: bool,
-    builtin_uv: bool,
+    builtin_uv: BuiltinUv,
     remaining_rk: u16,
     enc_identifier: Option<&[u8; ENC_GETINFO_MEMBER_LEN]>,
     enc_cred_store_state: Option<&[u8; ENC_GETINFO_MEMBER_LEN]>,
@@ -120,7 +156,7 @@ fn write_info<W: Write>(
     // i.e. a configured PIN pad, which `process_u2f` then runs on every REGISTER /
     // AUTHENTICATE. Capability alone is not enough: with no PIN set there is nothing
     // to verify against, so U2F goes away as on any screenless build.
-    let u2f = !always_uv || (builtin_uv && pin_set);
+    let u2f = !always_uv || (builtin_uv.supported && builtin_uv.configured);
     enc.u8(0x01)?.array(3 + u64::from(u2f))?;
     if u2f {
         enc.str("U2F_V2")?;
@@ -159,14 +195,12 @@ fn write_info<W: Write>(
     // supported instead" — and false and absent mean the same thing here, so the
     // key is simply not emitted.
     enc.u8(0x04)?
-        .map(11 + u64::from(!LARGE_BLOB_EXT) + u64::from(builtin_uv))?;
+        .map(11 + u64::from(!LARGE_BLOB_EXT) + u64::from(builtin_uv.supported))?;
     enc.str("ep")?.bool(ea_enabled)?;
     enc.str("rk")?.bool(true)?;
     enc.str("up")?.bool(true)?;
-    if builtin_uv {
-        // Built-in UV verifies the same EF_PIN as clientPIN, so `true` = a PIN is
-        // configured (ready), `false` = supported but not yet configured.
-        enc.str("uv")?.bool(pin_set)?;
+    if builtin_uv.supported {
+        enc.str("uv")?.bool(builtin_uv.configured)?;
     }
     enc.str("alwaysUv")?.bool(always_uv)?;
     enc.str("credMgmt")?.bool(true)?;
@@ -291,10 +325,9 @@ fn write_info<W: Write>(
     // the metadata statements.
     enc.u8(0x16)?.array(1)?.str(ATT_FMT_PACKED)?;
 
-    // 0x17 uvCountSinceLastPinEntry is deliberately ABSENT: it counts internal UV
-    // that was NOT a PIN entry, so a platform can force a PIN before the user forgets
-    // it — a biometric's problem. Built-in UV here IS the PIN (`builtin_uv` collects
-    // it on the pad and verifies EF_PIN on clientPIN's own counter), so no gap opens.
+    // 0x17 is absent: screen UV itself verifies the PIN. The experimental
+    // fingerprint service has no production bindings; biometric management and
+    // its complete getInfo surface belong to the provisioning stage.
 
     // 0x18 longTouchForReset — false: a reset takes the same touch every other
     // presence check takes. CTAP 2.3 §6.4 cut the long-touch hold from 2.2's 10 s to

@@ -58,6 +58,7 @@ fn run<S: rsk_fs::Storage>(
 ) -> CtapResult {
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs,
@@ -147,6 +148,7 @@ fn run_with(
     out: &mut [u8],
 ) -> CtapResult {
     let mut ctx = Ctx {
+        fingerprint: None,
         presence,
         dev: dev(),
         fs,
@@ -1426,7 +1428,7 @@ fn wrong_pin_decrements_then_locks_out() {
 fn the_legacy_get_pin_token_refuses_an_rp_id() {
     // CTAP 2.1 §6.5.5.7: subCommand 5 takes neither permissions nor an rpId —
     // it grants the fixed mc|ga set and no rp binding. The refusal was held by
-    // nothing: `clientpin.rs:395` hands `req.rp_id` to `issue_token` whatever the
+    // nothing: `clientpin.rs:398` hands `req.rp_id` to `issue_token` whatever the
     // subcommand, so relaxing the guard mints a legacy token BOUND to an rp the
     // caller named. Found by the reverse mutation pass (D2).
     let (mut fs, mut rng) = setup();
@@ -1639,6 +1641,7 @@ fn pin_verifier_and_pinwrapped_seed_migrate_at_verify() {
     {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -1668,6 +1671,7 @@ fn pin_verifier_and_pinwrapped_seed_migrate_at_verify() {
     let mut state2 = FidoState::new();
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: otp_dev(),
         fs: &mut fs,
@@ -1706,6 +1710,7 @@ fn pin_verifier_and_pinwrapped_seed_migrate_at_verify() {
     let mut state3 = FidoState::new();
     let mut presence3 = crate::AlwaysConfirm;
     let mut ctx3 = Ctx {
+        fingerprint: None,
         presence: &mut presence3,
         dev: otp_dev(),
         fs: &mut fs,
@@ -1742,6 +1747,7 @@ fn a_seed_migration_with_an_already_migrated_verifier_re_arms_the_lap() {
     {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: otp_dev(),
             fs: &mut fs,
@@ -1767,6 +1773,7 @@ fn a_seed_migration_with_an_already_migrated_verifier_re_arms_the_lap() {
     let mut state2 = FidoState::new();
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: otp_dev(),
         fs: &mut fs,
@@ -1818,6 +1825,7 @@ fn a_faulted_seed_probe_leaves_the_verifier_migrated_and_the_seed_behind() {
     {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -1839,6 +1847,7 @@ fn a_faulted_seed_probe_leaves_the_verifier_migrated_and_the_seed_behind() {
         let mut state2 = FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: otp_dev(),
             fs: &mut fs,
@@ -1865,6 +1874,7 @@ fn a_faulted_seed_probe_leaves_the_verifier_migrated_and_the_seed_behind() {
     let mut state3 = FidoState::new();
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: otp_dev(),
         fs: &mut fs,
@@ -1907,6 +1917,7 @@ fn a_local_pin_verify_re_arms_the_lap_before_it_re_keys() {
     {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -1999,6 +2010,7 @@ fn pin_verify_fails_closed_when_the_retry_write_does_not_persist() {
     {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -2016,6 +2028,7 @@ fn pin_verify_fails_closed_when_the_retry_write_does_not_persist() {
     {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -2032,6 +2045,7 @@ fn pin_verify_fails_closed_when_the_retry_write_does_not_persist() {
     drop_writes.set(true);
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -2493,9 +2507,9 @@ fn cose_with_alg(x: &[u8; 32], y: &[u8; 32], alg: Option<i64>) -> std::vec::Vec<
 /// them holds back.
 ///
 /// `pinHashEnc` arrives straight from the CBOR decoder (`clientpin.rs:91`) and
-/// nothing bounds it; `macd` is `[0u8; 112]` and `clientpin.rs:259` copies
+/// nothing bounds it; `macd` is `[0u8; 112]` and `clientpin.rs:261` copies
 /// `newPinEnc ‖ pinHashEnc` into it BEFORE the MAC is verified. Widen that guard
-/// (`clientpin.rs:244-246`) to `&&` — the shape a cargo-mutants MISSED row left
+/// (`clientpin.rs:246-248`) to `&&` — the shape a cargo-mutants MISSED row left
 /// open with "the consequence is not yet determined" — and a correct `newPinEnc`
 /// with an over-long `pinHashEnc` walks past it into a slice-index panic,
 /// unauthenticated. Both protocols, because 112 is `80 + 32` on two and `64 + 48`

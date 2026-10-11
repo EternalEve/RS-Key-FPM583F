@@ -1,17 +1,19 @@
 # RP2350 + FPM583F 指纹 Passkey 计划
 
-2026-10-11 · v1.8 · 工程步骤 1–2 已完成：2MB 基线与标准客户端模拟器闭环通过，原始完整 gate 通过；下一步为步骤 3 的 UP/UV 分流与执行桥接，实物能力待验证。设备操作遵循 [SAFETY.md](SAFETY.md)。
+2026-10-12 · v1.13 · 工程步骤 1–3 的离线软件范围已验收；第三阶段保留 HID/CCID 双入口，恢复后的原始完整 gate 全绿。实物能力待验证。设备操作遵循 [SAFETY.md](SAFETY.md)。
 
 目标：基于 RS-Key 做标准 USB FIDO 安全钥匙，日常注册/登录优先使用真实指纹用户验证（UV），PIN 可回退；标准客户端管理模板。首版先设置 FIDO PIN 再录入指纹，已配置指纹后的日常登录无需输入 PIN；具体客户端行为须实测。指纹功能只接 FIDO，沿用 RS-Key 的凭据和密钥派生机制。
 
-当前进展（2026-10-11）：用户说明目标为全空板，板内无必要数据；当前开发不要求保留既有凭据/PIN。实物身份、OTP 状态及指纹模块库存尚未验证，空板说明不构成设备操作授权。步骤 1 已完成锁定 Nix 环境、无屏 2MB 基线、真实重建与布局核对；步骤 2 已用固定 python-fido2 2.2.1 验证 PIN、passkey 注册/认证、RP 验签、重启持久性及取消/拒绝，24 项测试通过，并修复模拟器索引恢复与异常退出检查。原始完整 gate 已通过，详见[第一阶段记录](RSKEY-FPM583F-PHASE-1-RECORD.md)与[第二阶段记录](RSKEY-FPM583F-PHASE-2-RECORD.md)。当前 UV 来自 PIN；指纹 UV、执行桥和实物 USB/浏览器互通尚未验收，下表产品里程碑仍按各自条件判定。
+当前进展（2026-10-12）：步骤 1–3 的离线软件范围已验收，详见[第一阶段](RSKEY-FPM583F-PHASE-1-RECORD.md)、[第二阶段](RSKEY-FPM583F-PHASE-2-RECORD.md)与[第三阶段记录](RSKEY-FPM583F-PHASE-3-RECORD.md)。固定标准客户端基线 24 项、指纹双入口矩阵 42 项、两项 Kani 证明及实际 gate 反向验证通过，恢复后的原始完整 gate 全绿。2MB 指纹构建静态 RAM 比第一阶段增加 600B，栈仍高于 168KiB 下限。正式生物绑定仍未配置，生物管理、583F 报文及实物验收由步骤 4–7 接续；下表产品里程碑按各自条件判定。
+
+目标按用户说明为全空板，无需保留既有凭据/PIN；实物身份、OTP 状态及模块库存未验证，空板说明不构成设备操作授权。资料与本地归档的处理见[资料索引](RSKEY-FPM583F-REFERENCES.md)。
 
 ## 1. 复用基础
 
 - 固定 [RS-Key 基线](https://github.com/TheMaxMur/RS-Key/tree/7c9a57836647c363a9f006da1892e886869afb61)、Cargo.lock 和工具链；复用其 USB/CTAP、密码学、token、存储、HAL、模拟器和测试。
 - 按 [CTAP 2.2 PS](https://fidoalliance.org/specs/fido-v2.2-ps-20250714/fido-client-to-authenticator-protocol-v2.2-ps-20250714.html) §6.1–6.7 实现，对照基线声明的 [CTAP 2.3 RD](https://fidoalliance.org/specs/fido-v2.3-rd-20251023/fido-client-to-authenticator-protocol-v2.3-rd-20251023.html)、[WebAuthn](https://www.w3.org/TR/webauthn-3/) 及 [FIDO Registry](https://fidoalliance.org/specs/common-specs/fido-registry-v2.2-ps-20220523.html)。字段、认证消息、错误码和取消行为直接依据规范。
 - 管理和互通测试复用 [python-fido2 2.2.1](https://github.com/Yubico/python-fido2/releases/tag/2.2.1) 的生物 API 与 [libfido2 1.17.0](https://github.com/Yubico/libfido2/releases/tag/1.17.0)，使用标准 BioEnrollment 和 PIN/BE 授权。
-- 电气、排线和标称容量依据 [583F 规格书](FPM583F.pdf) V1.0.2；按用户指定，以 [583F/383C 通用协议](FPM383C583F通用用户通信协议手册V1.2.pdf) V1.2.0 作为命令与报文依据。该协议采用八字节帧头、双字节命令和独立的两层校验，现有 EF01 候选驱动不能直接复用报文；具体能力、文档矛盾及实物待验证项见[执行记录](RSKEY-FPM583F-PHASE-1-RECORD.md#7-模块必要能力及候选资料17)与[第五阶段](RSKEY-FPM583F-PHASE-5-PLAN.md)。
+- 电气、排线和标称容量依据 [583F 规格书](RSKEY-FPM583F-REFERENCES.md#fpm583f) V1.0.2；按用户指定，以 [583F/383C 通用协议](RSKEY-FPM583F-REFERENCES.md#fpm383c583f) V1.2.0 作为命令与报文依据。该协议采用八字节帧头、双字节命令和独立的两层校验，现有 EF01 候选驱动不能直接复用报文；具体能力、文档矛盾及实物待验证项见[执行记录](RSKEY-FPM583F-PHASE-1-RECORD.md#7-模块必要能力及候选资料17)与[第五阶段](RSKEY-FPM583F-PHASE-5-PLAN.md)。
 
 ## 2. 必要维护接口
 
@@ -23,9 +25,9 @@
 | 模块适配 | 查询、匹配、录入、目录、删除、取消；有界解析、截止时间和明确结果。firmware 独占 UART，每次执行一个操作；驱动不直接设置 UV 或修改权限 |
 | 持久记录 | 复用 Fs/Storage，版本化保存 templateId→槽位/代次、名称、模块身份线索、生物重试和未完成操作；升级校验、失败恢复与旧格式测试随变更交付 |
 
-脚本替身仅替代模块，标准请求经过真实 FIDO 处理；协议替身与真实 UART 共用解析代码。保留原 PIN/屏幕和 CCID 行为，分离验证方式及锁定副作用，复用既有授权与 USB 调度。先验证同步 FIDO 等待期间串口服务、Keepalive/CANCEL 能持续推进，避免任务互等或共享资源冲突。
+脚本替身仅替代模块，标准请求经过真实 FIDO 处理；协议替身与真实 UART 共用解析代码。保留原 PIN/屏幕和 HID/CCID 双入口功能，修复请求归属缺陷，分离验证方式及锁定副作用，复用既有授权与 USB 调度。先验证同步 FIDO 等待期间串口服务、Keepalive/CANCEL 能持续推进，避免任务互等或共享资源冲突。
 
-指纹构建开关默认关闭，开发测试可显式启用；作为交付配置启用前须通过完整验收。无指纹构建保持原行为；已有生物状态的目标切换配置或降级，遵循[工程实施计划](RSKEY-FPM583F-ENGINEERING-PLAN.md)的清理边界。脚本替身仅用于测试。模块差异优先收敛在适配层，超出既有能力契约时重新评估业务流程；存储变更须有版本及兼容/恢复验证。新增依赖须说明复用价值，固定版本并保留许可。
+指纹构建开关默认关闭，开发测试可显式启用；作为交付配置启用前须通过完整验收。无指纹构建保留原有功能与正常协议流程；第三阶段已复现的请求归属缺陷修复同时适用于两种构建，并单独记录行为变化及回归。已有生物状态的目标切换配置或降级，遵循[工程实施计划](RSKEY-FPM583F-ENGINEERING-PLAN.md)的清理边界。脚本替身仅用于测试。模块差异优先收敛在适配层，超出既有能力契约时重新评估业务流程；存储变更须有版本及兼容/恢复验证。新增依赖须说明复用价值，固定版本并保留许可。
 
 ## 3. 不可删减的行为
 

@@ -90,10 +90,16 @@ fn u2f_gate<S: Storage, R: Rng>(ctx: &mut Ctx<S, R>) -> U2fGate {
 fn u2f_interaction<S: Storage, R: Rng>(ctx: &mut Ctx<S, R>, confirm: crate::Confirm<'_>) -> bool {
     match u2f_gate(ctx) {
         U2fGate::BuiltinUv => {
-            let owes_card =
-                crate::clientpin::UvOutcome::BUILTIN.needs_confirm(ctx.presence.shows_confirm());
-            (!owes_card || ctx.check_user_presence(confirm))
-                && crate::clientpin::builtin_uv_step(ctx).is_ok()
+            let shows_confirm = ctx.presence.shows_confirm();
+            if shows_confirm && !ctx.check_user_presence(confirm) {
+                return false;
+            }
+            match crate::clientpin::builtin_uv_step(ctx) {
+                Ok(verified) => {
+                    shows_confirm || verified.up_collected || ctx.check_user_presence(confirm)
+                }
+                Err(_) => false,
+            }
         }
         _ => ctx.check_user_presence(confirm),
     }

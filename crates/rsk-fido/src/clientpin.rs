@@ -143,8 +143,10 @@ pub fn client_pin<S: Storage, R: Rng>(
         // Built-in UV (0x06 token / 0x07 retries) exists only where the firmware can
         // collect a PIN on its own UI; elsewhere it is a subcommand this build does
         // not implement, which §8.1 covers along with every undefined value.
-        0x6 if ctx.presence.uv_available() => get_uv_token(ctx, &req, proto, out),
-        0x7 if ctx.presence.uv_available() => get_uv_retries(ctx, out),
+        0x6 if ctx.fingerprint.is_some() || ctx.presence.uv_available() => {
+            get_uv_token(ctx, &req, proto, out)
+        }
+        0x7 if ctx.fingerprint.is_some() || ctx.presence.uv_available() => get_uv_retries(ctx, out),
         _ => Err(CtapError::InvalidSubcommand),
     }
 }
@@ -392,7 +394,8 @@ fn get_pin_token<S: Storage, R: Rng>(
     } else {
         permissions
     };
-    let res = issue_token(ctx, proto, secret, permissions, req.rp_id, out);
+    ctx.state.needs_power_cycle = false;
+    let res = issue_token(ctx, proto, secret, permissions, req.rp_id, false, out);
     shared.zeroize();
     res
 }
@@ -408,6 +411,7 @@ fn issue_token<S: Storage, R: Rng>(
     secret: &[u8],
     permissions: u8,
     rp_id: Option<&str>,
+    user_present: bool,
     out: &mut [u8],
 ) -> CtapResult {
     // §6.5.5.7.2 step 12 / .3 step 11: a `pcmr` request is answered with the
@@ -418,11 +422,12 @@ fn issue_token<S: Storage, R: Rng>(
         ensure_ppuat(&ctx.dev, ctx.fs, ctx.rng).map_err(|_| CtapError::Other)?
     } else {
         ctx.state.reset_pin_uv_auth_token(ctx.rng);
-        // §6.5.5.7.3 steps 13/14 are an either/or, and their Note says which one
-        // applies "can vary between authenticators": always 14 here, because a
-        // `true` would make §6.1.2 step 14 skip the presence request — which on a
-        // display build is the screen that names the rp. Step 14's Note allows it.
-        ctx.state.begin_using_token(false, ctx.now_ms);
+        // The screen PIN keeps its RP disclosure; only a fingerprint interaction
+        // may transfer presence to a following screenless ceremony (§6.5.5.7.3).
+        if let Some(fp) = ctx.fingerprint.as_ref() {
+            ctx.now_ms = fp.sensor.now_ms();
+        }
+        ctx.state.begin_using_token(user_present, ctx.now_ms);
         ctx.state.paut.permissions = permissions;
         match rp_id {
             Some(rp) => {
@@ -445,7 +450,6 @@ fn issue_token<S: Storage, R: Rng>(
     let enc = pinproto::encrypt(proto, secret, &iv, &pdata, &mut token_enc);
     pdata.zeroize();
     let enc_len = enc.map_err(|_| CtapError::Other)?;
-    ctx.state.needs_power_cycle = false;
     let len = encode(out, |e| {
         e.map(1)?.u8(2)?.bytes(&token_enc[..enc_len])?;
         Ok(())
@@ -485,9 +489,11 @@ fn get_uv_token<S: Storage, R: Rng>(
     // in, so a device with no PIN answers NOT_ALLOWED without painting a screen.
     // `builtin_uv` re-checks readiness for its other caller (makeCredential /
     // getAssertion), which reaches it without passing through here.
-    builtin_uv_ready(ctx)?;
+    if ctx.fingerprint.is_none() {
+        builtin_uv_ready(ctx)?;
+    }
     consent_for_permissions(ctx, permissions)?;
-    builtin_uv(ctx)?;
+    let interaction = builtin_uv(ctx)?;
 
     // A pending forced PIN change still blocks token issuance (changePIN first).
     if force_change_pending(ctx) {
@@ -496,7 +502,16 @@ fn get_uv_token<S: Storage, R: Rng>(
 
     let mut shared = [0u8; 64];
     let slen = derive_shared(ctx, req, proto, &mut shared)?;
-    let res = issue_token(ctx, proto, &shared[..slen], permissions, req.rp_id, out);
+    let user_present = ctx.fingerprint.is_some() && interaction;
+    let res = issue_token(
+        ctx,
+        proto,
+        &shared[..slen],
+        permissions,
+        req.rp_id,
+        user_present,
+        out,
+    );
     shared.zeroize();
     res
 }
@@ -509,6 +524,15 @@ fn get_uv_token<S: Storage, R: Rng>(
 pub(crate) struct UvOutcome {
     pub uv: bool,
     pub up_collected: bool,
+    pub source: UvSource,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum UvSource {
+    None,
+    Token,
+    ScreenPin,
+    Fingerprint,
 }
 
 impl UvOutcome {
@@ -516,17 +540,20 @@ impl UvOutcome {
     pub const NONE: Self = Self {
         uv: false,
         up_collected: false,
+        source: UvSource::None,
     };
     /// A `pinUvAuthParam` verified against the pinUvAuthToken.
-    pub const TOKEN: Self = Self {
-        uv: true,
-        up_collected: false,
-    };
-    /// Built-in UV ran on the device's own pad.
-    pub const BUILTIN: Self = Self {
-        uv: true,
-        up_collected: true,
-    };
+    pub fn token(up_collected: bool) -> Self {
+        Self {
+            uv: true,
+            up_collected,
+            source: UvSource::Token,
+        }
+    }
+    /// A direct ceremony can supply UP; a token's cached UP preserves `up=false`.
+    pub fn direct_up(self) -> bool {
+        self.up_collected && matches!(self.source, UvSource::ScreenPin | UvSource::Fingerprint)
+    }
 
     /// Whether the ceremony still owes its `Confirm` screen. Built-in UV supplies the
     /// *gesture* (§6.1.2 step 13 / §6.2.2 step 8), but on a backend that paints what it
@@ -556,20 +583,27 @@ pub(crate) fn builtin_uv_step<S: Storage, R: Rng>(
     ctx: &mut Ctx<S, R>,
 ) -> Result<UvOutcome, CtapError> {
     match builtin_uv(ctx) {
-        Ok(()) => Ok(UvOutcome::BUILTIN),
+        Ok(up_collected) => Ok(UvOutcome {
+            uv: true,
+            up_collected,
+            source: if ctx.fingerprint.is_some() {
+                UvSource::Fingerprint
+            } else {
+                UvSource::ScreenPin
+            },
+        }),
         Err(
             e @ (CtapError::UserActionTimeout
             | CtapError::KeepAliveCancel
             | CtapError::OperationDenied),
         ) => Err(e),
+        Err(CtapError::Other) if ctx.fingerprint.is_some() => Err(CtapError::Other),
         Err(_) => Err(CtapError::PuatRequired),
     }
 }
 
-/// Whether built-in UV can run at all, in the dialect §6.5.5.7.3 uses: a method that
-/// is supported but not configured is `NOT_ALLOWED`, and an exhausted budget is
-/// `UV_BLOCKED` — where the host-PIN path reports PIN_NOT_SET / PIN_BLOCKED for the
-/// very same states. Built-in UV shares EF_PIN and its counter with clientPIN.
+/// Screen PIN UV shares clientPIN's budget: unconfigured means NOT_ALLOWED,
+/// and an exhausted PIN budget means UV_BLOCKED (§6.5.5.7.3).
 fn builtin_uv_ready<S: Storage, R: Rng>(ctx: &mut Ctx<S, R>) -> Result<(), CtapError> {
     if !ctx.fs.has_data(EF_PIN) {
         return Err(CtapError::NotAllowed);
@@ -609,6 +643,11 @@ fn consent_for_permissions<S: Storage, R: Rng>(
 /// PIN is configured, i.e. built-in user verification is both capable and
 /// "presently configured". `false` on every screenless build.
 pub(crate) fn builtin_uv_enabled<S: Storage, R: Rng>(ctx: &mut Ctx<S, R>) -> bool {
+    if ctx.fingerprint.is_some() {
+        // An unreadable configuration must reach verification and preserve its
+        // storage error, rather than select a less protected path.
+        return !matches!(crate::fingerprint::configured(ctx), Ok(false));
+    }
     ctx.presence.uv_available() && ctx.fs.has_data(EF_PIN)
 }
 
@@ -618,14 +657,17 @@ pub(crate) fn builtin_uv_enabled<S: Storage, R: Rng>(ctx: &mut Ctx<S, R>) -> boo
 /// verifies the same EF_PIN as clientPIN and shares its retry budget. A short
 /// entry (below minPINLength) is refused by the pad without a verify, so it can't
 /// burn a retry; an actual mismatch does, exactly like a host PIN.
-fn builtin_uv<S: Storage, R: Rng>(ctx: &mut Ctx<S, R>) -> Result<(), CtapError> {
+fn builtin_uv<S: Storage, R: Rng>(ctx: &mut Ctx<S, R>) -> Result<bool, CtapError> {
+    if ctx.fingerprint.is_some() {
+        return crate::fingerprint::verify(ctx);
+    }
     builtin_uv_ready(ctx)?;
     let min = min_pin_length(ctx.fs) as usize;
     let mut pin = [0u8; PADDED_PIN_LEN];
     let entry = ctx.presence.collect_pin(min, &mut pin);
     let verified = perform_builtin_uv(ctx, entry, &pin);
     pin.zeroize();
-    verified
+    verified.map(|()| true)
 }
 
 /// Verify a PIN entered via built-in UV against EF_PIN, mapping the entry outcome
@@ -655,10 +697,29 @@ fn perform_builtin_uv<S: Storage, R: Rng>(
     })
 }
 
-/// `getUVRetries` (0x07): the built-in-UV retry budget. Built-in UV verifies the
-/// same EF_PIN as clientPIN and shares its counter, so this mirrors getPINRetries
-/// (response key 0x05 `uvRetries`, plus 0x04 `powerCycleState` while soft-locked).
+/// Screen PIN shares the PIN budget; fingerprints have one persisted UV budget.
 fn get_uv_retries<S: Storage, R: Rng>(ctx: &mut Ctx<S, R>, out: &mut [u8]) -> CtapResult {
+    if ctx.fingerprint.is_some() {
+        let mut pin = [0; PIN_FILE_LEN + 1];
+        let hard_blocked = match ctx
+            .fs
+            .try_read(EF_PIN, &mut pin)
+            .map_err(|_| CtapError::Other)?
+        {
+            Some(PIN_FILE_LEN) => pin[0] == 0,
+            None => true,
+            Some(_) => return Err(CtapError::Other),
+        };
+        let retries = if hard_blocked {
+            0
+        } else {
+            crate::fingerprint::retries(ctx.fs)?.unwrap_or(0)
+        };
+        return encode(out, |e| {
+            e.map(1)?.u8(5)?.u8(retries)?;
+            Ok(())
+        });
+    }
     let retries = pin_retries(ctx);
     let pc = ctx.state.needs_power_cycle;
     let len = encode(out, |e| {
@@ -814,6 +875,9 @@ fn spend_and_verify_pin_hash<S: Storage, R: Rng>(
     // Correct PIN: migrate a legacy PIN-wrapped seed to the plain format (the
     // only moment its outer layer is open), then reset the counter.
     migrate_keydev_pin(&ctx.dev, ctx.fs, pin_hash).map_err(|_| CtapError::Other)?;
+    if ctx.fingerprint.is_some() {
+        crate::fingerprint::restore_after_pin(ctx.fs)?;
+    }
     pin_data[0] = MAX_PIN_RETRIES;
     ctx.state.new_pin_mismatches = 0;
     ctx.fs

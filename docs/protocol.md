@@ -592,11 +592,13 @@ than 255 bytes arrives in `CLA|0x10` segments; a response longer than the short
 not follow `61xx` sees nothing useful. Extended-length APDUs work too, in one
 exchange each way.
 
-**No `91 00` keep-alive is ever returned.** A touch wait blocks inside the
+**No `91 00` keep-alive is ever returned.** A touch or experimental UV wait blocks inside the
 exchange while the CCID transport streams T=1 time extensions, exactly as an OATH
 touch-flagged CALCULATE and an OpenPGP UIF signature already do, so the
 `NFCCTAP_GETRESPONSE` poll loop never runs. The cancel is still answered, because a
-host that gave up on a wait sends it regardless.
+host that gave up on a wait sends it regardless. That APDU acknowledgement does
+not interrupt a synchronous exchange already running; card-state events are
+serialized by the CCID worker.
 
 **The transport is smaller than CTAPHID.** One CCID frame carries 2038 bytes, so
 that is the ceiling on a command *and* on a response here, against the 4078 that
@@ -614,6 +616,48 @@ enabled the AID is gone (`6A82`).
 interface at all** — the `ccid` driver whitelists USB ids and that one is not
 listed — so none of this is reachable there. A `VIDPID=Yubikey5` build, or a host
 carrying the `ccid-rs-key` overlay, is what makes the interface appear.
+
+### 5.3 Request ownership and experimental fingerprint UV
+
+Every FIDO request stamps its source: HID CBOR and MSG use the report's CID;
+CCID uses `CHANNEL_NONE` (0, invalid as a HID channel). Assertion continuations,
+credential-enumeration walks and the one-shot vendor MSE handshake use that
+source for ownership. This is routing state, not user authentication. Wrong-source
+continuations are refused; PIN retries, PIN soft lock, credentials and the existing
+cryptographic token permission/RP checks remain device-wide. A CCID card reset
+retires CCID walks and its MSE context. SELECT and HID INIT retain their existing
+applet-selection semantics rather than globally revoking tokens.
+
+While a HID operation is cancellable, its own CANCEL can stop input or matching.
+Matching reports PROCESSING; input waiting reports UPNEEDED. Same-CID INIT
+requests cancellation and replies after the old job has completed, suppressing
+that job's ordinary reply. Other initial commands receive CHANNEL_BUSY. The
+experimental sensor remains draining until its old responses are gone and it
+confirms idle; a 2 s drain timeout makes the sensor unavailable.
+
+The optional fingerprint context accepts only a current authorized slot and
+binding generation from a fresh operation. Direct UV and clientPIN UV token
+issuance use it; PIN token issuance and UP-only requests use the existing paths.
+A successful interactive match can supply UP, whose cached token bit expires
+30 s after issuance independently of the token's rolling validity. Failure never
+issues a new token or silently selects the PIN path.
+
+The internal `EF_UV_STATE` record (FID `0x1092`) is exactly three bytes:
+`[version=1, retries, bitwise_not(retries)]`, with retries in `0..=8`. Missing,
+unknown-version or malformed state under an authorized binding refuses UV.
+Before starting the sensor, a retry is persisted and read back; failed commits
+refuse authorization. Only a known input timeout before matching refunds that
+retry. Successful fingerprint UV or a correct PIN restores the UV budget; a
+fingerprint success does not clear the PIN soft lock. Exhausting PIN disables
+fingerprint UV. Reset deletes this ordinary deny-state record with other FIDO
+state. Existing builds without a fingerprint context never initialize it, and
+older provisioned PIN/passkey records retain their layouts and keys.
+
+Production bindings are deliberately unconfigured in this stage. BioEnrollment,
+biometric GetInfo fields, a persistent authorization directory, and coordinated
+module/template cleanup remain separate provisioning work. The emulator's
+`fingerprint-fixture` is a loopback-only test input with an owned store, not a
+host protocol or a production provisioning route.
 
 ## 6. Management applet (Yubico-compatible) — applet enable/disable
 

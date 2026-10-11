@@ -568,7 +568,7 @@ fn enforce_pin<S: Storage, R: Rng>(
                 ctx.state.paut.rp_id_hash = *rp_id_hash;
                 ctx.state.paut.has_rp_id = true;
             }
-            Ok(UvOutcome::TOKEN)
+            Ok(UvOutcome::token(ctx.state.user_present()))
         }
         None => {
             let always_uv = crate::config::always_uv_enabled(ctx.fs);

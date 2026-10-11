@@ -27,9 +27,10 @@ class Reply(Enum):
 
 
 class Emulator:
-    def __init__(self, binary, store):
+    def __init__(self, binary, store, extra_args=()):
         self.binary = binary
         self.store = store
+        self.extra_args = list(extra_args)
         self.process = None
         self.device = None
         self.condition = threading.Condition()
@@ -48,6 +49,7 @@ class Emulator:
         self.prompts = 0
         args = [str(self.binary), "--host", HOST, "--fido-port", str(self.port),
                 "--ccid-port", "0", "--touch", "--store", str(self.store)]
+        args.extend(self.extra_args)
         self.process = subprocess.Popen(
             args, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE, text=True, bufsize=1,

@@ -583,12 +583,12 @@ def discovered_volatile(
     # `FidoState::reset` is `*self = Self::new()`, which replaces the token
     # wholesale — every abstract bit at once, and not one `.paut.` in sight.
     # `Self` only means the token's owner in the file that declares it; one crate
-    # over the same write names the TYPE, and `crates/rsk-device/src/ctap.rs:122`
+    # over the same write names the TYPE, and `crates/rsk-device/src/ctap.rs:128`
     # is that write at every power-up.
     typed = re.compile(WHOLE_TYPED.format(state=state)) if state else None
     # `mem::replace(st, FidoState::new())` moves the same bits with no `=` in
     # sight. Scoped to the swap primitives naming the type, NOT to the type
-    # anywhere: `RefCell::new(FidoState::new())` at `firmware/src/main.rs:1167`
+    # anywhere: `RefCell::new(FidoState::new())` at `firmware/src/main.rs:1208`
     # BUILDS the one session cell at boot and replaces nothing, and a rule reading
     # `FidoState::new` alone owns it. Measured: this alternative adds 0 sites.
     swapped = re.compile(SWAP.format(state=state)) if state else None

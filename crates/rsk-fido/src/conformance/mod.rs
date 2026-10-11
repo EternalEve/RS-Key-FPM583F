@@ -122,6 +122,7 @@ impl Authr {
         let presence: &mut dyn UserPresence = if self.confirm { &mut yes } else { &mut no };
         let n = {
             let mut ctx = Ctx {
+                fingerprint: None,
                 dev: dev(),
                 fs: &mut self.fs,
                 rng: &mut self.rng,
@@ -178,6 +179,7 @@ impl Authr {
         let presence: &mut dyn UserPresence = if self.confirm { &mut yes } else { &mut no };
         let (sw, n) = {
             let mut ctx = Ctx {
+                fingerprint: None,
                 dev: dev(),
                 fs: &mut self.fs,
                 rng: &mut self.rng,

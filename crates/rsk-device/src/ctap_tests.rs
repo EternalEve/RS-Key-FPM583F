@@ -19,7 +19,7 @@ fn a_u2f_command_reaches_fido_when_nothing_is_selected() {
     // applet — but only while the dispatcher holds no selection.
     let env = Env::new();
     let mut ctap = env.ctap();
-    let res = ctap.handle_msg(&u2f_version(), 0).to_vec();
+    let res = ctap.handle_msg(1, &u2f_version(), 0).to_vec();
     assert_eq!(sw(&res), rsk_sdk::Sw::OK);
     assert_eq!(&res[..6], b"U2F_V2");
 }
@@ -31,10 +31,12 @@ fn a_selected_vendor_aid_is_not_hijacked_by_a_u2f_ins() {
     // would let a host reach the U2F surface from inside another AID's session.
     let env = Env::new();
     let mut ctap = env.ctap();
-    let res = ctap.handle_msg(&select(rsk_vendor::VENDOR_AID), 0).to_vec();
+    let res = ctap
+        .handle_msg(1, &select(rsk_vendor::VENDOR_AID), 0)
+        .to_vec();
     assert_eq!(sw(&res), rsk_sdk::Sw::OK);
 
-    let res = ctap.handle_msg(&u2f_version(), 0).to_vec();
+    let res = ctap.handle_msg(1, &u2f_version(), 0).to_vec();
     assert_ne!(
         &res[..res.len() - 2],
         b"U2F_V2",
@@ -48,9 +50,9 @@ fn a_ctaphid_init_drops_a_stale_selection() {
     // selects anything — inherits whatever the previous one left behind.
     let env = Env::new();
     let mut ctap = env.ctap();
-    ctap.handle_msg(&select(rsk_vendor::VENDOR_AID), 0);
+    ctap.handle_msg(1, &select(rsk_vendor::VENDOR_AID), 0);
     ctap.deselect_msg();
-    let res = ctap.handle_msg(&u2f_version(), 0).to_vec();
+    let res = ctap.handle_msg(1, &u2f_version(), 0).to_vec();
     assert_eq!(&res[..6], b"U2F_V2", "U2F is reachable again");
 }
 
@@ -60,7 +62,9 @@ fn a_select_is_never_routed_to_u2f() {
     // the dispatcher, or no AID could ever be selected over this transport.
     let env = Env::new();
     let mut ctap = env.ctap();
-    let res = ctap.handle_msg(&select(rsk_vendor::VENDOR_AID), 0).to_vec();
+    let res = ctap
+        .handle_msg(1, &select(rsk_vendor::VENDOR_AID), 0)
+        .to_vec();
     assert_eq!(sw(&res), rsk_sdk::Sw::OK);
     assert!(ctap.disp.current().is_some());
 }

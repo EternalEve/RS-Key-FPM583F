@@ -23,6 +23,7 @@ pub mod credential;
 pub mod credmgmt;
 pub mod ec;
 pub mod error;
+pub mod fingerprint;
 pub mod getassertion;
 pub mod getinfo;
 pub mod hmacsecret;
@@ -76,6 +77,7 @@ pub struct Ctx<'a, S: Storage, R: Rng> {
     /// Physical user-presence source (BOOTSEL button); [`AlwaysConfirm`] when no
     /// button is configured or in tests.
     pub presence: &'a mut dyn UserPresence,
+    pub fingerprint: Option<fingerprint::Context<'a, S>>,
 }
 
 impl<S: Storage, R: Rng> Ctx<'_, S, R> {
@@ -126,6 +128,9 @@ pub fn process_cbor<S: Storage, R: Rng>(ctx: &mut Ctx<S, R>, data: &[u8], out: &
     // this command (CTAP 2.1 §6.5.5.7), and any stateful sequence left idle past the
     // window CTAP 2.3 §6 bounds — their continuation legs bring no token to expire.
     ctx.state.expire_stale_token(ctx.now_ms);
+    if ctx.fingerprint.is_some() {
+        ctx.state.expire_user_presence(ctx.now_ms);
+    }
     ctx.state.expire_stale_sequences(ctx.now_ms);
 
     // CTAP 2.2 §6: a stateful sequence may assume it is "exclusively preceded" by
@@ -172,18 +177,30 @@ pub fn process_cbor<S: Storage, R: Rng>(ctx: &mut Ctx<S, R>, data: &[u8], out: &
             // become a stable fingerprint (`seed::enc_identifier`).
             let enc_id = seed::enc_identifier(&ctx.dev, ctx.fs, ctx.rng);
             let enc_css = seed::enc_cred_store_state(&ctx.dev, ctx.fs, ctx.rng);
-            getinfo::get_info(
-                ctx.fs.has_data(consts::EF_PIN),
-                min_pin,
-                force,
-                ctx.fs.has_data(consts::EF_EA_ENABLED),
-                config::always_uv_enabled(ctx.fs),
-                ctx.presence.uv_available(),
-                remaining_rk,
-                enc_id.as_ref(),
-                enc_css.as_ref(),
-                &mut out[1..],
-            )
+            let supported = ctx.fingerprint.is_some() || ctx.presence.uv_available();
+            let configured = if ctx.fingerprint.is_some() {
+                fingerprint::configured(ctx)
+            } else {
+                Ok(ctx.presence.uv_available() && ctx.fs.has_data(consts::EF_PIN))
+            };
+            match configured {
+                Err(error) => Err(error),
+                Ok(configured) => getinfo::get_info_with_uv(
+                    ctx.fs.has_data(consts::EF_PIN),
+                    min_pin,
+                    force,
+                    ctx.fs.has_data(consts::EF_EA_ENABLED),
+                    config::always_uv_enabled(ctx.fs),
+                    getinfo::BuiltinUv {
+                        supported,
+                        configured,
+                    },
+                    remaining_rk,
+                    enc_id.as_ref(),
+                    enc_css.as_ref(),
+                    &mut out[1..],
+                ),
+            }
         }
         consts::CTAP_MAKE_CREDENTIAL => makecredential::make_credential(ctx, params, &mut out[1..]),
         consts::CTAP_GET_ASSERTION => getassertion::get_assertion(ctx, params, &mut out[1..]),

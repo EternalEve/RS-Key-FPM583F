@@ -75,6 +75,7 @@ fn run(req: &[u8]) -> (std::vec::Vec<u8>, Fs<RamStorage>) {
         let mut state = crate::FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev,
             fs: &mut fs,
@@ -100,6 +101,7 @@ fn run_err(req: &[u8]) -> CtapError {
     let mut state = crate::FidoState::new();
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev,
         fs: &mut fs,
@@ -132,6 +134,7 @@ fn run_err_no_touch(req: &[u8]) -> CtapError {
     let mut state = crate::FidoState::new();
     let mut presence = Decline;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev,
         fs: &mut fs,
@@ -290,6 +293,7 @@ fn makecred_cancel_maps_keepalive_cancel() {
     let mut state = crate::FidoState::new();
     let mut presence = Cancel;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev,
         fs: &mut fs,
@@ -438,6 +442,7 @@ fn unsupported_alg_rejected() {
     let mut state = crate::FidoState::new();
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev,
         fs: &mut fs,
@@ -568,6 +573,7 @@ fn enterprise_attestation_uses_org_chain_when_provisioned() {
     let mut state = crate::FidoState::new();
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev,
         fs: &mut fs,
@@ -645,6 +651,7 @@ fn missing_mandatory_param_rejected() {
     let mut state = crate::FidoState::new();
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev,
         fs: &mut fs,
@@ -1074,6 +1081,7 @@ fn min_pin_length_extension_for_listed_rp() {
         let mut state = crate::FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -1176,6 +1184,7 @@ fn make_credential_with_pin_sets_uv_flag() {
     let len = {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -1230,6 +1239,7 @@ fn make_credential_spends_token_permissions_except_lbw() {
     {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -1255,6 +1265,7 @@ fn make_credential_spends_token_permissions_except_lbw() {
     let mut cfg_out = [0u8; 64];
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -1279,6 +1290,7 @@ fn register_and_get_cred_id(
     let mut out = [0u8; 1024];
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs,
@@ -1312,6 +1324,7 @@ fn excluded_makecredential_requires_touch_before_disclosing() {
     let mut out = [0u8; 1024];
     let mut presence = Decline;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -1351,6 +1364,7 @@ fn excluded_makecredential_confirms_then_spends_token() {
     let mut out = [0u8; 1024];
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -1385,6 +1399,7 @@ fn make_credential_requires_pin_for_a_discoverable_credential() {
     let mut out = [0u8; 1024];
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -1413,6 +1428,7 @@ fn make_cred_uv_not_rqd_creates_non_discoverable_on_presence_alone() {
     let len = {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -1439,6 +1455,7 @@ fn always_uv_overrides_make_cred_uv_not_rqd() {
     let mut out = [0u8; 1024];
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -1541,6 +1558,7 @@ fn uv_option_with_pin_uv_auth_param_is_not_an_error() {
     let len = {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -1566,6 +1584,7 @@ fn uv_option_without_builtin_uv_is_invalid_option() {
     let mut out = [0u8; 256];
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -1594,6 +1613,7 @@ fn uv_option_runs_builtin_uv_and_supplies_user_presence() {
     let mut pad = UvPad::typing();
     let len = {
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut pad,
             dev: dev(),
             fs: &mut fs,
@@ -1624,6 +1644,7 @@ fn builtin_uv_decline_is_operation_denied() {
     let mut out = [0u8; 256];
     let mut pad = UvPad::ending(crate::PinEntry::Declined);
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut pad,
         dev: dev(),
         fs: &mut fs,
@@ -1652,6 +1673,7 @@ fn always_uv_upgrades_a_tokenless_request_to_builtin_uv() {
     let mut pad = UvPad::typing();
     let len = {
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut pad,
             dev: dev(),
             fs: &mut fs,
@@ -1680,6 +1702,7 @@ fn always_uv_requires_user_verification_without_pin() {
     let mut out = [0u8; 1024];
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -1705,6 +1728,7 @@ fn make_credential_bad_pin_auth_rejected() {
     let mut out = [0u8; 256];
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -1754,6 +1778,7 @@ fn selected_alg(algs: &[i64]) -> Result<i64, CtapError> {
     let mut state = crate::FidoState::new();
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev,
         fs: &mut fs,
@@ -1851,6 +1876,7 @@ fn run_ea(req: &[u8], enable: bool) -> Result<(std::vec::Vec<u8>, Fs<RamStorage>
     let len = {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -1981,6 +2007,7 @@ fn enterprise_type1_non_eligible_ignores_org_key() {
     let resp = {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -2077,6 +2104,7 @@ fn enterprise_type1_listed_rp_uses_org_key() {
     let resp = {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -2169,6 +2197,7 @@ fn builtin_uv_still_names_the_registration_on_a_display() {
     let mut pad = DisplayPad::new();
     let len = {
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut pad,
             dev: dev(),
             fs: &mut fs,
@@ -2270,6 +2299,7 @@ fn exclude_list_over_max_is_limit_exceeded() {
     let mut out = [0u8; 1024];
     let mut presence = Decline;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -2302,6 +2332,7 @@ fn exclude_list_at_max_excludes_and_foreign_types_do_not() {
     {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -2318,6 +2349,7 @@ fn exclude_list_at_max_excludes_and_foreign_types_do_not() {
 
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -2754,6 +2786,7 @@ fn a_faulted_pin_probe_does_not_drop_the_makecredential_uv_gate() {
     // With the PIN readable the gate is the spec's: a token-less rk request is
     // refused with PUAT_REQUIRED.
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev,
         fs: &mut fs,

@@ -62,7 +62,7 @@
 
 **主要工作：**
 
-- 首选固定 `flake.lock` 的 Nix 路线，复用上游 `firmware-2mb` 包及主机检查。当前 Linux x86_64 会话已验证官方 Nix 2.35.2 和锁定开发环境，工具会话需显式设置 Nix PATH；准确版本与复现命令见执行记录。既有 Windows/WSL2 检查与原生替代路线作为历史资料保留，不代表当前环境。
+- 使用固定 `flake.lock` 的 Nix 路线，复用上游 `firmware-2mb` 包及主机检查。Linux x86_64 环境已验证；工具版本与复现命令见[执行记录](RSKEY-FPM583F-PHASE-1-RECORD.md#2-固定环境与复现入口12)。
 - 记录构建系统、架构、Rust/Cargo 完整版本、目标三元组、C 编译器、`flip-link`、`rust-lld` 和 `picotool` 版本。上游涉及 RSA 的 C/汇编构建，不能认为安装 Rust 即可。[Nix 构建]
 - 若采用 rustup 路线，固定一次成功验证的准确 Rust 版本，保留已有 linker 和 rustflags；不能以浮动 `stable` 充当版本记录。[Rust 工具链]、[Cargo 配置]
 - 将依赖获取与构建分开记录。首次下载工具链、Nix 输入和 Cargo 依赖可以需要网络；依赖准备完成后，实际 Cargo 构建使用锁定依赖并禁止自行解析更新。“离线构建”不表示首次依赖准备已不需要下载。
@@ -276,7 +276,7 @@
 [存储后端]: https://github.com/TheMaxMur/RS-Key/blob/7c9a57836647c363a9f006da1892e886869afb61/firmware/src/flash_storage.rs
 [固件入口]: https://github.com/TheMaxMur/RS-Key/blob/7c9a57836647c363a9f006da1892e886869afb61/firmware/src/main.rs
 [worker 实现]: https://github.com/TheMaxMur/RS-Key/blob/7c9a57836647c363a9f006da1892e886869afb61/firmware/src/worker.rs
-[583F 规格书]: FPM583F.pdf
-[583F/383C 通用协议]: FPM383C583F通用用户通信协议手册V1.2.pdf
+[583F 规格书]: RSKEY-FPM583F-REFERENCES.md#fpm583f
+[583F/383C 通用协议]: RSKEY-FPM583F-REFERENCES.md#fpm383c583f
 [CTAP 2.2 PS]: https://fidoalliance.org/specs/fido-v2.2-ps-20250714/fido-client-to-authenticator-protocol-v2.2-ps-20250714.html
 [WebAuthn]: https://www.w3.org/TR/webauthn-3/

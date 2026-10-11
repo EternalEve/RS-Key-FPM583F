@@ -32,6 +32,7 @@ mod ccid;
 mod ccid_fido;
 pub mod click;
 mod ctap;
+pub mod fingerprint_io;
 pub mod presence;
 
 pub use ccid::CcidApplets;

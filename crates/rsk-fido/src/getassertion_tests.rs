@@ -171,6 +171,7 @@ fn assertion_with_pin_sets_uv_flag() {
     let mc = {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -192,6 +193,7 @@ fn assertion_with_pin_sets_uv_flag() {
     let n = {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -224,6 +226,7 @@ fn assertion_up_true_spends_token_permissions_except_lbw() {
     let cred_id = {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -243,6 +246,7 @@ fn assertion_up_true_spends_token_permissions_except_lbw() {
     {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -275,6 +279,7 @@ fn assertion_up_false_preflight_keeps_token_permissions() {
     let cred_id = {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -292,6 +297,7 @@ fn assertion_up_false_preflight_keeps_token_permissions() {
     {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -327,6 +333,7 @@ fn assertion_no_match_spends_token_permissions_except_lbw() {
     let err = {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -359,6 +366,7 @@ fn unscoped_pin_token_binds_rpid_on_first_getassertion() {
     let cred_id = {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -378,6 +386,7 @@ fn unscoped_pin_token_binds_rpid_on_first_getassertion() {
         let mut o = [0u8; 1024];
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -405,6 +414,7 @@ fn unscoped_pin_token_binds_rpid_on_first_getassertion() {
     let mut o = [0u8; 1024];
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -430,6 +440,7 @@ fn numberofcredentials_clamped_to_queue_capacity() {
     for i in 0..(crate::state::MAX_ASSERTION_CREDS + 1) {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -444,6 +455,7 @@ fn numberofcredentials_clamped_to_queue_capacity() {
     let n = {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -523,6 +535,7 @@ fn register_non_resident(fs: &mut Fs<RamStorage>, rng: &mut SeqRng) -> std::vec:
     let mut state = crate::FidoState::new();
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs,
@@ -551,6 +564,7 @@ fn up_false_preflight_is_silent_and_clears_up_flag() {
         let mut state = crate::FidoState::new();
         let mut presence = Decline;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -570,6 +584,7 @@ fn up_false_preflight_is_silent_and_clears_up_flag() {
     let mut state = crate::FidoState::new();
     let mut presence = Decline;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -602,6 +617,7 @@ fn silent_assertions_cannot_flush_the_audit_journal() {
         let mut state = crate::FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -640,6 +656,7 @@ fn strict_up_polls_button_even_on_up_false() {
     let mut state = crate::FidoState::new();
     let mut presence = Decline;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -663,6 +680,7 @@ fn register_then_login_non_resident() {
         let mut state = crate::FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -681,6 +699,7 @@ fn register_then_login_non_resident() {
         let mut state = crate::FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -770,6 +789,7 @@ fn uv_option_with_pin_uv_auth_param_is_not_an_error() {
     let mut out = [0u8; 1024];
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -794,6 +814,7 @@ fn uv_option_without_builtin_uv_is_invalid_option() {
     let mut out = [0u8; 1024];
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -864,6 +885,7 @@ fn a_silent_preflight_never_opens_the_builtin_uv_pad() {
     let mut out = [0u8; 1024];
     let mut presence = UvPadNeverOpened;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -900,6 +922,7 @@ fn uv_option_runs_builtin_uv_and_supplies_user_presence() {
     let mut pad = UvPad::typing();
     let n = {
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut pad,
             dev: dev(),
             fs: &mut fs,
@@ -930,6 +953,7 @@ fn builtin_uv_decline_is_operation_denied() {
     let mut out = [0u8; 1024];
     let mut pad = UvPad::ending(crate::PinEntry::Declined);
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut pad,
         dev: dev(),
         fs: &mut fs,
@@ -956,6 +980,7 @@ fn always_uv_upgrades_a_tokenless_request_to_builtin_uv() {
     let mut pad = UvPad::typing();
     let n = {
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut pad,
             dev: dev(),
             fs: &mut fs,
@@ -981,6 +1006,7 @@ fn always_uv_requires_user_verification() {
     let mut state = crate::FidoState::new();
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -1018,6 +1044,7 @@ fn always_uv_allows_silent_up_false_preflight() {
         let mut state = crate::FidoState::new();
         let mut presence = Decline;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -1041,6 +1068,7 @@ fn always_uv_allows_silent_up_false_preflight() {
     let mut state = crate::FidoState::new();
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -1077,6 +1105,7 @@ fn always_uv_strict_up_preflight_polls_button_not_puat() {
         let mut state = crate::FidoState::new();
         let mut presence = Decline;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -1099,6 +1128,7 @@ fn always_uv_strict_up_preflight_polls_button_not_puat() {
         let mut state = crate::FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -1135,6 +1165,7 @@ fn u2f_handle_usable_via_ctap2_allowlist() {
     let mut state = crate::FidoState::new();
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -1159,6 +1190,7 @@ fn register_then_login_resident_discovery() {
         let mut state = crate::FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -1177,6 +1209,7 @@ fn register_then_login_resident_discovery() {
         let mut state = crate::FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -1214,6 +1247,7 @@ fn discovery_returns_stored_resident_id() {
         let mut state = crate::FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -1242,6 +1276,7 @@ fn discovery_returns_stored_resident_id() {
         let mut state = crate::FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -1307,6 +1342,7 @@ fn run_make<S: Storage>(fs: &mut Fs<S>, rng: &mut SeqRng, req: &[u8]) -> std::ve
     let mut state = crate::FidoState::new();
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs,
@@ -1324,6 +1360,7 @@ fn run_assert<S: Storage>(fs: &mut Fs<S>, rng: &mut SeqRng, req: &[u8]) -> std::
     let mut state = crate::FidoState::new();
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs,
@@ -1345,6 +1382,7 @@ fn try_assert<S: Storage>(
     let mut state = crate::FidoState::new();
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs,
@@ -1473,6 +1511,7 @@ fn a_transient_cred_counter_fault_does_not_reach_the_next_signature() {
         let mut out = [0u8; 1024];
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -1488,6 +1527,7 @@ fn a_transient_cred_counter_fault_does_not_reach_the_next_signature() {
     for t in [30u64, 32] {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -1509,6 +1549,7 @@ fn a_transient_cred_counter_fault_does_not_reach_the_next_signature() {
     let r = {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -1662,6 +1703,7 @@ fn no_matching_credentials() {
     let mut state = crate::FidoState::new();
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -1695,6 +1737,7 @@ fn no_match_polls_presence_before_disclosing() {
         let mut state = crate::FidoState::new();
         let mut presence = Decline;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -1713,6 +1756,7 @@ fn no_match_polls_presence_before_disclosing() {
         let mut state = crate::FidoState::new();
         let mut presence = Decline;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -1732,6 +1776,7 @@ fn no_match_polls_presence_before_disclosing() {
         let mut state = crate::FidoState::new();
         let mut presence = Decline;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -1758,6 +1803,7 @@ fn strict_up_no_match_polls_presence_even_on_up_false() {
     let mut state = crate::FidoState::new();
     let mut presence = Decline;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -1980,6 +2026,7 @@ fn allowlist_returns_single_assertion_without_count() {
         let mut out = [0u8; 1024];
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -1994,6 +2041,7 @@ fn allowlist_returns_single_assertion_without_count() {
     let (id_a, id_b) = {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -2013,6 +2061,7 @@ fn allowlist_returns_single_assertion_without_count() {
     // getNextAssertion is not armed.
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -2041,6 +2090,7 @@ fn get_next_assertion_walks_resident_credentials() {
         let mut out = [0u8; 1024];
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -2056,6 +2106,7 @@ fn get_next_assertion_walks_resident_credentials() {
     let n1 = {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -2077,6 +2128,7 @@ fn get_next_assertion_walks_resident_credentials() {
     let n2 = {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -2096,6 +2148,7 @@ fn get_next_assertion_walks_resident_credentials() {
     let mut o3 = [0u8; 256];
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -2124,6 +2177,7 @@ fn get_next_assertion_timer_is_per_leg() {
         let mut out = [0u8; 1024];
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -2138,6 +2192,7 @@ fn get_next_assertion_timer_is_per_leg() {
         let mut out = [0u8; 1024];
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -2167,6 +2222,7 @@ fn get_next_assertion_expires_after_a_quiet_thirty_seconds() {
         let mut out = [0u8; 1024];
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -2180,6 +2236,7 @@ fn get_next_assertion_expires_after_a_quiet_thirty_seconds() {
     {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -2191,6 +2248,7 @@ fn get_next_assertion_expires_after_a_quiet_thirty_seconds() {
     }
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -2224,6 +2282,7 @@ fn get_next_assertion_refuses_a_second_channel() {
         let mut out = [0u8; 1024];
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -2239,6 +2298,7 @@ fn get_next_assertion_refuses_a_second_channel() {
     let n1 = {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -2254,6 +2314,7 @@ fn get_next_assertion_refuses_a_second_channel() {
     let mut o2 = [0u8; 1024];
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -2280,6 +2341,7 @@ fn get_next_assertion_uses_per_credential_counter() {
         let mut out = [0u8; 1024];
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -2297,6 +2359,7 @@ fn get_next_assertion_uses_per_credential_counter() {
             let (n1, n2) = {
                 let mut presence = crate::AlwaysConfirm;
                 let mut ctx = Ctx {
+                    fingerprint: None,
                     presence: &mut presence,
                     dev: dev(),
                     fs,
@@ -2332,6 +2395,7 @@ fn declined_get_assertion_disarms_get_next_assertion() {
         let mut out = [0u8; 1024];
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -2348,6 +2412,7 @@ fn declined_get_assertion_disarms_get_next_assertion() {
     {
         let mut presence = Decline;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -2365,6 +2430,7 @@ fn declined_get_assertion_disarms_get_next_assertion() {
     let mut o2 = [0u8; 1024];
     let mut presence = Decline;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -2388,6 +2454,7 @@ fn multi_cred_user_identity_returned_with_uv() {
         let mut out = [0u8; 1024];
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -2420,6 +2487,7 @@ fn multi_cred_user_identity_returned_with_uv() {
     let n = {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -2481,6 +2549,7 @@ fn run_mc(fs: &mut Fs<RamStorage>, rng: &mut SeqRng, req: &[u8]) -> std::vec::Ve
     let mut state = crate::FidoState::new();
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs,
@@ -2497,6 +2566,7 @@ fn run_ga(fs: &mut Fs<RamStorage>, rng: &mut SeqRng, req: &[u8]) -> CtapResult {
     let mut state = crate::FidoState::new();
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs,
@@ -2526,6 +2596,7 @@ fn credprotect_optional_with_list_hidden_in_discovery() {
         let mut state = crate::FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -2646,6 +2717,7 @@ fn credblob_echoed_in_assertion() {
         let mut state = crate::FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -2680,6 +2752,7 @@ fn credblob_at_the_advertised_maximum_round_trips() {
         let mut state = crate::FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -2704,6 +2777,7 @@ fn credblob_at_the_advertised_maximum_round_trips() {
         let mut state = crate::FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -2832,6 +2906,7 @@ fn hmac_secret_assertion_end_to_end() {
     let n = {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -2870,6 +2945,7 @@ fn run_mc_state(
     let mut out = [0u8; 1024];
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs,
@@ -2943,6 +3019,7 @@ fn reseal_credential(
     let mut out = [0u8; 512];
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs,
@@ -3021,6 +3098,7 @@ fn hmac_secret_survives_updateuserinfo_reseal_end_to_end() {
         let n = {
             let mut presence = crate::AlwaysConfirm;
             let mut ctx = Ctx {
+                fingerprint: None,
                 presence: &mut presence,
                 dev: dev(),
                 fs: &mut fs,
@@ -3050,6 +3128,7 @@ fn hmac_secret_survives_updateuserinfo_reseal_end_to_end() {
         let n = {
             let mut presence = crate::AlwaysConfirm;
             let mut ctx = Ctx {
+                fingerprint: None,
                 presence: &mut presence,
                 dev: dev(),
                 fs: &mut fs,
@@ -3109,6 +3188,7 @@ fn large_blob_key_in_assertion() {
     let n = {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -3205,6 +3285,7 @@ fn es384_register_then_login_verifies() {
         let mut state = crate::FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -3224,6 +3305,7 @@ fn es384_register_then_login_verifies() {
         let mut state = crate::FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -3278,6 +3360,7 @@ fn ed25519_register_then_login_verifies() {
         let mut state = crate::FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -3295,6 +3378,7 @@ fn ed25519_register_then_login_verifies() {
         let mut state = crate::FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -3321,6 +3405,7 @@ fn get_next_assertion_without_state_is_not_allowed() {
     let mut out = [0u8; 64];
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -3347,6 +3432,7 @@ fn call(
     let mut state = crate::FidoState::new();
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs,
@@ -3651,6 +3737,7 @@ fn near_ceiling_credential_roundtrips() {
         let mut state = crate::FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -3687,6 +3774,7 @@ fn near_ceiling_credential_roundtrips() {
         let mut state = crate::FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -3737,6 +3825,7 @@ fn maximal_box_creates_and_asserts() {
         let mut state = crate::FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -3771,6 +3860,7 @@ fn maximal_box_creates_and_asserts() {
         let mut state = crate::FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -3835,6 +3925,7 @@ fn an_advertised_extension_name_is_type_checked_wherever_it_appears() {
         let mut state = crate::FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs,
@@ -4073,6 +4164,7 @@ fn a_present_but_unusable_parameter_is_not_a_missing_one() {
         let mut state = crate::FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -4123,6 +4215,7 @@ fn overlong_rpid_or_userid_rejected() {
         let mut state = crate::FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -4151,6 +4244,7 @@ fn discovery_and_getnext_sign_with_credential_keys() {
         let n = {
             let mut presence = crate::AlwaysConfirm;
             let mut ctx = Ctx {
+                fingerprint: None,
                 presence: &mut presence,
                 dev: dev(),
                 fs: &mut fs,
@@ -4179,6 +4273,7 @@ fn discovery_and_getnext_sign_with_credential_keys() {
     let n1 = {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -4197,6 +4292,7 @@ fn discovery_and_getnext_sign_with_credential_keys() {
     let n2 = {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -4300,6 +4396,7 @@ fn getnextassertion_hmac_secret_keys_off_resident_id() {
         let mut out = [0u8; 1024];
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -4339,6 +4436,7 @@ fn getnextassertion_hmac_secret_keys_off_resident_id() {
     let n1 = {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -4361,6 +4459,7 @@ fn getnextassertion_hmac_secret_keys_off_resident_id() {
     let n2 = {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -4435,6 +4534,7 @@ fn builtin_uv_still_names_the_rp_on_a_display() {
     let mut pad = DisplayPad::new();
     let n = {
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut pad,
             dev: dev(),
             fs: &mut fs,
@@ -4527,6 +4627,7 @@ fn foreign_type_in_allow_list_neither_matches_nor_falls_through() {
         let mut state = crate::FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -4596,6 +4697,7 @@ fn hmac_secret_coordinate_must_be_exactly_32_bytes() {
         let mut out = [0u8; 1024];
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -4660,6 +4762,7 @@ fn ga_pin_uv_auth_protocol_zero_is_a_value_not_an_absence() {
         let mut out = [0u8; 1024];
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -4746,6 +4849,7 @@ fn ga_unsupported_protocol_outranks_every_later_check() {
         let mut out = [0u8; 1024];
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -4805,6 +4909,7 @@ fn ga_uv_option_outranks_the_protocol() {
         let mut out = [0u8; 1024];
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -4922,6 +5027,7 @@ fn hmac_secret_length_and_mac_codes() {
             let mut out = [0u8; 1024];
             let mut presence = crate::AlwaysConfirm;
             let mut ctx = Ctx {
+                fingerprint: None,
                 presence: &mut presence,
                 dev: dev(),
                 fs: &mut fs,

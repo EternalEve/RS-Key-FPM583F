@@ -18,17 +18,29 @@ on a "Yubico YubiKey" reader name and so needs the opt-in
 version is `5.8.0`, which is what FIDO tooling reads back. It is a build constant,
 not the RS-Key release.
 
-## Touch is always required
+FIDO2 and U2F remain available through both HID and the FIDO CCID applet.
+Assertion continuations and credential-enumeration walks belong to the entry
+that opened them; changing entries requires a new authorized beginning. HID
+channels have separate walk ownership. PIN retry limits remain device-wide.
+Resetting the CCID card retires its own walks; selecting an applet does not
+erase the shared PIN/token state.
 
-On the default (touch) build **every** FIDO operation needs a press of the
-**BOOTSEL button**: both registration (makeCredential) and login
-(getAssertion). The firmware's user-presence bit is implicitly true and it does
-**not** honour a request to skip it. WebAuthn `userVerification`/`up` cannot turn
-the touch off, and OpenSSH's `-O no-touch-required` is silently ignored on this
-device. A "no-touch" SSH key still asks for the touch at login. The LED tells
-you when the device is waiting. See [led.md](led.md) for the colours. A request
-times out after no touch (the browser shows its own timeout UI). No button wired
-on a custom board means presence confirms instantly.
+The experimental `fingerprint` build currently supplies the execution bridge
+and authorization policy. It has no production template bindings or enrollment
+commands, so normal firmware still uses the existing PIN/button paths. Scripted
+fingerprint success is confined to the isolated emulator test configuration.
+
+## Presence for registration and login
+
+On the default touch build, registration and ordinary login ask for a fresh
+**BOOTSEL button** press (or the configured presence input). The LED tells you
+when the device is waiting; see [led.md](led.md) for the colours. A wait without
+a press times out.
+
+CTAP `getAssertion` with `up:false` can run silently and returns UP=false.
+The optional `strict-up` build forces a press even for that request; the default
+build honors it. User verification remains a separate requirement: a touch
+alone does not supply UV, and UP-only requests do not run fingerprint matching.
 
 ## Set a PIN first
 

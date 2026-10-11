@@ -54,3 +54,7 @@ sram.bin*
 
 # Full phase-2 logs are retained locally; summaries and regressions are tracked.
 /RSKEY-FPM583F-PHASE-2-EVIDENCE/raw/
+
+# Full phase-3 logs, pre-cleanup snapshots, and resource images stay local.
+/RSKEY-FPM583F-PHASE-3-EVIDENCE/raw/
+/RSKEY-FPM583F-PHASE-3-EVIDENCE/build/

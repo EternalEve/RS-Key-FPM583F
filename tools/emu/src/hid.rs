@@ -18,12 +18,12 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use rsk_usb::ctaphid::{
-    CID_BROADCAST, CTAPHID_CANCEL, CTAPHID_CBOR, CTAPHID_ERROR, CTAPHID_IF_VERSION, CTAPHID_INIT,
-    CTAPHID_KEEPALIVE, CTAPHID_LOCK, CTAPHID_MSG, CTAPHID_PING, CTAPHID_SYNC, CTAPHID_UUID,
-    CTAPHID_VENDOR_FIRST, CTAPHID_VERSION, CTAPHID_WINK, ChannelLock, CidAllocator, DEVICE_UUID,
-    ERR_CHANNEL_BUSY, ERR_INVALID_CMD, ERR_INVALID_LEN, ERR_INVALID_PAR, ERR_MSG_TIMEOUT,
-    HID_RPT_SIZE, KEEPALIVE_MS, LOCK_MAX_SECONDS, Outcome, RX_TIMEOUT_MS, Reassembler, TxFrames,
-    init_capabilities, is_cancel_frame, keepalive_status,
+    CID_BROADCAST, CTAPHID_CANCEL, CTAPHID_CBOR, CTAPHID_ERROR, CTAPHID_INIT, CTAPHID_KEEPALIVE,
+    CTAPHID_LOCK, CTAPHID_MSG, CTAPHID_PING, CTAPHID_SYNC, CTAPHID_UUID, CTAPHID_VENDOR_FIRST,
+    CTAPHID_VERSION, CTAPHID_WINK, ChannelLock, CidAllocator, DEVICE_UUID, ERR_CHANNEL_BUSY,
+    ERR_INVALID_CMD, ERR_INVALID_LEN, ERR_INVALID_PAR, ERR_MSG_TIMEOUT, HID_RPT_SIZE, Interruption,
+    KEEPALIVE_MS, LOCK_MAX_SECONDS, Outcome, RX_TIMEOUT_MS, Reassembler, TxFrames, init_response,
+    interruption, keepalive_status,
 };
 
 use crate::device::{Job, Jobs};
@@ -47,7 +47,7 @@ pub struct Shared {
 // Refines `RSKeyTransport!NoSequenceGap` — SEC-TRANS-002.
 // Refines `RSKeyTransport!NoBufferOverrun` — SEC-TRANS-003.
 /// The emulator's dispatcher, and the SECOND consumer of the same `Reassembler`:
-/// arm for arm what `CtapHid::on_frame` (`crates/rsk-usb/src/ctaphid.rs:621-634`)
+/// arm for arm what `CtapHid::on_frame` (`crates/rsk-usb/src/ctaphid.rs:668-681`)
 /// does in the image, `lock.refuses` included — and the one `tests/*.py` runs.
 pub fn serve(mut stream: TcpStream, shared: Arc<Shared>) -> io::Result<()> {
     let mut asm = Reassembler::new();
@@ -78,7 +78,7 @@ pub fn serve(mut stream: TcpStream, shared: Arc<Shared>) -> io::Result<()> {
                         write_msg(&mut stream, cid, CTAPHID_ERROR, &[ERR_CHANNEL_BUSY])?
                     }
                     Outcome::Message(cid, cmd) => {
-                        dispatch(&mut stream, &shared, &mut asm, cid, cmd, now_ms)?
+                        dispatch(&mut stream, &shared, &mut asm, &mut rx, cid, cmd, now_ms)?
                     }
                 }
             }
@@ -164,6 +164,7 @@ fn dispatch(
     stream: &mut TcpStream,
     shared: &Arc<Shared>,
     asm: &mut Reassembler,
+    rx: &mut FrameRx,
     cid: u32,
     cmd: u8,
     now_ms: u64,
@@ -179,20 +180,12 @@ fn dispatch(
             let _ = shared.jobs.send(Job::DeselectMsg, done);
             // nonce(8) | newcid(4) | iface | major | minor | build | caps
             let nonce = asm.message();
-            let mut resp = [0u8; 17];
-            let k = nonce.len().min(8);
-            resp[..k].copy_from_slice(&nonce[..k]);
             let assigned = if cid == CID_BROADCAST {
                 shared.cids.lock().unwrap().allocate()
             } else {
                 cid
             };
-            resp[8..12].copy_from_slice(&assigned.to_le_bytes());
-            resp[12] = CTAPHID_IF_VERSION;
-            resp[13] = rsk_sdk::FIRMWARE_VERSION.0;
-            resp[14] = rsk_sdk::FIRMWARE_VERSION.1;
-            resp[15] = rsk_sdk::FIRMWARE_VERSION.2;
-            resp[16] = init_capabilities(CAN_WINK);
+            let resp = init_response(nonce, assigned, CAN_WINK);
             write_msg(stream, cid, CTAPHID_INIT, &resp)
         }
         CTAPHID_PING | CTAPHID_SYNC => {
@@ -223,22 +216,16 @@ fn dispatch(
         }
         CTAPHID_MSG => {
             let data = asm.message().to_vec();
-            let out = run_job(shared, Job::Msg { cid, data }, false, stream, cid)?;
-            match out {
-                Some(body) => write_msg(stream, cid, CTAPHID_MSG, &body),
-                None => write_msg(stream, cid, CTAPHID_ERROR, &[ERR_INVALID_CMD]),
-            }
+            let out = run_job(shared, Job::Msg { cid, data }, false, stream, rx, cid)?;
+            write_job_reply(stream, cid, CTAPHID_MSG, out)
         }
         CTAPHID_CBOR => {
             let data = asm.message().to_vec();
             if data.is_empty() {
                 return write_msg(stream, cid, CTAPHID_ERROR, &[ERR_INVALID_LEN]);
             }
-            let out = run_job(shared, Job::Cbor { cid, data }, true, stream, cid)?;
-            match out {
-                Some(body) => write_msg(stream, cid, CTAPHID_CBOR, &body),
-                None => write_msg(stream, cid, CTAPHID_ERROR, &[ERR_INVALID_CMD]),
-            }
+            let out = run_job(shared, Job::Cbor { cid, data }, true, stream, rx, cid)?;
+            write_job_reply(stream, cid, CTAPHID_CBOR, out)
         }
         cmd if cmd >= CTAPHID_VENDOR_FIRST => {
             let data = asm.message().to_vec();
@@ -246,44 +233,75 @@ fn dispatch(
                 cmd: cmd & !0x80,
                 data,
             };
-            match run_job(shared, job, false, stream, cid)? {
-                Some(body) => write_msg(stream, cid, cmd, &body),
-                None => write_msg(stream, cid, CTAPHID_ERROR, &[ERR_INVALID_CMD]),
-            }
+            let out = run_job(shared, job, false, stream, rx, cid)?;
+            write_job_reply(stream, cid, cmd, out)
         }
         _ => write_msg(stream, cid, CTAPHID_ERROR, &[ERR_INVALID_CMD]),
     }
 }
 
-/// Hand a job to the device thread, streaming `CTAPHID_KEEPALIVE` on `cid` while
-/// it runs — the frames that make a client show "touch your security key" instead
-/// of timing out — and watching that same channel for the `CTAPHID_CANCEL` that
-/// ends the touch wait.
+#[derive(Debug, PartialEq, Eq)]
+enum JobReply {
+    Response(Option<Vec<u8>>),
+    Resynchronized([u8; rsk_usb::ctaphid::INIT_NONCE_LEN]),
+}
+
+fn write_job_reply(stream: &mut TcpStream, cid: u32, cmd: u8, reply: JobReply) -> io::Result<()> {
+    match reply {
+        JobReply::Response(Some(body)) => write_msg(stream, cid, cmd, &body),
+        JobReply::Response(None) => write_msg(stream, cid, CTAPHID_ERROR, &[ERR_INVALID_CMD]),
+        JobReply::Resynchronized(nonce) => write_msg(
+            stream,
+            cid,
+            CTAPHID_INIT,
+            &init_response(&nonce, cid, CAN_WINK),
+        ),
+    }
+}
+
 fn run_job(
     shared: &Arc<Shared>,
     job: Job,
     is_cbor: bool,
     stream: &mut TcpStream,
+    rx: &mut FrameRx,
     cid: u32,
-) -> io::Result<Option<Vec<u8>>> {
-    let (tx, rx) = mpsc::channel();
+) -> io::Result<JobReply> {
+    let (tx, answer) = mpsc::channel();
     if shared.jobs.send(job, tx).is_err() {
         return Err(io::Error::other("the device thread is gone"));
     }
-    let mut watch = CancelWatch::default();
+    let mut resync = None;
     loop {
-        match rx.recv_timeout(Duration::from_millis(KEEPALIVE_MS)) {
-            Ok(out) => return Ok(out),
+        match answer.recv_timeout(Duration::from_millis(KEEPALIVE_MS)) {
+            Ok(out) => {
+                return Ok(match resync {
+                    Some(nonce) => JobReply::Resynchronized(nonce),
+                    None => JobReply::Response(out),
+                });
+            }
             Err(RecvTimeoutError::Timeout) => {
                 let up = shared.signals.up_pending_for(crate::signals::SCOPE_FIDO);
                 if let Some(status) = keepalive_status(is_cbor, up) {
                     write_msg(stream, cid, CTAPHID_KEEPALIVE, &[status])?;
                 }
-                // Only during the touch wait, exactly as `CtapHid::run_with_keepalive`
-                // watches only then: off it the platform pipelines its next request,
-                // and a frame consumed here would be that request swallowed.
-                if up && poll_cancel(stream, &mut watch, cid)? {
-                    shared.signals.request_cancel(cid);
+                // Keep matching cancellable without advertising a touch wait.
+                if up || shared.signals.cancellable_for(crate::signals::SCOPE_FIDO) {
+                    match poll_watch(stream, rx, cid)? {
+                        Interruption::Cancel => shared.signals.request_cancel(cid),
+                        Interruption::Resync(nonce) => {
+                            // Drain the old job before replying to INIT, so its
+                            // eventual response cannot become the next command's.
+                            resync = Some(nonce);
+                            shared.signals.request_cancel(cid);
+                            let (done, _) = mpsc::channel();
+                            let _ = shared.jobs.send(Job::DeselectMsg, done);
+                        }
+                        Interruption::Error(other, code) => {
+                            write_msg(stream, other, CTAPHID_ERROR, &[code])?
+                        }
+                        Interruption::None => {}
+                    }
                 }
             }
             Err(RecvTimeoutError::Disconnected) => {
@@ -293,54 +311,25 @@ fn run_job(
     }
 }
 
-/// The `CTAPHID_CANCEL` that arrives mid-ceremony, on a socket nobody else is
-/// reading.
-///
-/// `serve` is parked inside `run_job` for the whole of a command, so a cancel
-/// frame would otherwise sit in the receive buffer until the touch wait it was
-/// sent to abort had already ended — the wait is the only thing worth cancelling,
-/// so the command would always answer as if no cancel had come. The device
-/// transport races this read in its `select3` instead; this is the socket's
-/// version of the same watch.
-///
-/// The partial frame is carried between polls: TCP may split a 64-byte report
-/// across segments, and half a frame dropped here would misalign every frame
-/// after it.
-struct CancelWatch {
-    frame: [u8; HID_RPT_SIZE],
-    have: usize,
-}
-
-impl Default for CancelWatch {
-    fn default() -> Self {
-        Self {
-            frame: [0; HID_RPT_SIZE],
-            have: 0,
-        }
-    }
-}
-
-impl CancelWatch {
-    /// Consume whatever has already arrived, without blocking; `true` once a whole
-    /// frame proves to be a CANCEL for `cid`. Any other frame is dropped, as the
-    /// device transport drops it.
-    fn poll<R: Read>(&mut self, mut src: R, cid: u32) -> io::Result<bool> {
+// An interrupt watch and the next dispatch share partial reports: discarding
+// bytes at the end of a job would misalign the connection's subsequent reports.
+impl FrameRx {
+    /// One report per poll; incomplete bytes remain for the next dispatch too.
+    fn poll<R: Read>(&mut self, mut src: R, cid: u32) -> io::Result<Interruption> {
         loop {
             match src.read(&mut self.frame[self.have..]) {
                 // The peer closed. `serve`'s own read reports that; here it just
                 // means no cancel is coming.
-                Ok(0) => return Ok(false),
+                Ok(0) => return Ok(Interruption::None),
                 Ok(n) => {
                     self.have += n;
                     if self.have < HID_RPT_SIZE {
                         continue;
                     }
                     self.have = 0;
-                    if is_cancel_frame(&self.frame, HID_RPT_SIZE, cid) {
-                        return Ok(true);
-                    }
+                    return Ok(interruption(&self.frame, HID_RPT_SIZE, cid));
                 }
-                Err(e) if e.kind() == io::ErrorKind::WouldBlock => return Ok(false),
+                Err(e) if e.kind() == io::ErrorKind::WouldBlock => return Ok(Interruption::None),
                 Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
                 Err(e) => return Err(e),
             }
@@ -348,9 +337,9 @@ impl CancelWatch {
     }
 }
 
-/// [`CancelWatch::poll`] over the connection, which has to leave blocking mode for
+/// [`FrameRx::poll`] over the connection, which has to leave blocking mode for
 /// it and be back in it before `serve` reads the next frame.
-fn poll_cancel(stream: &TcpStream, watch: &mut CancelWatch, cid: u32) -> io::Result<bool> {
+fn poll_watch(stream: &TcpStream, watch: &mut FrameRx, cid: u32) -> io::Result<Interruption> {
     stream.set_nonblocking(true)?;
     let seen = watch.poll(stream, cid);
     stream.set_nonblocking(false)?;

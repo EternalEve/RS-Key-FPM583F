@@ -247,6 +247,7 @@ fn reset_probe(data: &[u8]) {
     }
     let mut presence = rsk_fido::AlwaysConfirm;
     let mut ctx = rsk_fido::Ctx {
+        fingerprint: None,
         dev: identity,
         fs: &mut fs,
         rng: &mut rng,

@@ -39,6 +39,7 @@ use rsk_device::presence::{Board, Outcome};
 
 use rsk_device::presence::Arbiter;
 
+#[cfg(any(feature = "display", not(led_kind = "none")))]
 pub(crate) use rsk_device::presence::MIN_TIMEOUT_SECS;
 pub use rsk_device::presence::{SCOPE_CCID, SCOPE_FIDO, SCOPE_NONE, SCOPE_OTP};
 
@@ -66,6 +67,10 @@ pub fn up_pending() -> bool {
     ARBITER.pending_for(SCOPE_FIDO)
 }
 
+pub fn cancellable() -> bool {
+    ARBITER.cancellable_for(SCOPE_FIDO)
+}
+
 /// The keyboard-interface status-frame hook: is *its* touch pending? Reported in
 /// the OTP status byte so a host polling for a touch-gated challenge-response sees
 /// the wait (issue #55).
@@ -89,7 +94,7 @@ pub fn cancel_otp_wait() {
 
 /// Override the touch-wait timeout from the phy record — value in **seconds**,
 /// matching PicoForge's tag `0x08`. `0` (or an absent tag) keeps the built-in
-/// 30 s default; anything below [`MIN_TIMEOUT_SECS`] is raised to it, which
+/// 30 s default; anything below [`rsk_device::presence::MIN_TIMEOUT_SECS`] is raised to it, which
 /// `main.rs`'s `effective_timeout_secs` has to mirror by hand. Call once at
 /// boot, before any applet runs.
 pub fn set_timeout_secs(secs: u8) {
@@ -268,7 +273,7 @@ pub fn set_up_pending(pending: bool) {
 pub fn set_cancel_requested(requested: bool) {
     ARBITER.set_cancel_requested(requested);
 }
-#[cfg(feature = "display")]
+#[cfg(any(feature = "display", feature = "fingerprint"))]
 pub fn cancel_requested() -> bool {
     ARBITER.cancel_requested()
 }

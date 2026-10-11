@@ -106,9 +106,9 @@ impl Read for Chunks {
 
 #[test]
 fn a_whole_cancel_frame_is_seen() {
-    let mut w = CancelWatch::default();
+    let mut w = FrameRx::default();
     let mut src = Chunks(vec![frame(CID, CTAPHID_CANCEL).to_vec()]);
-    assert!(w.poll(&mut src, CID).unwrap());
+    assert_eq!(w.poll(&mut src, CID).unwrap(), Interruption::Cancel);
 }
 
 /// TCP is a byte stream, so a 64-byte report can arrive in pieces across two
@@ -117,44 +117,47 @@ fn a_whole_cancel_frame_is_seen() {
 #[test]
 fn a_cancel_split_across_polls_is_reassembled() {
     let f = frame(CID, CTAPHID_CANCEL).to_vec();
-    let mut w = CancelWatch::default();
+    let mut w = FrameRx::default();
     let mut first = Chunks(vec![f[..30].to_vec()]);
-    assert!(
-        !w.poll(&mut first, CID).unwrap(),
+    assert_eq!(
+        w.poll(&mut first, CID).unwrap(),
+        Interruption::None,
         "half a frame decides nothing"
     );
     let mut rest = Chunks(vec![f[30..].to_vec()]);
-    assert!(w.poll(&mut rest, CID).unwrap());
+    assert_eq!(w.poll(&mut rest, CID).unwrap(), Interruption::Cancel);
 }
 
-/// Anything else mid-ceremony is dropped, exactly as the device transport drops
-/// it — but dropped by whole frames, so the cancel behind it still lands.
 #[test]
-fn an_unrelated_frame_is_dropped_without_losing_the_cancel_behind_it() {
-    let mut w = CancelWatch::default();
+fn an_unrelated_request_is_busy_without_losing_the_cancel_behind_it() {
+    let mut w = FrameRx::default();
     let mut src = Chunks(vec![
         frame(CID, CTAPHID_PING).to_vec(),
         frame(CID, CTAPHID_CANCEL).to_vec(),
     ]);
-    assert!(w.poll(&mut src, CID).unwrap());
+    assert_eq!(
+        w.poll(&mut src, CID).unwrap(),
+        Interruption::Error(CID, ERR_CHANNEL_BUSY)
+    );
+    assert_eq!(w.poll(&mut src, CID).unwrap(), Interruption::Cancel);
 }
 
 /// A second process cancelling on its own channel is not this ceremony's answer —
 /// the scoping `Signals::cancelled` enforces, checked here at the frame.
 #[test]
 fn another_channels_cancel_is_not_ours() {
-    let mut w = CancelWatch::default();
+    let mut w = FrameRx::default();
     let mut src = Chunks(vec![frame(0x0200_0000, CTAPHID_CANCEL).to_vec()]);
-    assert!(!w.poll(&mut src, CID).unwrap());
+    assert_eq!(w.poll(&mut src, CID).unwrap(), Interruption::None);
 }
 
 /// A closed peer reads as `Ok(0)` forever; the poll has to end on it rather than
 /// spin, since the job it is waiting on can still be running.
 #[test]
 fn a_closed_connection_ends_the_poll() {
-    let mut w = CancelWatch::default();
+    let mut w = FrameRx::default();
     let mut src = Chunks(vec![Vec::new()]);
-    assert!(!w.poll(&mut src, CID).unwrap());
+    assert_eq!(w.poll(&mut src, CID).unwrap(), Interruption::None);
 }
 
 /// `CTAPHID_INIT` answers whatever the device thread is doing.
@@ -222,7 +225,14 @@ fn a_cancel_reaches_a_job_waiting_for_a_touch() {
             cid: CID,
             data: vec![0x0b],
         };
-        let out = run_job(&shared, job, true, &mut stream, CID);
+        let out = run_job(
+            &shared,
+            job,
+            true,
+            &mut stream,
+            &mut FrameRx::default(),
+            CID,
+        );
         done_tx.send(out.unwrap()).unwrap();
     });
 
@@ -248,7 +258,7 @@ fn a_cancel_reaches_a_job_waiting_for_a_touch() {
 
     assert_eq!(
         done.recv_timeout(Duration::from_secs(5)).unwrap(),
-        Some(vec![0x2d])
+        JobReply::Response(Some(vec![0x2d]))
     );
     assert!(signals.cancelled());
 }

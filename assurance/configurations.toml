@@ -233,7 +233,7 @@ columns = [
   "firmware-2mb", "firmware-16mb", "firmware-strict-config", "keygen-bench",
   "core1-stats", "bench", "fido-conformance", "ea-conformance-rpid",
   "largeblob-ext", "abrobot-16m", "abrobot-4m", "seeed-xiao", "tenstar-usb",
-  "waveshare-one", "waveshare-touch-lcd",
+  "waveshare-one", "waveshare-touch-lcd", "fingerprint",
 ]
 disposition = "out-of-scope"
 basis = "crate-absent"
@@ -924,6 +924,21 @@ forbids both), it carries four `check.sh` rows, and it has zero flake packages \
 — so nothing in the release axis would ever have given it a cell. Does the \
 swapped surface move any credential-management or authorization transition the \
 P0-launch models name?"""
+
+[[question]]
+column = "fingerprint"
+owner = "contributor"
+settled_by = "evidence"
+text = """
+Which P0-family statements remain valid when the shared applets receive a \
+fingerprint context and the worker services UART0? Phase three exercises \
+authorization, persistent retry accounting, cancellation and source ownership \
+with a loopback sensor fixture, plus two bounded operation-lifecycle proofs. \
+The existing TLA/trace evidence still uses the default PIN/screen context, and \
+the production binding remains unconfigured. Settle each row with evidence for \
+this feature after the stage-four directory and stage-five sensor protocol are \
+integrated; stage-six UART/IRQ/XIP and presence measurements must discharge the \
+hardware assumptions before extending the default build's claims."""
 
 [[question]]
 column = "abrobot-16m"

@@ -258,8 +258,8 @@
 
 电气与标称容量使用 583F 规格书，命令与报文按用户指定使用通用手册；来源身份、哈希与矛盾统一记录在[第一阶段记录](RSKEY-FPM583F-PHASE-1-RECORD.md#7-模块必要能力及候选资料17)。开源引用固定到已检查版本；真正引入依赖时还须记录发布包校验和及本地补丁。本文的阶段完成条件不是对当前实现或硬件的通过声明。
 
-[583F 规格书]: FPM583F.pdf
-[583F/383C 通用协议]: FPM383C583F通用用户通信协议手册V1.2.pdf
+[583F 规格书]: RSKEY-FPM583F-REFERENCES.md#fpm583f
+[583F/383C 通用协议]: RSKEY-FPM583F-REFERENCES.md#fpm383c583f
 [r503]: https://docs.rs/r503/0.1.0/r503/
 [r503 源码]: https://github.com/embediver/R503-rs/blob/2175d7ca7e77da2a4e7e4b3ab20221afb6a5e8f7/r503/src/lib.rs
 [a608_embedded]: https://github.com/NightSling/a608_embedded_hal/tree/e8ae902a469aa165a78a76389de5302c75232e21

@@ -434,6 +434,8 @@ fn panel_bench(
         security_trace: None,
         yubico: false,
         power_cut: None,
+        fingerprint_script: None,
+        fingerprint_init: false,
     };
 
     let (jobs_tx, jobs_rx) = job_queue();

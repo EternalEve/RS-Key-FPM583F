@@ -38,6 +38,19 @@ tag: the USB `bcdDevice` build counter (bumped on every behavior change), and
 
 ## [Unreleased]
 
+- **FIDO:** keep HID and CCID entry points, but stamp each request's source so
+  CCID cannot inherit a HID assertion or credential-enumeration walk. HID MSG
+  also carries its CID; a CCID card reset retires its own stateful walks.
+  **bcdDevice → 0x09DB.**
+- **fingerprint:** add an optional, screenless UART bridge and host-tested UV
+  service with persistent retries, authorized-slot checks, cancellation and
+  bounded draining. Production bindings remain unconfigured. The isolated
+  emulator fixture exercises real python-fido2 requests and RP signatures.
+- **transport:** process same-channel INIT during a cancellable operation after
+  draining its old reply; keep matching cancellable while reporting PROCESSING.
+  Retain partial TCP reports across command completion.
+- **emu:** propagate persistence failures and quarantine the failed medium
+  instead of accepting RAM readback as a successful persistent write.
 - **emu:** rebuild the file index at boot, so persisted resident credentials are
   discoverable after a normal process restart. Add a pinned python-fido2 2.2.1
   integration runner for PIN/passkey/RP verification, persistence and cancellation.

@@ -88,8 +88,12 @@ embassy-embedded-hal = { workspace = true }
 # The async NorFlash traits (the same 0.4 sequential-storage uses) for `SharedFlash`,
 # the adapter that lets the main + counter partitions share the one Flash peripheral.
 embedded-storage-async = "0.4"
+# BufferedUart's existing 0.7 async traits; no new version enters the graph.
+embedded-io-async = { version = "=0.7.0", optional = true }
 
 [features]
+# Unconfigured UART bridge for phases 4–6; no 583F commands or production bindings yet.
+fingerprint = ["dep:embedded-io-async"]
 # Physical BOOTSEL touch for user presence is REQUIRED BY DEFAULT and is NOT a
 # feature: the shipped firmware demands a touch for makeCredential / getAssertion
 # / selection / reset / U2F and the OpenPGP UIF DOs with no flag needed. The

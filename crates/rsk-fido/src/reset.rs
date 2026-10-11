@@ -12,7 +12,7 @@ use crate::consts::{
     EF_ALWAYS_UV, EF_ATT_CHAIN, EF_ATT_KEY, EF_BACKUP_SEALED, EF_COUNTER, EF_CRED, EF_CRED_BLOB,
     EF_CRED_CTR, EF_CRED_STATE, EF_DEVICE_PIN, EF_EA_ENABLED, EF_EA_RPIDS, EF_EE_DEV, EF_KEY_DEV,
     EF_KEY_DEV_ENC, EF_LARGEBLOB, EF_MINPINLEN, EF_PAUTHTOKEN, EF_PIN, EF_RP, EF_RPNICK,
-    MAX_RESIDENT_CREDENTIALS, RESET_WINDOW_MS,
+    EF_UV_STATE, MAX_RESIDENT_CREDENTIALS, RESET_WINDOW_MS,
 };
 use crate::error::{CtapError, CtapResult};
 use crate::journal;
@@ -20,8 +20,8 @@ use crate::seed::ensure_seed;
 use crate::{Ctx, Rng};
 
 /// Progress backstop for one [`sweep`] phase: the FIDO predicate spans four
-/// 256-slot ranges and 15 fixed records, so a converging sweep cannot exceed this.
-const RESET_MAX_DELETES: u32 = 4 * MAX_RESIDENT_CREDENTIALS as u32 + 15;
+/// 256-slot ranges and 16 fixed records, so a converging sweep cannot exceed this.
+const RESET_MAX_DELETES: u32 = 4 * MAX_RESIDENT_CREDENTIALS as u32 + 16;
 
 /// Fids one [`sweep`] pass collects before deleting them. Named because the wrap
 /// to a second pass is a code path, and the test that crosses it has to size its
@@ -283,6 +283,7 @@ fn is_fido_fid(fid: u16) -> bool {
                 // zero tag, which is exactly the state of the store a reset leaves.
                 | EF_CRED_STATE
                 | EF_PIN
+                | EF_UV_STATE
                 | EF_MINPINLEN
                 | EF_LARGEBLOB
                 | EF_EA_ENABLED

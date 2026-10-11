@@ -62,7 +62,7 @@ function = "reset"
 op = "RevokeToken"
 
 # The board's power-up wipe: building the CTAP handler IS the power cycle, so it
-# replaces the borrowed session state wholesale (`crates/rsk-device/src/ctap.rs:122`).
+# replaces the borrowed session state wholesale (`crates/rsk-device/src/ctap.rs:128`).
 # The same write as `state.rs::reset` one crate out, and unowned since the day
 # the axis was written — invisible in two independent ways, both closed
 # 2026-08-31: the whole-token clause only knew the spelling `*self` in the file
@@ -88,6 +88,13 @@ file = "crates/rsk-fido/src/conformance/mod.rs"
 function = "arm_token"
 op = "IssueToken"
 test_only = true
+
+[[volatile_writer]]
+file = "crates/rsk-fido/src/state.rs"
+function = "expire_user_presence"
+disposition = "stutter"
+column = "fingerprint"
+why = "expires cached fingerprint UP; writes only user_present, which alpha does not observe, and preserves in_use, permissions and has_rp_id"
 
 [[persistent_writer]]
 file = "crates/rsk-fido/src/clientpin.rs"

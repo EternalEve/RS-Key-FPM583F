@@ -753,6 +753,91 @@ fn both_transports_answer_from_one_session_state() {
 }
 
 #[test]
+fn ccid_cannot_continue_an_assertion_opened_on_hid() {
+    let env = Env::new();
+    let mut ctap = env.ctap();
+    let mut ccid = env.ccid();
+    let dev = rsk_crypto::Device {
+        serial_id: &crate::tests::SERIAL_ID,
+        serial_hash: &crate::tests::SERIAL_HASH,
+        otp_key: None,
+    };
+    rsk_fido::seed::ensure_seed(&dev, &mut env.fs.borrow_mut(), &mut *env.rng.borrow_mut())
+        .unwrap();
+    for user in [b"first".as_slice(), b"second".as_slice()] {
+        let mut wire = [0u8; 512];
+        wire[0] = rsk_fido::consts::CTAP_MAKE_CREDENTIAL;
+        let mut e = minicbor::Encoder::new(minicbor::encode::write::Cursor::new(&mut wire[1..]));
+        e.map(5).unwrap();
+        e.u8(1).unwrap().bytes(&[0x5A; 32]).unwrap();
+        e.u8(2).unwrap().map(1).unwrap();
+        e.str("id").unwrap().str("scope.example").unwrap();
+        e.u8(3).unwrap().map(2).unwrap();
+        e.str("id").unwrap().bytes(user).unwrap();
+        e.str("name").unwrap().str("test account").unwrap();
+        e.u8(4).unwrap().array(1).unwrap().map(2).unwrap();
+        e.str("alg")
+            .unwrap()
+            .i64(rsk_fido::consts::ALG_ES256)
+            .unwrap();
+        e.str("type").unwrap().str("public-key").unwrap();
+        e.u8(7).unwrap().map(1).unwrap();
+        e.str("rk").unwrap().bool(true).unwrap();
+        let n = e.writer().position() + 1;
+        assert_eq!(ctap.handle_cbor(1, &wire[..n], 0)[0], 0);
+    }
+    let mut wire = [0u8; 128];
+    wire[0] = rsk_fido::consts::CTAP_GET_ASSERTION;
+    let mut e = minicbor::Encoder::new(minicbor::encode::write::Cursor::new(&mut wire[1..]));
+    e.map(2).unwrap();
+    e.u8(1).unwrap().str("scope.example").unwrap();
+    e.u8(2).unwrap().bytes(&[0xA5; 32]).unwrap();
+    let n = e.writer().position() + 1;
+    assert_eq!(ctap.handle_cbor(1, &wire[..n], 0)[0], 0);
+    let touches = env.finger.borrow().requests;
+    assert_eq!(
+        sw(ccid.handle_apdu(&select(rsk_fido::consts::FIDO_AID), 0)),
+        rsk_sdk::Sw::OK
+    );
+    let next = [rsk_fido::consts::CTAP_GET_NEXT_ASSERTION];
+    let (body, status) = exchange_chained(&mut ccid, &ctap_msg(&next));
+    assert_eq!(status, rsk_sdk::Sw::OK);
+    assert_eq!(
+        body[0],
+        rsk_fido::CtapError::NotAllowed as u8,
+        "CCID must refuse a continuation authorized on another transport"
+    );
+    assert_eq!(ctap.handle_cbor(1, &next, 0)[0], 0);
+    assert_eq!(env.finger.borrow().requests, touches);
+
+    assert_eq!(ctap.handle_cbor(2, &wire[..n], 0)[0], 0);
+    assert_eq!(
+        ctap.handle_cbor(1, &next, 0)[0],
+        rsk_fido::CtapError::NotAllowed as u8
+    );
+    assert_eq!(
+        exchange_chained(&mut ccid, &ctap_msg(&next)).0[0],
+        rsk_fido::CtapError::NotAllowed as u8
+    );
+    assert_eq!(ctap.handle_cbor(2, &next, 0)[0], 0);
+
+    assert_eq!(exchange_chained(&mut ccid, &ctap_msg(&wire[..n])).0[0], 0);
+    assert_eq!(
+        ctap.handle_cbor(1, &next, 0)[0],
+        rsk_fido::CtapError::NotAllowed as u8
+    );
+    assert_eq!(exchange_chained(&mut ccid, &ctap_msg(&next)).0[0], 0);
+
+    assert_eq!(exchange_chained(&mut ccid, &ctap_msg(&wire[..n])).0[0], 0);
+    ccid.reset_card();
+    ccid.handle_apdu(&select(rsk_fido::consts::FIDO_AID), 0);
+    assert_eq!(
+        exchange_chained(&mut ccid, &ctap_msg(&next)).0[0],
+        rsk_fido::CtapError::NotAllowed as u8
+    );
+}
+
+#[test]
 fn u2f_over_ccid_answers_its_version_command() {
     let env = Env::new();
     let mut ccid = env.ccid();
@@ -769,6 +854,81 @@ fn u2f_over_ccid_answers_its_version_command() {
         .to_vec();
     assert_eq!(sw(&res), rsk_sdk::Sw::OK);
     assert_eq!(&res[..res.len() - 2], rsk_fido::consts::U2F_VERSION);
+}
+
+#[test]
+fn mse_ownership_is_stamped_by_cbor_msg_and_ccid_and_a_refusal_spends_it() {
+    let env = Env::new();
+    let mut ctap = env.ctap();
+    let mut ccid = env.ccid();
+    ccid.handle_apdu(&select(rsk_fido::consts::FIDO_AID), 0);
+    let (x, y) = rsk_fido::ec::P256Key::from_scalar(&[0x42; 32])
+        .unwrap()
+        .public_xy();
+    let mut wire = [0u8; 200];
+    wire[0] = rsk_fido::consts::CTAP_VENDOR;
+    let mut e = minicbor::Encoder::new(minicbor::encode::write::Cursor::new(&mut wire[1..]));
+    e.map(2)
+        .unwrap()
+        .u8(1)
+        .unwrap()
+        .u64(rsk_fido::consts::VENDOR_MSE)
+        .unwrap()
+        .u8(2)
+        .unwrap()
+        .map(1)
+        .unwrap()
+        .u8(1)
+        .unwrap()
+        .map(5)
+        .unwrap()
+        .u8(1)
+        .unwrap()
+        .u8(2)
+        .unwrap()
+        .u8(3)
+        .unwrap()
+        .i64(-25)
+        .unwrap()
+        .i8(-1)
+        .unwrap()
+        .u8(1)
+        .unwrap()
+        .i8(-2)
+        .unwrap()
+        .bytes(&x)
+        .unwrap()
+        .i8(-3)
+        .unwrap()
+        .bytes(&y)
+        .unwrap();
+    let n = e.writer().position() + 1;
+    let unlock = [
+        rsk_fido::consts::CTAP_VENDOR,
+        0xA1,
+        1,
+        rsk_fido::consts::VENDOR_UNLOCK as u8,
+    ];
+    for source in [1, 0, 2] {
+        let body = if source == 0 {
+            exchange_chained(&mut ccid, &ctap_msg(&wire[..n])).0
+        } else {
+            ctap.handle_cbor(source, &wire[..n], 0).to_vec()
+        };
+        assert_eq!(body[0], 0);
+        assert_eq!(env.fido_state.borrow().mse_cid, source);
+        if source == 1 {
+            ctap.handle_msg(2, &apdu(0, rsk_fido::consts::CTAP_VERSION, 0, 0, &[]), 0);
+            assert!(!env.fido_state.borrow().mse_ready());
+        }
+        let refused = if source == 0 {
+            ctap.handle_cbor(1, &unlock, 0).to_vec()
+        } else {
+            exchange_chained(&mut ccid, &ctap_msg(&unlock)).0
+        };
+        assert_eq!(refused[0], rsk_fido::CtapError::NotAllowed as u8);
+        assert!(!env.fido_state.borrow().mse_active);
+    }
 }
 
 /// One AID carries two applications that `ykman config usb --disable` names

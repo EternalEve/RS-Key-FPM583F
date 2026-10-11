@@ -352,7 +352,7 @@ def test_the_persistent_domain_is_derived_from_the_projection(tree: Tree):
             "outcome: unowned",
         ),
         # The whole token replaced under a name that is not `self`, which is what
-        # `crates/rsk-device/src/ctap.rs:122` does at every power-up.
+        # `crates/rsk-device/src/ctap.rs:128` does at every power-up.
         (
             "fn stray(c: &C) { let mut st = c.state.borrow_mut(); *st = FidoState::new(); }\n",
             "volatile: unowned",
@@ -438,7 +438,7 @@ def test_an_unowned_concrete_site_fails(tree: Tree, body: str, finding: str):
         "fn stray(gna: &RefCell<AssertionState>) {\n"
         "    let mut st = gna.borrow_mut();\n    *st = Default::default();\n}\n",
         # CONTROL for the swap clause: BUILDING a fresh state replaces nothing.
-        # `firmware/src/main.rs:1167` is exactly this, and a rule reading
+        # `firmware/src/main.rs:1208` is exactly this, and a rule reading
         # `FidoState::new` anywhere would own the boot that makes the one cell.
         "fn stray() { let cell = RefCell::new(FidoState::new()); hand(cell); }\n",
     ],
@@ -578,15 +578,15 @@ def test_the_emulator_is_inside_the_import_scoped_sweep(tree: Tree):
 
 def test_the_volatile_floor_this_file_ships_is_above_nothing_at_all(tree: Tree):
     """The floor is a PARAMETER, so falsify the shipped one against the real tree
-    rather than a fixture-sized stand-in. 12 discriminates and 10 does not: the
-    checkout derives 11, so any floor at or under it is green for a reason that
+    rather than a fixture-sized stand-in. 13 discriminates and 11 does not: the
+    checkout derives 12, so any floor at or under it is green for a reason that
     has nothing to do with the floor being read."""
     real = token_refinement_gate.FLOORS
     assert token_refinement_gate.audit(token_refinement_gate.ROOT, real)[0] == []
     over = token_refinement_gate.audit(
-        token_refinement_gate.ROOT, {**real, "volatile_writer": 12}
+        token_refinement_gate.ROOT, {**real, "volatile_writer": 13}
     )[0]
-    assert contains(over, "volatile: 11 site(s) derived, under the floor of 12"), over
+    assert contains(over, "volatile: 12 site(s) derived, under the floor of 13"), over
 
 
 def test_a_permission_mask_in_a_scanned_unit_outside_the_applet_is_a_site(tree: Tree):

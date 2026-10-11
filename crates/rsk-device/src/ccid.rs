@@ -102,7 +102,7 @@ pub struct CcidApplets<'a, S: Storage, R: rsk_sdk::Rng + 'static, VP: rsk_vendor
     rescue: RescueApplet<'a>,
     /// CTAP2 and U2F as ISO 7816 APDUs. Registered last, so the fast-path indices
     /// above stay valid; it holds no FIDO state of its own.
-    fido: crate::ccid_fido::FidoCcidApplet<'a, R>,
+    fido: crate::ccid_fido::FidoCcidApplet<'a, S, R>,
     /// Cached enabled-applications mask from `EF_DEV_CONF`; reloaded when a config
     /// write sets the dirty latch. Gates CCID SELECT, the OTP keyboard interface
     /// and (via the worker) the FIDO2/U2F transports.
@@ -155,6 +155,14 @@ pub fn gates_wiped_last(fid: u16) -> bool {
 impl<'a, S: Storage, R: rsk_sdk::Rng + 'static, VP: rsk_vendor::Platform>
     CcidApplets<'a, S, R, VP>
 {
+    pub fn set_fingerprint(
+        &mut self,
+        sensor: &'a RefCell<dyn rsk_fido::fingerprint::Sensor>,
+        bindings: &'a RefCell<dyn rsk_fido::fingerprint::Bindings<S>>,
+    ) {
+        self.fido.set_fingerprint((sensor, bindings));
+    }
+
     /// `serial_id` is the device chip id (its BCD-encoded 8-digit serial goes into
     /// the OpenPGP full AID); `rng` is the hardware TRNG, shared with the CTAPHID
     /// handler. `presence` is the one physical presence source (BOOTSEL by
@@ -367,6 +375,7 @@ impl<'a, S: Storage, R: rsk_sdk::Rng + 'static, VP: rsk_vendor::Platform>
         ];
         let mut fsb = self.fs.borrow_mut();
         self.disp.reset_card(&mut applets, &mut *fsb);
+        self.fido.reset_card();
     }
 
     /// Dispatch one CCID APDU synchronously, returning the response APDU (body +

@@ -338,6 +338,7 @@ fn miri_fido_cbor() {
         let mut state = FidoState::new();
         let mut presence = rsk_fido::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: d,
             fs: &mut fs,
@@ -376,6 +377,7 @@ fn miri_fido_vendor() {
         let mut out = [0u8; 2048];
         let mut presence = rsk_fido::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: d,
             fs: &mut fs,
@@ -529,6 +531,7 @@ fn miri_fido_credmgmt() {
         let mut out = [0u8; 2048];
         let mut presence = rsk_fido::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: d,
             fs: &mut fs,
@@ -563,6 +566,7 @@ fn miri_fido_u2f() {
         let mut state = FidoState::new();
         let mut presence = rsk_fido::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: d,
             fs: &mut fs,
@@ -596,6 +600,7 @@ fn miri_fido_largeblobs() {
         let mut out = [0u8; 2048];
         let mut presence = rsk_fido::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: d,
             fs: &mut fs,
@@ -1498,6 +1503,7 @@ fn miri_fido_session() {
     let mut now_ms: u64 = 2;
     for msg in msgs {
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: d,
             fs: &mut fs,

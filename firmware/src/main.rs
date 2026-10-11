@@ -47,7 +47,11 @@ use rsk_usb::ctaphid::{CtapHid, FIDO_REPORT_DESCRIPTOR};
 mod core1;
 #[cfg(feature = "display")]
 mod display;
+#[cfg(all(feature = "fingerprint", not(feature = "display")))]
+mod fingerprint;
 mod flash_storage;
+#[cfg(all(feature = "fingerprint", feature = "display", not(doc)))]
+compile_error!("fingerprint currently requires a board without the display feature");
 mod handler;
 mod led;
 mod otp_kbd;
@@ -155,6 +159,14 @@ const fn env_u32(s: &str) -> u32 {
 }
 const XOSC_DELAY_MULT: u32 = env_u32(env!("PK_XOSC_DELAY_MULT"));
 
+#[cfg(any(
+    all(feature = "fingerprint", not(feature = "display")),
+    not(led_kind = "none")
+))]
+const fn fingerprint_uart_pin(pin: u8) -> bool {
+    matches!(pin, 0 | 1)
+}
+
 // Build-time LED defaults. The runtime `EF_PHY` record (PicoForge / `rsk hw`)
 // overrides each at boot; absent that, the LED behaves exactly as the build
 // flags say. Only a non-`none` build renders an LED, so these exist only there.
@@ -163,6 +175,28 @@ const XOSC_DELAY_MULT: u32 = env_u32(env!("PK_XOSC_DELAY_MULT"));
 // numbering (1=gpio, 2=pimoroni, 3=ws2812).
 #[cfg(not(led_kind = "none"))]
 const BUILD_LED_PIN: u8 = env_u16(env!("PK_LED_PIN")) as u8;
+#[cfg(all(feature = "fingerprint", not(feature = "display")))]
+const _: () = {
+    #[cfg(not(led_kind = "none"))]
+    {
+        assert!(
+            !fingerprint_uart_pin(BUILD_LED_PIN),
+            "fingerprint reserves GP0/GP1 for UART0"
+        );
+        assert!(
+            !BUILD_LED_POWER_ENABLED || !fingerprint_uart_pin(BUILD_LED_POWER_PIN),
+            "LED power overlaps UART0"
+        );
+        assert!(
+            !BUILD_USR_LED_ENABLED || !fingerprint_uart_pin(BUILD_USR_LED_PIN),
+            "user LED overlaps UART0"
+        );
+    }
+    assert!(
+        !BUILD_PRESENCE_IS_GPIO || !fingerprint_uart_pin(BUILD_PRESENCE_PIN),
+        "presence overlaps UART0"
+    );
+};
 // Optional LED power-enable pin: a GPIO driven high at boot to power a gated LED
 // rail (the Seeed XIAO RP2350's WS2812 sits behind GP23). Off unless `LED_POWER_PIN`
 // is set; the LED block claims and holds it. Only a rendered LED needs a rail.
@@ -714,7 +748,7 @@ async fn main(spawner: Spawner) {
     config.max_power = 100;
     config.max_packet_size_0 = 64;
     // bcdDevice build counter; also surfaced on the trusted-display Firmware screen.
-    let device_release: u16 = 0x09DA;
+    let device_release: u16 = 0x09DB;
     config.device_release = device_release;
 
     let mut builder = Builder::new(
@@ -801,13 +835,15 @@ async fn main(spawner: Spawner) {
     let usb = builder.build();
     let ctap = hid.map(|h| {
         let (reader, writer) = h.split();
-        CtapHid::new(
+        let mut ctap = CtapHid::new(
             reader,
             writer,
             ClientCtap,
             presence::up_pending,
             presence::request_cancel,
-        )
+        );
+        ctap.set_cancellable(presence::cancellable);
+        ctap
     });
 
     interrupt::SWI_IRQ_1.set_priority(Priority::P2);
@@ -892,6 +928,7 @@ async fn main(spawner: Spawner) {
             .as_ref()
             .and_then(|p| p.led_gpio)
             .filter(|&g| g <= 29)
+            .filter(|&g| !cfg!(feature = "fingerprint") || !fingerprint_uart_pin(g))
             .filter(|&g| !(BUILD_PRESENCE_IS_GPIO && g == BUILD_PRESENCE_PIN))
             .filter(|&g| !(BUILD_LED_POWER_ENABLED && g == BUILD_LED_POWER_PIN))
             .filter(|&g| !(BUILD_USR_LED_ENABLED && g == BUILD_USR_LED_PIN))
@@ -926,7 +963,9 @@ async fn main(spawner: Spawner) {
                     };
                 }
                 let led = match led_gpio {
+                    #[cfg(not(feature = "fingerprint"))]
                     0 => gpio_pin!(p.PIN_0),
+                    #[cfg(not(feature = "fingerprint"))]
                     1 => gpio_pin!(p.PIN_1),
                     2 => gpio_pin!(p.PIN_2),
                     3 => gpio_pin!(p.PIN_3),
@@ -988,7 +1027,9 @@ async fn main(spawner: Spawner) {
                     };
                 }
                 let ws2812 = match led_gpio {
+                    #[cfg(not(feature = "fingerprint"))]
                     0 => ws2812_pin!(p.PIN_0),
+                    #[cfg(not(feature = "fingerprint"))]
                     1 => ws2812_pin!(p.PIN_1),
                     2 => ws2812_pin!(p.PIN_2),
                     3 => ws2812_pin!(p.PIN_3),
@@ -1165,7 +1206,8 @@ async fn main(spawner: Spawner) {
     let (kvm, kvc) = (kvmain_range(), kvcnt_range());
     let kv_total = (kvm.end - kvm.start) + (kvc.end - kvc.start);
     let fido_state_ref = FIDO_STATE.init(RefCell::new(rsk_fido::FidoState::new()));
-    let worker = Worker::new(
+    #[allow(unused_mut)] // Only the optional bridge adds worker services.
+    let mut worker = Worker::new(
         fs_ref,
         rng_ref,
         presence_ref,
@@ -1179,5 +1221,15 @@ async fn main(spawner: Spawner) {
         kv_total,
         openpgp_mfr,
     );
+    #[cfg(all(feature = "fingerprint", not(feature = "display")))]
+    {
+        static SENSOR: StaticCell<RefCell<fingerprint::Bridge>> = StaticCell::new();
+        static BINDINGS: StaticCell<RefCell<fingerprint::Unconfigured>> = StaticCell::new();
+        let sensor = SENSOR.init(RefCell::new(fingerprint::Bridge::new(
+            p.UART0, p.PIN_0, p.PIN_1,
+        )));
+        let bindings = BINDINGS.init(RefCell::new(fingerprint::Unconfigured));
+        worker.set_fingerprint(sensor, bindings);
+    }
     spawner.spawn(worker_task(worker).unwrap());
 }

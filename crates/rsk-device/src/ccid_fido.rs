@@ -30,7 +30,7 @@ const P1_CANCEL: u8 = 0x11;
 
 /// FIDO over CCID. Holds no FIDO state of its own; every field is a handle the
 /// CTAPHID transport also holds.
-pub struct FidoCcidApplet<'a, R: rsk_sdk::Rng + 'static> {
+pub struct FidoCcidApplet<'a, S: Storage, R: rsk_sdk::Rng + 'static> {
     /// **The device's one FIDO session state**, borrowed from the worker. A second
     /// copy would give a host a second per-boot [`rsk_fido::consts::PIN_MISMATCH_LIMIT`]
     /// budget — six PIN guesses per power cycle instead of three — which is exactly
@@ -40,6 +40,7 @@ pub struct FidoCcidApplet<'a, R: rsk_sdk::Rng + 'static> {
     state: &'a RefCell<rsk_fido::FidoState>,
     rng: &'a RefCell<R>,
     presence: &'a RefCell<dyn rsk_sdk::UserPresence>,
+    fingerprint: Option<crate::ctap::FingerprintServices<'a, S>>,
     serial_id: [u8; 8],
     serial_hash: [u8; 32],
     mkek_source: Option<FusedKey>,
@@ -55,7 +56,7 @@ pub struct FidoCcidApplet<'a, R: rsk_sdk::Rng + 'static> {
     enabled_caps: u16,
 }
 
-impl<'a, R: rsk_sdk::Rng + 'static> FidoCcidApplet<'a, R> {
+impl<'a, S: Storage, R: rsk_sdk::Rng + 'static> FidoCcidApplet<'a, S, R> {
     pub fn new<PR: rsk_sdk::UserPresence + 'static>(
         state: &'a RefCell<rsk_fido::FidoState>,
         rng: &'a RefCell<R>,
@@ -68,6 +69,7 @@ impl<'a, R: rsk_sdk::Rng + 'static> FidoCcidApplet<'a, R> {
             state,
             rng,
             presence,
+            fingerprint: None,
             serial_id,
             serial_hash,
             mkek_source,
@@ -85,9 +87,19 @@ impl<'a, R: rsk_sdk::Rng + 'static> FidoCcidApplet<'a, R> {
         self.enabled_caps = enabled_caps;
     }
 
+    pub fn set_fingerprint(&mut self, services: crate::ctap::FingerprintServices<'a, S>) {
+        self.fingerprint = Some(services);
+    }
+
+    pub fn reset_card(&mut self) {
+        self.state
+            .borrow_mut()
+            .end_channel_sequences(rsk_fido::consts::CHANNEL_NONE);
+    }
+
     /// Run `f` against a fully-built FIDO context. Every borrow is taken here and
     /// released with the closure, so no `RefCell` is held across two commands.
-    fn with_ctx<S: Storage, T>(
+    fn with_ctx<T>(
         &mut self,
         fs: &mut Fs<S>,
         f: impl FnOnce(&mut rsk_fido::Ctx<'_, S, R>) -> T,
@@ -101,7 +113,17 @@ impl<'a, R: rsk_sdk::Rng + 'static> FidoCcidApplet<'a, R> {
         let mut rngb = self.rng.borrow_mut();
         let mut presence = self.presence.borrow_mut();
         let mut stb = self.state.borrow_mut();
+        stb.channel = rsk_fido::consts::CHANNEL_NONE;
+        let mut sensor = self.fingerprint.map(|(sensor, _)| sensor.borrow_mut());
+        let mut bindings = self.fingerprint.map(|(_, bindings)| bindings.borrow_mut());
         let mut ctx = rsk_fido::Ctx {
+            fingerprint: match (&mut sensor, &mut bindings) {
+                (Some(sensor), Some(bindings)) => Some(rsk_fido::fingerprint::Context {
+                    sensor: &mut **sensor,
+                    bindings: &mut **bindings,
+                }),
+                _ => None,
+            },
             dev,
             fs,
             rng: &mut *rngb,
@@ -113,7 +135,7 @@ impl<'a, R: rsk_sdk::Rng + 'static> FidoCcidApplet<'a, R> {
     }
 }
 
-impl<S: Storage, R: rsk_sdk::Rng + 'static> Applet<Fs<S>> for FidoCcidApplet<'_, R> {
+impl<S: Storage, R: rsk_sdk::Rng + 'static> Applet<Fs<S>> for FidoCcidApplet<'_, S, R> {
     fn aid(&self) -> &'static [u8] {
         rsk_fido::consts::FIDO_AID
     }

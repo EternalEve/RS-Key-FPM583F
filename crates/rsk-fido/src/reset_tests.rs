@@ -36,6 +36,7 @@ fn reset_wipes_state_and_regenerates() {
     // Provisioned state: a PIN, a resident credential, an advanced counter,
     // and a non-default large blob.
     fs.put(EF_PIN, &[8, 4, 1, 0, 0]).unwrap();
+    fs.put(crate::consts::EF_UV_STATE, &[1, 3, !3]).unwrap();
     fs.put(EF_CRED, &[0u8; 100]).unwrap();
     fs.put(EF_LARGEBLOB, &[0xAB; 50]).unwrap();
     // The trusted-display device PIN: a host reset must clear it too (recovery path).
@@ -62,6 +63,7 @@ fn reset_wipes_state_and_regenerates() {
     let n = {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -74,6 +76,7 @@ fn reset_wipes_state_and_regenerates() {
     assert_eq!(n, 0);
     // Files wiped, counter reset, seed regenerated and PIN-free again.
     assert!(!fs.has_data(EF_PIN));
+    assert!(!fs.has_data(crate::consts::EF_UV_STATE));
     assert!(!fs.has_data(EF_CRED));
     // The device PIN is cleared by the reset (so a forgotten one is recoverable).
     assert!(!fs.has_data(EF_DEVICE_PIN));
@@ -124,6 +127,7 @@ fn reset_aborts_without_touch() {
     let r = {
         let mut presence = Fixed(crate::Presence::Timeout);
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -156,6 +160,7 @@ fn reset_decline_is_denied_not_timed_out() {
         let r = {
             let mut p = Fixed(presence);
             let mut ctx = Ctx {
+                fingerprint: None,
                 presence: &mut p,
                 dev: dev(),
                 fs: &mut fs,
@@ -209,6 +214,7 @@ fn reset_at(
     state.warm_boot = warm_boot;
     let r = {
         let mut ctx = Ctx {
+            fingerprint: None,
             presence,
             dev: dev(),
             fs: &mut fs,
@@ -287,6 +293,7 @@ fn reset_wipes_false_absent_credential_without_looping() {
     {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -353,6 +360,7 @@ fn reset_sweep_de_dupes_stored_versions() {
     let mut state = FidoState::new();
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -396,6 +404,7 @@ fn reset_sweep_fails_when_storage_does_not_converge() {
     let mut state = FidoState::new();
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -422,7 +431,7 @@ fn reset_sweep_fails_when_storage_does_not_converge() {
 /// the mutation hangs the suite instead of failing it.
 #[test]
 fn a_sweep_that_never_converges_stops_inside_its_delete_budget() {
-    const UNDEAD: u16 = 5;
+    const UNDEAD: u16 = 7;
     // The premise, made checkable rather than argued: `deleted` rises a whole
     // UNDEAD per pass, so a batch that DIVIDES the budget lets `==` fire on the
     // nose and this test stops seeing the valve — silently, suite still green.
@@ -440,6 +449,7 @@ fn a_sweep_that_never_converges_stops_inside_its_delete_budget() {
     let mut state = FidoState::new();
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -481,6 +491,7 @@ fn a_refused_removal_stops_the_sweep_instead_of_spinning_into_the_valve() {
     let mut state = FidoState::new();
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -522,6 +533,7 @@ fn sweep_with_ef_meta_stuck(stuck: bool) -> (Result<bool, CtapError>, bool) {
     let answered = {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -577,6 +589,7 @@ fn a_truncated_enumeration_fails_the_sweep_instead_of_reading_it_as_clear() {
     let mut state = FidoState::new();
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs: &mut fs,
@@ -649,6 +662,7 @@ fn the_gate_set_defers_every_record_whose_absence_is_permissive() {
         EF_CRED,
         EF_LARGEBLOB,
         EF_PAUTHTOKEN.get(),
+        crate::consts::EF_UV_STATE,
         EF_EA_RPIDS,
         crate::consts::EF_CRED_STATE,
     ] {
@@ -753,6 +767,7 @@ fn a_torn_reset_never_unseals_a_surviving_seed() {
         {
             let mut presence = crate::AlwaysConfirm;
             let mut ctx = Ctx {
+                fingerprint: None,
                 presence: &mut presence,
                 dev: dev(),
                 fs: &mut fs,
@@ -935,6 +950,7 @@ fn a_torn_reset_keeps_the_seed_ahead_of_the_wipe(seed_fid: u16) {
         {
             let mut presence = crate::AlwaysConfirm;
             let mut ctx = Ctx {
+                fingerprint: None,
                 presence: &mut presence,
                 dev: dev(),
                 fs: &mut fs,
@@ -967,6 +983,7 @@ fn a_torn_reset_keeps_the_seed_ahead_of_the_wipe(seed_fid: u16) {
     {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -1167,6 +1184,7 @@ fn a_torn_reset_never_leaves_a_grant_without_its_pin() {
             let mut state = FidoState::new();
             let mut presence = crate::AlwaysConfirm;
             let mut ctx = Ctx {
+                fingerprint: None,
                 presence: &mut presence,
                 dev: dev(),
                 fs,
@@ -1227,6 +1245,7 @@ fn a_torn_reset_never_leaves_the_session_running_on_a_wiped_seed() {
         {
             let mut presence = crate::AlwaysConfirm;
             let mut ctx = Ctx {
+                fingerprint: None,
                 presence: &mut presence,
                 dev: dev(),
                 fs: &mut fs,
@@ -1266,6 +1285,7 @@ fn a_reset_sweeps_more_secrets_than_one_batch_holds() {
     {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -1309,6 +1329,7 @@ fn reset_with_ef_meta_stuck(stuck: bool) -> (CtapResult, Vec<&'static str>) {
     let answered = {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -1401,6 +1422,7 @@ fn reset_rounds_with_remove_refused(
         let answered = {
             let mut presence = crate::AlwaysConfirm;
             let mut ctx = Ctx {
+                fingerprint: None,
                 presence: &mut presence,
                 dev: dev(),
                 fs: &mut fs,
@@ -1488,6 +1510,7 @@ fn run_reset<S: rsk_fs::Storage>(fs: &mut Fs<S>) -> CtapResult {
     let mut presence = crate::AlwaysConfirm;
     let mut rng = SeqRng(3);
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs,

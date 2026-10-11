@@ -67,6 +67,7 @@ fn run<S: rsk_fs::Storage>(
     let mut rng = SeqRng(1);
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs,

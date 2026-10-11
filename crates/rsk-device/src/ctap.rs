@@ -26,7 +26,7 @@ const RESP_CAP: usize = rsk_usb::ctaphid::CTAP_MAX_MESSAGE;
 // largeBlobs ceiling) is derived from the same literal and rides on this too.
 // `cfg(not(kani))` for the reason its sibling in `rsk-usb` carries: this is about
 // the SHIPPED width, and `CTAP_MAX_MESSAGE` deliberately shrinks to two
-// continuation frames under Kani (ctaphid.rs:218), where CBMC runs out of memory
+// continuation frames under Kani (ctaphid.rs:259), where CBMC runs out of memory
 // at the real one. Unguarded it does not fail a proof — it stops `rsk-device`
 // COMPILING, so every harness in the crate goes with it.
 #[cfg(not(kani))]
@@ -65,6 +65,11 @@ pub struct SecurityTraceSnapshot {
     pub keydev_ram_raw: bool,
 }
 
+pub(crate) type FingerprintServices<'a, S> = (
+    &'a RefCell<dyn rsk_fido::fingerprint::Sensor>,
+    &'a RefCell<dyn rsk_fido::fingerprint::Bindings<S>>,
+);
+
 pub struct AppletHandler<'a, S: Storage, R: rsk_sdk::Rng + 'static, VP: rsk_vendor::Platform> {
     fs: &'a RefCell<Fs<S>>,
     hooks: &'a RefCell<dyn Hooks<S>>,
@@ -84,6 +89,7 @@ pub struct AppletHandler<'a, S: Storage, R: rsk_sdk::Rng + 'static, VP: rsk_vend
     /// shared with the OpenPGP applet through a
     /// `RefCell`; borrowed only for a touch wait inside one dispatch.
     presence: &'a RefCell<dyn rsk_sdk::UserPresence>,
+    fingerprint: Option<FingerprintServices<'a, S>>,
     serial_id: [u8; 8],
     serial_hash: [u8; 32],
     /// How to read the OTP MKEK, once provisioned — never the key itself, so no
@@ -142,6 +148,7 @@ impl<'a, S: Storage, R: rsk_sdk::Rng + 'static, VP: rsk_vendor::Platform>
             rng,
             fido_state,
             presence,
+            fingerprint: None,
             serial_id,
             serial_hash,
             mkek_source,
@@ -153,6 +160,20 @@ impl<'a, S: Storage, R: rsk_sdk::Rng + 'static, VP: rsk_vendor::Platform>
     /// a dispatch. Called by the worker once the response has been handed off.
     pub fn scrub(&mut self) {
         self.resp.zeroize();
+    }
+
+    pub fn set_fingerprint(
+        &mut self,
+        sensor: &'a RefCell<dyn rsk_fido::fingerprint::Sensor>,
+        bindings: &'a RefCell<dyn rsk_fido::fingerprint::Bindings<S>>,
+    ) {
+        self.fingerprint = Some((sensor, bindings));
+    }
+
+    pub fn service_fingerprint(&mut self) {
+        if let Some((sensor, _)) = self.fingerprint {
+            sensor.borrow_mut().service_idle();
+        }
     }
 
     /// Secure-reboot wipe: clear the response buffer and the cross-message FIDO
@@ -238,7 +259,7 @@ impl<S: Storage, R: rsk_sdk::Rng + 'static, VP: rsk_vendor::Platform> AppletHand
     }
 
     /// Whether §6.1.2 step 6.3's built-in-UV upgrade is available on this build —
-    /// the first conjunct of `crates/rsk-fido/src/clientpin.rs:612`. An INPUT to
+    /// the first conjunct of `crates/rsk-fido/src/clientpin.rs:651`. An INPUT to
     /// the token-less makeCredential gate the phase-4 replay states, not state:
     /// with a pad, `alwaysUv` upgrades a token-less request instead of refusing
     /// it, so a recording that did not carry this could not tell the two apart.
@@ -249,7 +270,7 @@ impl<S: Storage, R: rsk_sdk::Rng + 'static, VP: rsk_vendor::Platform> AppletHand
     /// can, and the gate runs it without the feature.
     #[cfg(any(test, feature = "security-trace"))]
     pub fn security_trace_builtin_uv(&self) -> bool {
-        self.presence.borrow().uv_available()
+        self.fingerprint.is_some() || self.presence.borrow().uv_available()
     }
 
     /// Drop any applet selected over CTAPHID_MSG. Called (via the worker) on a
@@ -259,7 +280,8 @@ impl<S: Storage, R: rsk_sdk::Rng + 'static, VP: rsk_vendor::Platform> AppletHand
         self.disp.clear_selection();
     }
 
-    pub fn handle_msg(&mut self, apdu: &[u8], now_ms: u64) -> &[u8] {
+    pub fn handle_msg(&mut self, cid: u32, apdu: &[u8], now_ms: u64) -> &[u8] {
+        self.fido_state.borrow_mut().channel = cid;
         // U2F (CTAP1) has no SELECT over CTAPHID: route its INS straight to the
         // FIDO applet when nothing else is selected. A vendor AID SELECT takes
         // the dispatcher path below.
@@ -278,7 +300,18 @@ impl<S: Storage, R: rsk_sdk::Rng + 'static, VP: rsk_vendor::Platform> AppletHand
                     let mut rngb = self.rng.borrow_mut();
                     let mut presence = self.presence.borrow_mut();
                     let mut stb = self.fido_state.borrow_mut();
+                    let mut sensor = self.fingerprint.map(|(sensor, _)| sensor.borrow_mut());
+                    let mut bindings = self.fingerprint.map(|(_, bindings)| bindings.borrow_mut());
                     let mut ctx = rsk_fido::Ctx {
+                        fingerprint: match (&mut sensor, &mut bindings) {
+                            (Some(sensor), Some(bindings)) => {
+                                Some(rsk_fido::fingerprint::Context {
+                                    sensor: &mut **sensor,
+                                    bindings: &mut **bindings,
+                                })
+                            }
+                            _ => None,
+                        },
                         dev,
                         fs: &mut *fsb,
                         rng: &mut *rngb,
@@ -341,7 +374,16 @@ impl<S: Storage, R: rsk_sdk::Rng + 'static, VP: rsk_vendor::Platform> AppletHand
             let mut rngb = self.rng.borrow_mut();
             let mut presence = self.presence.borrow_mut();
             let mut stb = self.fido_state.borrow_mut();
+            let mut sensor = self.fingerprint.map(|(sensor, _)| sensor.borrow_mut());
+            let mut bindings = self.fingerprint.map(|(_, bindings)| bindings.borrow_mut());
             let mut ctx = rsk_fido::Ctx {
+                fingerprint: match (&mut sensor, &mut bindings) {
+                    (Some(sensor), Some(bindings)) => Some(rsk_fido::fingerprint::Context {
+                        sensor: &mut **sensor,
+                        bindings: &mut **bindings,
+                    }),
+                    _ => None,
+                },
                 dev,
                 fs: &mut *fsb,
                 rng: &mut *rngb,

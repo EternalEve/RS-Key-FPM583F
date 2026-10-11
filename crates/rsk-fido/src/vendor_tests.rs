@@ -64,6 +64,7 @@ fn call<S: Storage>(
     out: &mut [u8],
 ) -> CtapResult {
     let mut ctx = Ctx {
+        fingerprint: None,
         dev: dev(),
         fs,
         rng,
@@ -1116,6 +1117,7 @@ fn run_config(
 ) -> CtapResult {
     let mut out = [0u8; 64];
     let mut ctx = Ctx {
+        fingerprint: None,
         dev: dev(),
         fs,
         rng,
@@ -1190,6 +1192,7 @@ fn unlock_restores_operations_for_the_session() {
     // The op-level loader sees the RAM copy; flash stays wrapped.
     let mut presence = AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         dev: dev(),
         fs: &mut fs,
         rng: &mut rng,
@@ -1350,6 +1353,7 @@ fn reset_clears_the_lock_and_regenerates() {
     let (mut fs, mut rng, mut st, _host, old_seed) = locked_setup();
     let mut presence = AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         dev: dev(),
         fs: &mut fs,
         rng: &mut rng,
@@ -2314,7 +2318,9 @@ fn a_faulted_sealed_probe_does_not_reopen_the_export_window() {
 
 /// A presence that offers built-in UV and declines the pad entry — the device-PIN
 /// half of [`pin_gate`] runs only when `uv_available`.
+#[cfg(not(feature = "fips-profile"))]
 struct UvDecline;
+#[cfg(not(feature = "fips-profile"))]
 impl UserPresence for UvDecline {
     fn request(&mut self, _confirm: crate::Confirm<'_>) -> Presence {
         Presence::Confirmed

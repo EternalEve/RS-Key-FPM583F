@@ -124,6 +124,8 @@ pub struct Config {
     /// Cut the power after this many bytes of flash writes — `MockFlashBase`'s
     /// own injector, the same one the `power_cut` fuzz target arms.
     pub power_cut: Option<u32>,
+    pub fingerprint_script: Option<PathBuf>,
+    pub fingerprint_init: bool,
 }
 
 /// One unit of work for the device thread.
@@ -391,7 +393,9 @@ pub fn run(
         let _ = quit;
         serve_display(cfg, jobs, signals, fs, rng, parts);
     } else {
-        let presence = RefCell::new(EmuPresence::new(cfg.presence, lines, signals.clone()));
+        let mut backend = EmuPresence::new(cfg.presence, lines, signals.clone());
+        backend.set_screenless(cfg.fingerprint_script.is_some());
+        let presence = RefCell::new(backend);
         let links = PanelLinks::default();
         crate::park::block_on(serve(cfg, jobs, signals, links, fs, rng, &presence));
     }
@@ -531,7 +535,7 @@ async fn serve<PR: rsk_sdk::UserPresence + 'static>(
     // device's — one static there, one `Rc<Cell>` here.
     let hooks = RefCell::new(EmuHooks {
         warm: false,
-        local_pin: links.local_pin,
+        local_pin: links.local_pin.clone(),
     });
     let vendor_platform = EmuVendorPlatform::default();
     let reboot_requested = vendor_platform.reboot.clone();
@@ -566,6 +570,29 @@ async fn serve<PR: rsk_sdk::UserPresence + 'static>(
         cfg.flash_size,
         openpgp_mfr(cfg.yubico),
     );
+    #[cfg(feature = "fingerprint-fixture")]
+    let fingerprint = if let Some(path) = &cfg.fingerprint_script {
+        match crate::fingerprint::fixture(
+            path.clone(),
+            cfg.fingerprint_init,
+            links.attach.clone(),
+            signals.clone(),
+            &mut fs.borrow_mut(),
+        ) {
+            Ok(services) => Some(services),
+            Err(error) => {
+                eprintln!("emu: fingerprint fixture initialization failed: {error:?}");
+                return;
+            }
+        }
+    } else {
+        None
+    };
+    #[cfg(feature = "fingerprint-fixture")]
+    if let Some((sensor, bindings)) = &fingerprint {
+        ctap.set_fingerprint(sensor, bindings);
+        ccid.set_fingerprint(sensor, bindings);
+    }
 
     // Time is measured from the USB *attach*, not from process start: the CTAP 2.1
     // §6.6 reset window a host has to hit runs from the moment the device could
@@ -580,6 +607,7 @@ async fn serve<PR: rsk_sdk::UserPresence + 'static>(
     let mut last_msg_cid: Option<u32> = None;
 
     loop {
+        ctap.service_fingerprint();
         let req = match jobs.try_next() {
             Ok(req) => req,
             // Nothing queued: yield, so a display loop selected against this one
@@ -660,7 +688,7 @@ async fn serve<PR: rsk_sdk::UserPresence + 'static>(
                     ctap.deselect_msg();
                 }
                 signals.begin(cid);
-                let body = ctap.handle_msg(&data, now_ms).to_vec();
+                let body = ctap.handle_msg(cid, &data, now_ms).to_vec();
                 signals.end();
                 ctap.scrub();
                 Some(body)
@@ -746,6 +774,11 @@ async fn serve<PR: rsk_sdk::UserPresence + 'static>(
                 ccid.refresh_enabled();
                 last_msg_cid = None;
                 links.attach.set(Instant::now());
+                #[cfg(feature = "fingerprint-fixture")]
+                if let Some((sensor, bindings)) = &fingerprint {
+                    sensor.borrow_mut().reset();
+                    ctap.set_fingerprint(sensor, bindings);
+                }
                 #[cfg(feature = "security-trace")]
                 if let (Some(writer), Some((pre, abstract_pre))) =
                     (security_trace.as_mut(), trace_pre)
@@ -811,6 +844,11 @@ async fn serve<PR: rsk_sdk::UserPresence + 'static>(
             ccid.refresh_enabled();
             last_msg_cid = None;
             eprintln!("emu: warm reboot — RAM state dropped, the reset window stays shut");
+            #[cfg(feature = "fingerprint-fixture")]
+            if let Some((sensor, bindings)) = &fingerprint {
+                sensor.borrow_mut().reset();
+                ctap.set_fingerprint(sensor, bindings);
+            }
         }
     }
 }

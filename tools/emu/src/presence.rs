@@ -44,6 +44,7 @@ pub struct EmuPresence {
     mode: PresenceMode,
     lines: Option<Receiver<String>>,
     signals: Arc<Signals>,
+    screenless: bool,
 }
 
 impl EmuPresence {
@@ -52,7 +53,12 @@ impl EmuPresence {
             mode,
             lines,
             signals,
+            screenless: false,
         }
+    }
+
+    pub fn set_screenless(&mut self, screenless: bool) {
+        self.screenless = screenless;
     }
 
     fn ask(&mut self, confirm: Confirm<'_>) -> Verdict {
@@ -176,7 +182,7 @@ impl rsk_sdk::UserPresence for EmuPresence {
     /// `makeCredential` / `getAssertion` / `setPIN`, which is not what a
     /// screenless key under test is.
     fn shows_confirm(&self) -> bool {
-        self.mode == PresenceMode::Terminal
+        !self.screenless && self.mode == PresenceMode::Terminal
     }
 }
 

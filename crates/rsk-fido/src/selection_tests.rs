@@ -35,6 +35,7 @@ fn run(presence: &mut dyn crate::UserPresence) -> CtapResult {
         otp_key: None,
     };
     let mut ctx = Ctx {
+        fingerprint: None,
         presence,
         dev,
         fs: &mut fs,

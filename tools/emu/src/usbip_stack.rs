@@ -105,6 +105,12 @@ fn up_pending() -> bool {
         .is_some_and(|s| s.up_pending_for(crate::signals::SCOPE_FIDO))
 }
 
+fn cancellable() -> bool {
+    SIGNALS
+        .get()
+        .is_some_and(|s| s.cancellable_for(crate::signals::SCOPE_FIDO))
+}
+
 /// `CtapHid` only calls this for a `CTAPHID_CANCEL` whose channel is the one in
 /// flight — it checks the frame's cid first — so cancelling "the active command"
 /// is the same scoping the per-channel form gives.
@@ -393,6 +399,7 @@ pub fn serve(addr: String, jobs: Jobs, signals: Arc<Signals>, yubico: bool) {
         up_pending,
         request_cancel,
     );
+    ctap.set_cancellable(cancellable);
 
     let mut port = PoweredPort {
         inner: port,

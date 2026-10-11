@@ -88,6 +88,7 @@ fn register(
     let n = {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs,
@@ -238,6 +239,7 @@ fn run<S: rsk_fs::Storage>(
     let mut rng = SeqRng(7);
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs,
@@ -583,6 +585,7 @@ fn enumerate_emits_extension_fields() {
         let mut state = FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -1356,6 +1359,7 @@ fn update_user_reseals_near_ceiling_box() {
     let id_a = {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -1474,6 +1478,7 @@ fn update_user_reseals_maximal_box() {
     let id_a = {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -1546,6 +1551,7 @@ fn assert_ga_signs_under(fs: &mut Fs<RamStorage>, id: &[u8], x: &[u8; 32], y: &[
     let n = {
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs,
@@ -1681,6 +1687,7 @@ fn update_preserves_largeblobkey() {
         let mut state = FidoState::new();
         let mut presence = crate::AlwaysConfirm;
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut presence,
             dev: dev(),
             fs: &mut fs,
@@ -1762,6 +1769,7 @@ fn register_into<S: Storage>(fs: &mut Fs<S>, rng: &mut SeqRng, rp: &str, uid: &[
     let mut state = FidoState::new();
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs,
@@ -1781,6 +1789,7 @@ fn run_into<S: Storage>(
     let mut rng = SeqRng(7);
     let mut presence = crate::AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev: dev(),
         fs,

@@ -1418,7 +1418,7 @@ impl Sess {
         //
         // It is also this tree's one fuzz instance of a `formal/` invariant, and
         // the assertion carries the name so the trace is greppable end to end:
-        // `NoTokenAfterInvalidation` -> `reset_pin_uv_auth_token` (state.rs:488-502,
+        // `NoTokenAfterInvalidation` -> `reset_pin_uv_auth_token` (state.rs:501-515,
         // the owner `formal/README.md` names first) -> here. A re-issued token is a
         // grant the mint invalidated going on authorizing.
         let Some(first) = self.issued_token(&msg[..n], proto, secret) else {
@@ -1464,6 +1464,7 @@ impl Sess {
     /// Drive one CTAPHID_CBOR message; returns the reply length in `self.out`.
     fn step(&mut self, msg: &[u8]) -> usize {
         let mut ctx = Ctx {
+            fingerprint: None,
             presence: &mut self.presence,
             dev: self.dev,
             fs: &mut self.fs,

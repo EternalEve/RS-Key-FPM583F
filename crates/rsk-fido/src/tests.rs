@@ -36,6 +36,7 @@ fn dispatch_seeded(data: &[u8], out: &mut [u8], with_token: bool) -> usize {
     let mut state = FidoState::new();
     let mut presence = AlwaysConfirm;
     let mut ctx = Ctx {
+        fingerprint: None,
         dev,
         fs: &mut fs,
         rng: &mut rng,

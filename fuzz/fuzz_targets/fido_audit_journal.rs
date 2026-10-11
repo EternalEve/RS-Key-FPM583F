@@ -84,6 +84,7 @@ fuzz_target!(|data: &[u8]| {
     let mut presence = rsk_fido::AlwaysConfirm;
     let mut out = [0u8; AUDIT_RING_SLOTS as usize * ENTRY_LEN + 128];
     let mut ctx = Ctx {
+        fingerprint: None,
         presence: &mut presence,
         dev,
         fs: &mut fs,

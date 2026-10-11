@@ -360,7 +360,7 @@ pub fn get_assertion<S: Storage, R: Rng>(
     // §6.2.2 step 8: a built-in UV ceremony IS the evidence of user interaction, so
     // the response asserts presence. Normalising `up` here carries that through the
     // UP flag and the getNextAssertion legs; the poll itself is skipped below.
-    req.up |= verified.up_collected;
+    req.up |= verified.direct_up();
 
     let mut seed = ctx.load_keydev().ok_or(CtapError::Other)?;
     let result = get_assertion_inner(ctx, &req, &rp_id_hash, &seed, verified, out);
@@ -431,7 +431,7 @@ fn enforce_pin<S: Storage, R: Rng>(
                 ctx.state.paut.rp_id_hash = *rp_id_hash;
                 ctx.state.paut.has_rp_id = true;
             }
-            Ok(UvOutcome::TOKEN)
+            Ok(UvOutcome::token(ctx.state.user_present()))
         }
         // alwaysUv forces UV only for an assertion that asserts presence; the
         // platform's silent up:false pre-flight (credential discovery, e.g.

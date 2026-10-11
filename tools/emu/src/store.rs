@@ -16,14 +16,16 @@
 //! not persisted — that is bookkeeping the medium does not carry either; what a
 //! real chip remembers is the bits, and those are in the file.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::fs;
 use std::io;
 use std::path::PathBuf;
 use std::rc::Rc;
 
 use embassy_futures::block_on;
-use embedded_storage_async::nor_flash::{ErrorType, MultiwriteNorFlash, NorFlash, ReadNorFlash};
+use embedded_storage_async::nor_flash::{
+    ErrorType, MultiwriteNorFlash, NorFlash, NorFlashError, NorFlashErrorKind, ReadNorFlash,
+};
 use sequential_storage::cache::Cache;
 use sequential_storage::cache::key_pointers::ArrayKeyPointers;
 use sequential_storage::cache::page_pointers::ArrayPagePointers;
@@ -76,6 +78,22 @@ const MAGIC: &[u8; 16] = b"RSKEMU-FLASH\x00\x00\x01\x02";
 pub struct FlashFile {
     flash: Rc<RefCell<Mock>>,
     path: Option<Rc<PathBuf>>,
+    persistence_failed: Rc<Cell<bool>>,
+}
+
+#[derive(Debug)]
+pub enum FlashError {
+    Medium(MockFlashError),
+    Persistence,
+}
+
+impl NorFlashError for FlashError {
+    fn kind(&self) -> NorFlashErrorKind {
+        match self {
+            Self::Medium(error) => error.kind(),
+            Self::Persistence => NorFlashErrorKind::Other,
+        }
+    }
 }
 
 impl FlashFile {
@@ -104,29 +122,42 @@ impl FlashFile {
         Ok(Self {
             flash: Rc::new(RefCell::new(flash)),
             path: path.map(Rc::new),
+            persistence_failed: Rc::new(Cell::new(false)),
         })
     }
 
-    fn persist(&self) {
-        let Some(p) = &self.path else { return };
+    fn persist(&self) -> Result<(), FlashError> {
+        let Some(p) = &self.path else { return Ok(()) };
         let flash = self.flash.borrow();
         let mut out = Vec::with_capacity(MAGIC.len() + flash.as_bytes().len());
         out.extend_from_slice(MAGIC);
         out.extend_from_slice(flash.as_bytes());
         if let Err(e) = fs::write(p.as_path(), &out) {
             eprintln!("emu: cannot write the flash image {}: {e}", p.display());
+            self.persistence_failed.set(true);
+            return Err(FlashError::Persistence);
+        }
+        Ok(())
+    }
+
+    fn check_persistence(&self) -> Result<(), FlashError> {
+        if self.persistence_failed.get() {
+            Err(FlashError::Persistence)
+        } else {
+            Ok(())
         }
     }
 }
 
 impl ErrorType for FlashFile {
-    type Error = MockFlashError;
+    type Error = FlashError;
 }
 
 impl ReadNorFlash for FlashFile {
     const READ_SIZE: usize = <Mock as ReadNorFlash>::READ_SIZE;
     async fn read(&mut self, offset: u32, bytes: &mut [u8]) -> Result<(), Self::Error> {
-        block_on(self.flash.borrow_mut().read(offset, bytes))
+        self.check_persistence()?;
+        block_on(self.flash.borrow_mut().read(offset, bytes)).map_err(FlashError::Medium)
     }
     fn capacity(&self) -> usize {
         self.flash.borrow().capacity()
@@ -137,16 +168,18 @@ impl NorFlash for FlashFile {
     const WRITE_SIZE: usize = <Mock as NorFlash>::WRITE_SIZE;
     const ERASE_SIZE: usize = <Mock as NorFlash>::ERASE_SIZE;
     async fn erase(&mut self, from: u32, to: u32) -> Result<(), Self::Error> {
+        self.check_persistence()?;
         let r = block_on(self.flash.borrow_mut().erase(from, to));
-        self.persist();
-        r
+        self.persist()?;
+        r.map_err(FlashError::Medium)
     }
     async fn write(&mut self, offset: u32, bytes: &[u8]) -> Result<(), Self::Error> {
+        self.check_persistence()?;
         let r = block_on(self.flash.borrow_mut().write(offset, bytes));
         // Persist even on the failure path: a torn write leaves bytes behind, and
         // the whole point of the image is that the next mount sees them.
-        self.persist();
-        r
+        self.persist()?;
+        r.map_err(FlashError::Medium)
     }
 }
 
@@ -171,3 +204,7 @@ pub fn open(path: Option<PathBuf>, power_cut_after: Option<u32>) -> io::Result<E
         ),
     ))
 }
+
+#[cfg(test)]
+#[path = "store_tests.rs"]
+mod tests;
