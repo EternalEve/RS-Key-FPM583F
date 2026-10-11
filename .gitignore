@@ -47,3 +47,8 @@ sram.bin*
 /site/
 /mermaid.min.js
 /mermaid-init.js
+
+/RSKEY-FPM583*
+/AGENTS2.md
+/SAFETY.md
+/fingerprint-protocol.txt
