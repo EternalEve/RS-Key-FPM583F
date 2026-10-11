@@ -69,7 +69,8 @@ shortcoming of the script — each is evidence about something a checkout is not
 
 - **On-device suites.** The numbered scripts under `tests/` drive real USB and
   real flash. Most of them run against the software emulator instead, and the
-  `emu` phase is exactly that; the rest need a board.
+  `emu` phase runs those plus the pinned python-fido2 PIN/passkey integration
+  ([client suite](../tests/standard_client/README.md)); the rest need a board.
 - **The USB-stack suites.** They run the emulator's USB/IP mode inside a Linux
   guest with `vhci_hcd` and KVM. A macOS checkout has neither.
 - **Two-key interop.** The RS-Key/YubiKey differential cells need both keys

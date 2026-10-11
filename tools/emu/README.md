@@ -176,6 +176,11 @@ thing, a wait nobody ever ends.
 **CTAPHID** — the stream carries 64-byte HID reports, both directions, exactly
 as the USB interface would. A client is a `send(64)` / `recv(64)` shim away.
 
+The [standard-client suite](../../tests/standard_client/README.md) connects
+python-fido2 2.2.1 through its report-only `CtapHidConnection` interface. It
+verifies PIN/passkey authentication, RP signatures, persisted credentials after
+restart and cancellation; physical HID access remains a separate USB/IP check.
+
 **Card** — one CCID message at a time:
 
 ```text

@@ -38,6 +38,11 @@ tag: the USB `bcdDevice` build counter (bumped on every behavior change), and
 
 ## [Unreleased]
 
+- **emu:** rebuild the file index at boot, so persisted resident credentials are
+  discoverable after a normal process restart. Add a pinned python-fido2 2.2.1
+  integration runner for PIN/passkey/RP verification, persistence and cancellation.
+  The runner refuses unexpected emulator exits during cleanup and restart.
+
 ## [0.4.11] - 2026-09-08
 
 The catch-up release, and the one where the instruments were audited harder than

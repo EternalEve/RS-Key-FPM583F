@@ -1,0 +1,36 @@
+warning: Git tree '/home/ee/桌面/dsh/RS-Key-FPM583F' is dirty
+rs-key devshell
+  rustc:    rustc 1.96.0 (ac68faa20 2026-05-25)
+  target:   thumbv8m.main-none-eabihf
+  picotool: picotool v2.2.0-a4 (Linux, GNU-15.2.0, Release)
+
+Build:  cargo build --release -p firmware   # pick the target crate
+  (or:  nix build .#firmware                 # hermetic → result/firmware.uf2)
+PT:     scripts/pt.sh target/thumbv8m.main-none-eabihf/release/firmware fw-pt.elf   # fence the KV store
+UF2:    picotool uf2 convert fw-pt.elf -t elf firmware.uf2
+Flash:  hold BOOTSEL, plug in the RP2350, drag firmware.uf2 to the RP2350 drive
+Check:  ./scripts/check.sh        # fmt + clippy + test + audit + deny + gitleaks
+Fuzz:   nix develop .#fuzz -c cargo fuzz run <target>
+CLI:    rsk status | rsk backup … | rsk secure-boot … | rsk otp … (rsk --help)
+TUI:    rsk-tui                    # live device dashboard
+Docs:   ./scripts/docs.sh serve    # preview the docs site (build|check)
+reproduce: self-test ok — 124 gate rows, 21 runners, 19 jobs, 14 phases, 8 refusals
+........................                                                 [100%]
+24 passed in 30.39s
+[2026-10-11T10:42:37Z INFO  mdbook_mermaid] Reading configuration file ./book.toml
+[2026-10-11T10:42:37Z INFO  mdbook_mermaid] Files & configuration for mdbook-mermaid are installed. You can start using it in your book.
+[2026-10-11T10:42:37Z INFO  mdbook_mermaid] Add a code block like:
+    ```mermaid
+    graph TD;
+        A-->B;
+        A-->C;
+        B-->D;
+        C-->D;
+    ```
+ INFO Book building has started
+Warning: The mdbook-mermaid preprocessor was built against version 0.5.0 of mdbook, but we're being called from version 0.5.2
+ INFO Running the html backend
+ INFO HTML book written to `/home/ee/桌面/dsh/RS-Key-FPM583F/book`
+🔍 729 Total (in 4ms) 🔗 242 Unique ✅ 612 OK 🚫 0 Errors 👻 117 Excluded
+
+Docs build + link check OK

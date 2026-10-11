@@ -498,6 +498,7 @@ async fn serve<PR: rsk_sdk::UserPresence + 'static>(
     let boot_block = || {
         let mut fsb = fs.borrow_mut();
         let mut rngb = rng.borrow_mut();
+        fsb.scan();
         let _ = rsk_fido::seed::migrate_keydev_boot(&dev(), &mut fsb);
         rsk_rescue::keydev::migrate_kbase(&dev(), &mut fsb, &mut *rngb);
         rsk_piv::migrate_kbase(&dev(), &mut fsb, &mut *rngb);

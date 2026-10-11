@@ -1,0 +1,46 @@
+warning: Git tree '/home/ee/桌面/dsh/RS-Key-FPM583F' is dirty
+rs-key devshell
+  rustc:    rustc 1.96.0 (ac68faa20 2026-05-25)
+  target:   thumbv8m.main-none-eabihf
+  picotool: picotool v2.2.0-a4 (Linux, GNU-15.2.0, Release)
+
+Build:  cargo build --release -p firmware   # pick the target crate
+  (or:  nix build .#firmware                 # hermetic → result/firmware.uf2)
+PT:     scripts/pt.sh target/thumbv8m.main-none-eabihf/release/firmware fw-pt.elf   # fence the KV store
+UF2:    picotool uf2 convert fw-pt.elf -t elf firmware.uf2
+Flash:  hold BOOTSEL, plug in the RP2350, drag firmware.uf2 to the RP2350 drive
+Check:  ./scripts/check.sh        # fmt + clippy + test + audit + deny + gitleaks
+Fuzz:   nix develop .#fuzz -c cargo fuzz run <target>
+CLI:    rsk status | rsk backup … | rsk secure-boot … | rsk otp … (rsk --help)
+TUI:    rsk-tui                    # live device dashboard
+Docs:   ./scripts/docs.sh serve    # preview the docs site (build|check)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.09s
+environment {"python": "3.13.13", "packages": {"fido2": "2.2.1", "cryptography": "48.0.0", "pytest": "9.0.3", "cffi": "2.0.0", "pycparser": "3.0"}, "emulator": "/home/ee/\u684c\u9762/dsh/RS-Key-FPM583F/tools/emu/target/x86_64-unknown-linux-gnu/debug/rsk-emu", "emulator_sha256": "d1b9e5d38fef52173631f0a10648f1d650f3f852afff75be4926c108e08aa47c"}
+session {"pid": 1094087, "args": ["/home/ee/桌面/dsh/RS-Key-FPM583F/tools/emu/target/x86_64-unknown-linux-gnu/debug/rsk-emu", "--host", "127.0.0.1", "--fido-port", "56757", "--ccid-port", "0", "--touch", "--store", "/tmp/rsk-standard-client.fiQSqO/tests/test_handshake_getinfo_and_fre0/session.store"]}
+getInfo {"versions": ["U2F_V2", "FIDO_2_0", "FIDO_2_1", "FIDO_2_3"], "pin_uv_protocols": [2, 1], "algorithms": [{"alg": -7, "type": "public-key"}, {"alg": -35, "type": "public-key"}, {"alg": -36, "type": "public-key"}, {"alg": -8, "type": "public-key"}], "options": {"ep": false, "rk": true, "up": true, "alwaysUv": false, "credMgmt": true, "authnrCfg": true, "clientPin": false, "largeBlobs": true, "perCredMgmtRO": true, "pinUvAuthToken": true, "setMinPINLength": true, "makeCredUvNotRqd": true}, "max_msg_size": 7609}
+.session {"pid": 1094093, "args": ["/home/ee/桌面/dsh/RS-Key-FPM583F/tools/emu/target/x86_64-unknown-linux-gnu/debug/rsk-emu", "--host", "127.0.0.1", "--fido-port", "54761", "--ccid-port", "0", "--touch", "--store", "/tmp/rsk-standard-client.fiQSqO/tests/test_passkey_pin_uv_rp_verific0/session.store"]}
+passkey {"algorithm": -7, "registration_uv": true, "assertion_uv": true, "counter_before_restart": 1, "terminal_prompts": 4, "pin_permissions": [[2, "c189c26c14f7a646.example.com"]]}
+store {"path": "/tmp/rsk-standard-client.fiQSqO/tests/test_passkey_pin_uv_rp_verific0/session.store", "bytes": 1572880}
+session {"pid": 1094118, "args": ["/home/ee/桌面/dsh/RS-Key-FPM583F/tools/emu/target/x86_64-unknown-linux-gnu/debug/rsk-emu", "--host", "127.0.0.1", "--fido-port", "45205", "--ccid-port", "0", "--touch", "--store", "/tmp/rsk-standard-client.fiQSqO/tests/test_passkey_pin_uv_rp_verific0/session.store"]}
+restart {"old_credential_verified": true, "counter_after_restart": 2}
+store {"path": "/tmp/rsk-standard-client.fiQSqO/tests/test_passkey_pin_uv_rp_verific0/session.store", "bytes": 1572880}
+.session {"pid": 1094124, "args": ["/home/ee/桌面/dsh/RS-Key-FPM583F/tools/emu/target/x86_64-unknown-linux-gnu/debug/rsk-emu", "--host", "127.0.0.1", "--fido-port", "49329", "--ccid-port", "0", "--touch", "--store", "/tmp/rsk-standard-client.fiQSqO/tests/test_policy_allowed_up_only_as0/session.store"]}
+up-only {"up": true, "uv": false, "terminal_prompts": 3}
+.session {"pid": 1094130, "args": ["/home/ee/桌面/dsh/RS-Key-FPM583F/tools/emu/target/x86_64-unknown-linux-gnu/debug/rsk-emu", "--host", "127.0.0.1", "--fido-port", "33919", "--ccid-port", "0", "--touch", "--store", "/tmp/rsk-standard-client.fiQSqO/tests/test_explicit_denial_cannot_au0/session.store"]}
+refusal {"client_error": "BAD_REQUEST", "ctap_error": "OPERATION_DENIED"}
+.session {"pid": 1094136, "args": ["/home/ee/桌面/dsh/RS-Key-FPM583F/tools/emu/target/x86_64-unknown-linux-gnu/debug/rsk-emu", "--host", "127.0.0.1", "--fido-port", "60639", "--ccid-port", "0", "--touch", "--store", "/tmp/rsk-standard-client.fiQSqO/tests/test_keepalive_cancel_then_new0/session.store"]}
+refusal {"client_error": "TIMEOUT", "ctap_error": "KEEPALIVE_CANCEL"}
+cancel {"upneeded_callbacks": 1, "next_operation_verified": true, "same_connection": true}
+.session {"pid": 1094142, "args": ["/home/ee/桌面/dsh/RS-Key-FPM583F/tools/emu/target/x86_64-unknown-linux-gnu/debug/rsk-emu", "--host", "127.0.0.1", "--fido-port", "55221", "--ccid-port", "0", "--touch", "--store", "/tmp/rsk-standard-client.fiQSqO/tests/test_unanswered_presence_hits_0/session.store"]}
+transport timeout; connection invalidated while confirmation remained unanswered
+.session {"pid": 1094148, "args": ["/home/ee/桌面/dsh/RS-Key-FPM583F/tools/emu/target/x86_64-unknown-linux-gnu/debug/rsk-emu", "--host", "127.0.0.1", "--fido-port", "52957", "--ccid-port", "0", "--touch", "--store", "/tmp/rsk-standard-client.fiQSqO/tests/test_closed_connection_at_obse0/session.store"]}
+.session {"pid": 1094154, "args": ["/home/ee/桌面/dsh/RS-Key-FPM583F/tools/emu/target/x86_64-unknown-linux-gnu/debug/rsk-emu", "--host", "127.0.0.1", "--fido-port", "36639", "--ccid-port", "0", "--touch", "--store", "/tmp/rsk-standard-client.fiQSqO/tests/test_required_uv_rejects_one_w0/session.store"]}
+refusal {"client_error": "BAD_REQUEST", "ctap_error": "PIN_INVALID"}
+.session {"pid": 1094160, "args": ["/home/ee/桌面/dsh/RS-Key-FPM583F/tools/emu/target/x86_64-unknown-linux-gnu/debug/rsk-emu", "--host", "127.0.0.1", "--fido-port", "42261", "--ccid-port", "0", "--touch", "--store", "/tmp/rsk-standard-client.fiQSqO/tests/test_required_uv_rejects_one_w1/session.store"]}
+.session {"pid": 1094166, "args": ["/home/ee/桌面/dsh/RS-Key-FPM583F/tools/emu/target/x86_64-unknown-linux-gnu/debug/rsk-emu", "--host", "127.0.0.1", "--fido-port", "37061", "--ccid-port", "0", "--touch", "--store", "/tmp/rsk-standard-client.fiQSqO/tests/test_credential_from_another_r0/session.store"]}
+refusal {"client_error": "DEVICE_INELIGIBLE", "ctap_error": "NO_CREDENTIALS"}
+.session {"pid": 1094172, "args": ["/home/ee/桌面/dsh/RS-Key-FPM583F/tools/emu/target/x86_64-unknown-linux-gnu/debug/rsk-emu", "--host", "127.0.0.1", "--fido-port", "47591", "--ccid-port", "0", "--touch", "--store", "/tmp/rsk-standard-client.fiQSqO/tests/test_client_keeps_default_orig0/session.store"]}
+..session {"pid": 1094225, "args": ["/home/ee/桌面/dsh/RS-Key-FPM583F/tools/emu/target/x86_64-unknown-linux-gnu/debug/rsk-emu", "--host", "127.0.0.1", "--fido-port", "46511", "--ccid-port", "0", "--touch", "--store", "/tmp/rsk-standard-client.fiQSqO/tests/test_unexpected_emulator_exit_0/session.store"]}
+.session {"pid": 1094231, "args": ["/home/ee/桌面/dsh/RS-Key-FPM583F/tools/emu/target/x86_64-unknown-linux-gnu/debug/rsk-emu", "--host", "127.0.0.1", "--fido-port", "39241", "--ccid-port", "0", "--touch", "--store", "/tmp/rsk-standard-client.fiQSqO/tests/test_unexpected_emulator_exit_1/session.store"]}
+...........
+24 passed in 7.98s

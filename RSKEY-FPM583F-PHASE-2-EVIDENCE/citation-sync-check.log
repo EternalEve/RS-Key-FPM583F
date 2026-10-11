@@ -1,0 +1,34 @@
+warning: Git tree '/home/ee/桌面/dsh/RS-Key-FPM583F' is dirty
+rs-key devshell
+  rustc:    rustc 1.96.0 (ac68faa20 2026-05-25)
+  target:   thumbv8m.main-none-eabihf
+  picotool: picotool v2.2.0-a4 (Linux, GNU-15.2.0, Release)
+
+Build:  cargo build --release -p firmware   # pick the target crate
+  (or:  nix build .#firmware                 # hermetic → result/firmware.uf2)
+PT:     scripts/pt.sh target/thumbv8m.main-none-eabihf/release/firmware fw-pt.elf   # fence the KV store
+UF2:    picotool uf2 convert fw-pt.elf -t elf firmware.uf2
+Flash:  hold BOOTSEL, plug in the RP2350, drag firmware.uf2 to the RP2350 drive
+Check:  ./scripts/check.sh        # fmt + clippy + test + audit + deny + gitleaks
+Fuzz:   nix develop .#fuzz -c cargo fuzz run <target>
+CLI:    rsk status | rsk backup … | rsk secure-boot … | rsk otp … (rsk --help)
+TUI:    rsk-tui                    # live device dashboard
+Docs:   ./scripts/docs.sh serve    # preview the docs site (build|check)
+citation-gate: formal/citations.lock rewritten; read the diff before committing it
+  rewritten: formal/RSKeySecurityState.tla: `tools/emu/src/device.rs:508` is not in formal/citations.lock; check that it points where you mean it to, then re-run with --relock
+  rewritten: formal/README.md: `tools/emu/src/device.rs:508` is not in formal/citations.lock; check that it points where you mean it to, then re-run with --relock
+  rewritten: scripts/security_trace.py: `tools/emu/src/device.rs:755-756` is not in formal/citations.lock; check that it points where you mean it to, then re-run with --relock
+  rewritten: scripts/security_trace.py: `tools/emu/src/device.rs:755-756` is not in formal/citations.lock; check that it points where you mean it to, then re-run with --relock
+  rewritten: scripts/test_security_trace.py: `tools/emu/src/device.rs:755-756` is not in formal/citations.lock; check that it points where you mean it to, then re-run with --relock
+  rewritten: formal/citations.lock still locks `tools/emu/src/device.rs:507-507` for formal/README.md, which no longer cites it; re-run with --relock
+  rewritten: formal/citations.lock still locks `tools/emu/src/device.rs:507-507` for formal/RSKeySecurityState.tla, which no longer cites it; re-run with --relock
+  rewritten: formal/citations.lock still locks `tools/emu/src/device.rs:754-755` for scripts/security_trace.py, which no longer cites it; re-run with --relock
+  rewritten: formal/citations.lock still locks `tools/emu/src/device.rs:754-755` for scripts/test_security_trace.py, which no longer cites it; re-run with --relock
+
+9 citation(s) above were re-locked, not repaired. A DRIFTED one is a page still
+saying what the code no longer says — fix the page by CONTENT first, then re-lock.
+citation-gate: ok — 1517 citations across 13 model pages, 17 code pages, 10 script pages, 11 evidence bundles and 12 assurance registries resolve; phase-1 property tags close both ways
+........................................................................ [ 41%]
+........................................................................ [ 82%]
+..............................                                           [100%]
+174 passed in 8.62s

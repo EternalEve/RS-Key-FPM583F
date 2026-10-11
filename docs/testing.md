@@ -50,6 +50,19 @@ committed drawing has drifted from them; its mutation table is
 
 ## Host tests
 
+The standard-client emulator integration runs independently of the gate:
+
+```sh
+nix develop -c bash scripts/standard-client.sh
+```
+
+It pins python-fido2 2.2.1 in an isolated Nix environment and verifies PIN UV,
+discoverable registration/assertion, RP signature rejection, UP-only assertions,
+normal restart persistence and cancellation over loopback TCP. Each case owns
+its emulator and synthetic store; no hardware is enumerated. See the
+[client suite](../tests/standard_client/README.md) for confirmation inputs,
+transport deadlines and the difference from physical USB and screenless firmware.
+
 `cargo test` must target the host explicitly (the workspace defaults to
 `thumbv8m`):
 
