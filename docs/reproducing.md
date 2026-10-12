@@ -107,6 +107,9 @@ and fails the self-test, which is the only thing that stops this page and that
 script from slowly describing a tree that no longer exists. Its mutation table
 is `scripts/test_reproduce.py`.
 
+The refusal check reads the complete block, including its maintainer-only page.
+A long trailing notice cannot make a valid block fail that check.
+
 ---
 
 ## Maintainer-only: the hardware half

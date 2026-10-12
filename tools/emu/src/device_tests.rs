@@ -110,6 +110,7 @@ fn bench_with(name: &str, presence: PresenceMode) -> (PathBuf, Jobs, Arc<Signals
         power_cut: None,
         fingerprint_script: None,
         fingerprint_init: false,
+        fingerprint_management: false,
     };
     let signals = Arc::new(Signals::default());
     let device = {

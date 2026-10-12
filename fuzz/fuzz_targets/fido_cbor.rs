@@ -24,6 +24,34 @@ impl Rng for SeqRng {
     }
 }
 
+struct Unavailable;
+impl rsk_fido::fingerprint::Sensor for Unavailable {
+    fn now_ms(&self) -> u64 {
+        0
+    }
+    fn ready(&self) -> bool {
+        false
+    }
+    fn start(
+        &mut self,
+        _: u32,
+    ) -> Result<rsk_fido::fingerprint::Attempt, rsk_fido::fingerprint::Failure> {
+        Err(rsk_fido::fingerprint::Failure::Unavailable)
+    }
+    fn poll(&mut self) -> core::task::Poll<rsk_fido::fingerprint::Observation> {
+        core::task::Poll::Pending
+    }
+    fn cancelled(&self) -> bool {
+        false
+    }
+    fn matching(&self) -> rsk_fido::fingerprint::Matching {
+        rsk_fido::fingerprint::Matching::NotStarted
+    }
+    fn wait(&mut self) {}
+    fn finish(&mut self, _: rsk_fido::fingerprint::Attempt) {}
+    fn service_idle(&mut self) {}
+}
+
 fuzz_target!(|data: &[u8]| {
     let dev = Device {
         serial_hash: &[0xAB; 32],
@@ -37,8 +65,15 @@ fuzz_target!(|data: &[u8]| {
     let mut out = [0u8; 2048];
     let mut state = rsk_fido::FidoState::new();
     let mut presence = rsk_fido::AlwaysConfirm;
+    let mut sensor = Unavailable;
+    let mut bindings = rsk_fido::bio_directory::Directory;
     let mut ctx = Ctx {
-        fingerprint: None,
+        fingerprint: (data.first() == Some(&rsk_fido::consts::CTAP_BIO_ENROLLMENT)).then_some(
+            rsk_fido::fingerprint::Context {
+                sensor: &mut sensor,
+                bindings: &mut bindings,
+            },
+        ),
         presence: &mut presence,
         dev,
         fs: &mut fs,

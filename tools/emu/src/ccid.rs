@@ -49,6 +49,13 @@ const OP_REPLUG: u8 = 0x03;
 const MAX_REQUEST: usize = MAX_CCID_MSG;
 
 pub fn serve(mut stream: TcpStream, jobs: Jobs, atr: &'static [u8]) -> io::Result<()> {
+    let result = serve_connection(&mut stream, &jobs, atr);
+    let (done, _) = mpsc::channel();
+    let _ = jobs.send(Job::EndEnrollment(rsk_fido::consts::CHANNEL_NONE), done);
+    result
+}
+
+fn serve_connection(stream: &mut TcpStream, jobs: &Jobs, atr: &'static [u8]) -> io::Result<()> {
     // Slot status is transport state — a field of `Ccid` on the device, so one
     // per connection here, a connection being one host's handle on the card.
     let mut status = STATUS_INACTIVE;
@@ -72,11 +79,11 @@ pub fn serve(mut stream: TcpStream, jobs: Jobs, atr: &'static [u8]) -> io::Resul
 
         match op {
             OP_REPLUG => {
-                run(&jobs, Job::Replug(Unplug::Operator))?;
+                run(jobs, Job::Replug(Unplug::Operator))?;
                 status = STATUS_INACTIVE; // the card comes back unpowered
-                send(&mut stream, &[])?;
+                send(stream, &[])?;
             }
-            OP_CCID => serve_message(&mut stream, &jobs, &msg, atr, &mut status, &mut out)?,
+            OP_CCID => serve_message(stream, jobs, &msg, atr, &mut status, &mut out)?,
             _ => return Err(io::Error::other(format!("unknown opcode {op:#04x}"))),
         }
     }

@@ -57,40 +57,40 @@ threat_clause = "docs/threat-model.md#TM-ZEROIZATION"
 # transient key copies, transport buffers, the DEVK and the MKEK. It never names
 # the vendor-unlock seed copy, and it states no ordering between a RAM secret and
 # a flash record. Worse in the one direction that matters: `keydev_dec` is a
-# documented EXCEPTION to that rule. crates/rsk-fido/src/state.rs:338-339 —
+# documented EXCEPTION to that rule. crates/rsk-fido/src/state.rs:341-342 —
 # "held until power-off, a reset, or an AUT_DISABLE" — and
-# crates/rsk-fido/src/config.rs:405-409 — "`keydev_dec` carries no channel, token
+# crates/rsk-fido/src/config.rs:406-410 — "`keydev_dec` carries no channel, token
 # or timer and lives until power-off (audit run-34 #28). That is accepted". So
 # the registered source is a clause the property's own subject is carved out of.
-threat_clause_reading = "the anchor is topical and not the claim: TM-ZEROIZATION is end-of-use wiping, this property is an ORDERING between the RAM copy and the flash record across a reset. What would fix it is a threat-model sentence naming the vendor-unlock RAM seed and the reset ordering — reset.rs:100-104 already carries the argument in prose — or a re-source onto a clause about the wipe order. TM-HOST-POWER-CUT is the nearest existing clause and is about a torn flash WRITE, not about volatile state outliving it"
+threat_clause_reading = "the anchor is topical and not the claim: TM-ZEROIZATION is end-of-use wiping, this property is an ORDERING between the RAM copy and the flash record across a reset. What would fix it is a threat-model sentence naming the vendor-unlock RAM seed and the reset ordering — reset.rs:111-115 already carries the argument in prose — or a re-source onto a clause about the wipe order. TM-HOST-POWER-CUT is the nearest existing clause and is about a torn flash WRITE, not about volatile state outliving it"
 # What `assurance_gate.py` derives as `rust = 1`. Read the derivation before the
 # column: `grep_word` matches the bare invariant name ANYWHERE in a production
 # file and returns FILE NAMES, so the column counts files that MENTION it, not
 # sites that own it — and a second tag in an already-counted file adds nothing.
 # The `Refines` regex belongs to a different function, which only validates.
-owners_tagged = ["crates/rsk-fido/src/seed.rs:616 seed::ensure_seed", "crates/rsk-fido/src/vendor.rs::unlock — the producer, tagged after this bundle measured that it was not"]
+owners_tagged = ["crates/rsk-fido/src/seed.rs:619 seed::ensure_seed", "crates/rsk-fido/src/vendor.rs::unlock — the producer, tagged after this bundle measured that it was not"]
 # AND THE TAG IS ON THE CONSEQUENT. `grep -c keydev_dec crates/rsk-fido/src/seed.rs`
 # is 0, and `ensure_seed` takes no `FidoState` at all, so it structurally cannot
 # touch the antecedent: it writes `EF_KEY_DEV`, which is `store.seed`. It can
 # never falsify `ram => store.seed`; it can only make the right side true.
-owners_tag_reading = "an independent measurement REFUTED the reading this bundle first wrote. The three SEC-FIDO-006 tags at reset.rs:35, state.rs:438 and crates/rsk-fido/src/lib.rs:105 are NOT a sibling's tag standing in this one's place: SEC-FIDO-006 is ResetNeverWeakensSurvivingState, two of whose three clauses contain SeedReachable == store.seed \\/ ram — the same `ram`. All three functions legitimately own BOTH properties, and crates/rsk-fido/src/lib.rs:106-110 `Ctx::load_keydev` IS SeedReachable's disjunction in Rust, cited for exactly that twice in RSKeySecurityState.tla. The defect is a MISSING SECOND TAG, not a wrong first one. The one genuinely untagged owner is vendor.rs:558 `unlock`, which the model names as `ram`'s only producer"
+owners_tag_reading = "an independent measurement REFUTED the reading this bundle first wrote. The three SEC-FIDO-006 tags at reset.rs:36, state.rs:452 and crates/rsk-fido/src/lib.rs:109 are NOT a sibling's tag standing in this one's place: SEC-FIDO-006 is ResetNeverWeakensSurvivingState, two of whose three clauses contain SeedReachable == store.seed \\/ ram — the same `ram`. All three functions legitimately own BOTH properties, and crates/rsk-fido/src/lib.rs:110-120 `Ctx::load_keydev` IS SeedReachable's disjunction in Rust, cited for exactly that twice in RSKeySecurityState.tla. The defect is a MISSING SECOND TAG, not a wrong first one. The one genuinely untagged owner is vendor.rs:558 `unlock`, which the model names as `ram`'s only producer"
 # Every production site that writes or reads the RAM copy, enumerated over five
 # spellings because one under-approximates: the field, `clear_keydev_dec`,
 # `ctx.state.reset()`, `*self = Self::new()` and the destructuring `Drop`.
 owners_writers = [
   "crates/rsk-fido/src/vendor.rs:592 — `ctx.state.keydev_dec = Some(seed)`, the SOLE producer (model: DeviceUnlock)",
   "crates/rsk-fido/src/vendor.rs:591 — the clear before it, so an unlock cannot stack two copies",
-  "crates/rsk-fido/src/state.rs:386 — `keydev_dec: None` in `FidoState::new`",
-  "crates/rsk-fido/src/state.rs:426 — `clear_keydev_dec`, zeroize then None",
-  "crates/rsk-fido/src/state.rs:444 — `*self = Self::new()` inside `FidoState::reset`, which drops the old value",
-  "crates/rsk-fido/src/state.rs:721 — `Drop for FidoState`, the exhaustive destructuring that zeroizes it",
-  "crates/rsk-fido/src/config.rs:428 — AUT_DISABLE's clear; the model omits this action outright",
-  "crates/rsk-fido/src/reset.rs:104 — `ctx.state.reset()` AHEAD of every flash write, which is the ordering the invariant IS",
+  "crates/rsk-fido/src/state.rs:390 — `keydev_dec: None` in `FidoState::new`",
+  "crates/rsk-fido/src/state.rs:440 — `clear_keydev_dec`, zeroize then None",
+  "crates/rsk-fido/src/state.rs:458 — `*self = Self::new()` inside `FidoState::reset`, which drops the old value",
+  "crates/rsk-fido/src/state.rs:747 — `Drop for FidoState`, the exhaustive destructuring that zeroizes it",
+  "crates/rsk-fido/src/config.rs:429 — AUT_DISABLE's clear; the model omits this action outright",
+  "crates/rsk-fido/src/reset.rs:115 — `ctx.state.reset()` AHEAD of every flash write, which is the ordering the invariant IS",
 ]
 owners_readers = [
-  "crates/rsk-fido/src/lib.rs:108 — `Ctx::load_keydev`, RAM first then flash: the concrete SeedReachable, and the chokepoint nine call sites reach it through",
-  "crates/rsk-fido/src/config.rs:415 — AUT_DISABLE's authorization gate",
-  "crates/rsk-fido/src/config.rs:421 — the take that re-seals it",
+  "crates/rsk-fido/src/lib.rs:118 — `Ctx::load_keydev`, RAM first then flash: the concrete SeedReachable, and the chokepoint nine call sites reach it through",
+  "crates/rsk-fido/src/config.rs:416 — AUT_DISABLE's authorization gate",
+  "crates/rsk-fido/src/config.rs:422 — the take that re-seals it",
   "crates/rsk-fido/src/vendor.rs:967 — BACKUP_STATE's ungated `unlocked` bit",
   "crates/rsk-device/src/ctap.rs:242 — the trace projection, cfg-gated",
   "crates/rsk-fido/src/reset_assurance.rs:49 — the verification projection, cfg-gated",
@@ -144,7 +144,7 @@ bound_max_clock = 1
 stops_max_clock = "nothing this invariant can express. What one Tick costs is reach: a falsifying state needing a second unit of elapsed time is not in the set searched"
 bound_reset_window = 0
 stops_reset_window = "nothing this invariant can express. What zero costs is reach: a reset started inside the shipped window is a prefix no run here produces"
-shipped_relation = "MaxRetries and MismatchLimit ARE the shipped MAX_PIN_RETRIES (8) and PIN_MISMATCH_LIMIT (3) at crates/rsk-fido/src/consts.rs:372,376; RPs and Channels are 2 against an unbounded device; MaxClock 1 is the smallest value at which Tick is not dead; ResetWindow 0 runs the window closed only. AND NONE OF THE SIX IS ON THIS PROPERTY'S PATH: `ram => store.seed` names two booleans and no constant, so what the six buy is the reachable set a falsifying state would have to appear in, and what they cost this invariant is nothing it can express. That is the honest difference from SEC-FIDO-001, where MaxRetries IS the retry ladder the invariant is about"
+shipped_relation = "MaxRetries and MismatchLimit ARE the shipped MAX_PIN_RETRIES (8) and PIN_MISMATCH_LIMIT (3) at crates/rsk-fido/src/consts.rs:379,383; RPs and Channels are 2 against an unbounded device; MaxClock 1 is the smallest value at which Tick is not dead; ResetWindow 0 runs the window closed only. AND NONE OF THE SIX IS ON THIS PROPERTY'S PATH: `ram => store.seed` names two booleans and no constant, so what the six buy is the reachable set a falsifying state would have to appear in, and what they cost this invariant is nothing it can express. That is the honest difference from SEC-FIDO-001, where MaxRetries IS the retry ladder the invariant is about"
 cfg = "none"
 features = "none"
 
@@ -200,7 +200,7 @@ bound_files_in_argument = 6
 stops_files_in_argument = "anything in a seventh file — and the measurement is the point: the slice page estimated three files, named the tag's file, and missed both writers and the ordering site"
 bound_crates = 2
 stops_crates = "a site outside the two crates. A holder of the RAM copy in a third would be outside the argument"
-shipped_relation = "the four writers are one producer (vendor.rs:592) and three destroyers (vendor.rs:591, config.rs:428, and reset.rs:104 through FidoState::reset -> Drop); the four readers are crates/rsk-fido/src/lib.rs:108, config.rs:415, config.rs:421 and vendor.rs:967; the two projection sites are crates/rsk-device/src/ctap.rs:242 and crates/rsk-fido/src/reset_assurance.rs:49 and BOTH are cfg-gated, so neither is in a shipped image. Six files and two crates against the THREE files docs/authorization-slice.md:484-487 estimated (seed.rs, state.rs, lib.rs) — the estimate named the tag's file and missed both writers and the ordering site, and seed.rs is the one of the three that contains no `keydev_dec` at all. This bound is a count of sites, not a shrink of a shipped constant, because a review has no other unit"
+shipped_relation = "the four writers are one producer (vendor.rs:592) and three destroyers (vendor.rs:591, config.rs:429, and reset.rs:115 through FidoState::reset -> Drop); the four readers are crates/rsk-fido/src/lib.rs:118, config.rs:416, config.rs:422 and vendor.rs:967; the two projection sites are crates/rsk-device/src/ctap.rs:242 and crates/rsk-fido/src/reset_assurance.rs:49 and BOTH are cfg-gated, so neither is in a shipped image. Six files and two crates against the THREE files docs/authorization-slice.md:484-487 estimated (seed.rs, state.rs, lib.rs) — the estimate named the tag's file and missed both writers and the ordering site, and seed.rs is the one of the three that contains no `keydev_dec` at all. This bound is a count of sites, not a shrink of a shipped constant, because a review has no other unit"
 cfg = "none — every writer and reader above is unconditional production code; the two projection sites are not, and the bound counts them apart for that reason"
 features = "none"
 
@@ -261,9 +261,9 @@ registered = "yes — assurance/platform.toml PLAT-MODEL-005, pending, and it is
 
 [[assumption]]
 id = "AS-RAM-4"
-statement = "The RAM copy dies by Rust drop-and-replace, not by an explicit clear, on the path the invariant is about: `reset.rs:104` calls `FidoState::reset`, which assigns `*self = Self::new()` and lets `Drop for FidoState` zeroize the field."
+statement = "The RAM copy dies by Rust drop-and-replace, not by an explicit clear, on the path the invariant is about: `reset.rs:115` calls `FidoState::reset`, which assigns `*self = Self::new()` and lets `Drop for FidoState` zeroize the field."
 kind = "compiler"
-discharger = "stage 11's source-to-binary work, and nothing here. The model writes `ram' = FALSE` outright (RSKeySecurityState.tla:1225); the code's equivalent is state.rs:439-449 plus the exhaustive destructuring at :665-703, whose own comment says a field added later stops the pattern compiling. What no proof in this tree covers is that the emitted image does what the `Drop` says"
+discharger = "stage 11's source-to-binary work, and nothing here. The model writes `ram' = FALSE` outright (RSKeySecurityState.tla:1225); the code's equivalent is state.rs:453-463 plus the exhaustive destructuring at :665-703, whose own comment says a field added later stops the pattern compiling. What no proof in this tree covers is that the emitted image does what the `Drop` says"
 expressible = "no — a fact about a compiler, not about the model"
 registered = "yes — assurance/platform.toml PLAT-TOOLCHAIN-001, whose `covers` this bundle extended. Not a new row: the statement is that entry at one site, and a second entry would be two answers about one premise"
 
@@ -279,7 +279,7 @@ registered = "yes — assurance/platform.toml PLAT-MODEL-006, pending. There was
 id = "AS-RAM-6"
 statement = "The invariant is about REACHABILITY through `Ctx::load_keydev`, not about residue in SRAM: a copy the code can no longer reach satisfies it whatever the memory holds."
 kind = "platform"
-discharger = "a board measurement, and one exists without its artifact — it is `assurance/platform.toml` PLAT-MEM-001 and its `discharge` field carries the part, the date and the procedure. Deliberately NOT restated here: nothing in this bundle was taken on silicon, `freshness.expires_on_stepping` says so, and a stepping named in this file's prose makes the evidence gate demand a `build.board_revision` the bundle would then be claiming falsely. What belongs here is the software half: crates/rsk-fido/src/lib.rs:106-110 is the reachability the antecedent means — the RAM copy wins over flash — and the residue question is a different subject under a different entry"
+discharger = "a board measurement, and one exists without its artifact — it is `assurance/platform.toml` PLAT-MEM-001 and its `discharge` field carries the part, the date and the procedure. Deliberately NOT restated here: nothing in this bundle was taken on silicon, `freshness.expires_on_stepping` says so, and a stepping named in this file's prose makes the evidence gate demand a `build.board_revision` the bundle would then be claiming falsely. What belongs here is the software half: crates/rsk-fido/src/lib.rs:110-120 is the reachability the antecedent means — the RAM copy wins over flash — and the residue question is a different subject under a different entry"
 expressible = "no — a fact about silicon and about what a projection means, not a constant"
 registered = "yes — assurance/platform.toml PLAT-MEM-001, whose `covers` this bundle extended with `slice:AS-RAM-6`. It was the near miss: the only entry whose `supports` already named SEC-FIDO-007, covering a board-only test and no slice id"
 
@@ -385,7 +385,7 @@ r_column = "the `rust` column is not a count of tags: assurance_gate.grep_word m
 
 # The gates this bundle's own change moved, each with the number it now derives.
 gate_ghost = "ghost-gate: ok — 21 action(s) record NoAuthorizationBypass over 24 route(s), consulting 11 guard(s) — unchanged by this bundle, and transcribed because the roster rule demands every gate line whether or not this property moved it"
-gate_ledger = "token-refinement-gate: GREEN keys=2 api=11 volatile=12/10 persistent=14/5 outcomes=7/6 walk=4 softlock=12 window=2 testonly=1 — the ledger owns the token axes, not the seed ones, so none of the owners this bundle enumerates is in it"
+gate_ledger = "token-refinement-gate: GREEN keys=2 api=11 volatile=14/11 persistent=15/5 outcomes=8/6 walk=4 softlock=12 window=2 testonly=2 — the ledger owns the token axes, not the seed ones, so none of the owners this bundle enumerates is in it"
 gate_assumption = "5 standing assumption(s) AlwaysUvShipped TRUE=5 FALSE=91 ForceChangeModelled TRUE=3 FALSE=93 PowerOnClearsScratch2 TRUE=11 FALSE=4 RekeyOrderModelled TRUE=2 FALSE=13 WidePerms TRUE=3 FALSE=93 — re-derived, and it REFUTES what this line used to say. `grep -lw RamNeverOutlivesFlashSeed formal/*.cfg` is Shipped.cfg, AlwaysUv.cfg, ForceChange.cfg, PermWide.cfg and Solo_RamNeverOutlivesFlashSeed.cfg, and across those five all three model constants now have BOTH arms run against this property — `AlwaysUvShipped` through Shipped.cfg and AlwaysUv.cfg, `WidePerms` through PermWide.cfg, `ForceChangeModelled` through ForceChange.cfg. The earlier wording said the two scope constants were FALSE in every configuration that checks it, which was true when it was typed and is not now. `PowerOnClearsScratch2` and `RekeyOrderModelled` are the two whose arms this property never sees, because both live in RSKeyBootHardening — the second joined the registry after this line was first written, and is why the total is five rather than four"
 gate_matrix = "matrix-gate: ok — 40 P0-family properties × 32 build configurations = 1280 cells (37 covered, 143 equivalent, 0 conditional, 109 out-of-scope, 991 gap) — UNCHANGED by this bundle: a model check and a host-test slice read no board preset and no flash geometry, so nothing here settles a cell"
 gate_registry = "SEC-FIDO-007   RamNeverOutlivesFlashSeed                MODELLED-ONLY cfgs=5   mut=1  co=1 kani=0 fuzz=0 rust=2 test=0 — `rust` moved to two when the ONE producer of the antecedent, `vendor.rs::unlock`, was tagged; it had carried only the consequent's owner. `cfgs` counts configurations CHECKING the invariant rather than evidence about it"

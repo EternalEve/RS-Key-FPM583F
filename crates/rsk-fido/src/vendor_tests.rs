@@ -1370,6 +1370,26 @@ fn reset_clears_the_lock_and_regenerates() {
 #[test]
 fn ensure_seed_does_not_regenerate_under_lock() {
     let (mut fs, mut rng, mut st, host, seed) = locked_setup();
+    crate::bio_directory::write_head(
+        &mut fs,
+        crate::bio_directory::Head {
+            generation: 1,
+            isolated: false,
+        },
+    )
+    .unwrap();
+    crate::bio_directory::write_entry(
+        &mut fs,
+        0,
+        crate::bio_directory::Entry {
+            stage: crate::bio_directory::Stage::Authorized,
+            generation: 1,
+            id: [0; crate::consts::BIO_ID_LEN],
+            name: [0; crate::consts::BIO_NAME_MAX],
+            name_len: 0,
+        },
+    )
+    .unwrap();
     ensure_seed(&dev(), &mut fs, &mut rng).unwrap();
     assert!(!fs.has_data(EF_KEY_DEV.get())); // boot on a locked device: no regen
     run_unlock(&mut fs, &mut rng, &mut st, &LOCK_KEY, &host, 0x27).unwrap();

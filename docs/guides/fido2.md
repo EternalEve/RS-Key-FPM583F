@@ -25,10 +25,27 @@ channels have separate walk ownership. PIN retry limits remain device-wide.
 Resetting the CCID card retires its own walks; selecting an applet does not
 erase the shared PIN/token state.
 
-The experimental `fingerprint` build currently supplies the execution bridge
-and authorization policy. It has no production template bindings or enrollment
-commands, so normal firmware still uses the existing PIN/button paths. Scripted
-fingerprint success is confined to the isolated emulator test configuration.
+The experimental `fingerprint` build includes standard BioEnrollment, PIN/BE
+management, persistent template bindings and reset isolation. The RP2350 bridge
+still has no real sensor codec: enrollment and fingerprint authentication are
+currently verified with an isolated persistent module fixture. Hardware delivery
+requires the later protocol, board and interoperability acceptance.
+
+Management uses a PIN token with `BIO_ENROLL` permission through standard client
+APIs. It supports up to 16 templates with stable IDs, empty or UTF-8 names up to
+64 bytes, cancellation and deletion. Names and ordinary template management keep
+the existing passkeys and PIN. Deleting the last template leaves PIN plus fresh
+button presence available; only a successful standard CTAP Reset clears FIDO
+credentials. A template saved during a failed enrollment remains isolated and
+can be enumerated and removed with authorized standard management after restart.
+Unknown inventory or unsupported record versions require an explicit legal Reset.
+
+Management `0x1E` and its `0x1F` factory-reset alias are unavailable in fingerprint
+configurations because they acknowledge before completing the deferred erase.
+Use standard CTAP Reset with its existing presence and boot-window conditions.
+An incomplete reset retains isolation across boot and requires a new legal Reset;
+startup does not automatically erase the module or regenerate the FIDO seed.
+A screen build also refuses its factory-wipe flow while biometric state remains.
 
 ## Presence for registration and login
 

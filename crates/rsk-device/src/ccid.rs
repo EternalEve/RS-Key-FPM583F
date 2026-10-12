@@ -53,6 +53,8 @@ const _: () = assert!(rsk_openpgp::files::MAX_DO_BYTES <= RESP_CAP - 2);
 // this ceiling.
 const _: () = assert!(rsk_openpgp::files::MAX_CHALLENGE_BYTES <= RESP_CAP - 2);
 
+const _: () = assert!(rsk_fido::bio_directory::ENUMERATION_MAX <= RESP_CAP - 2);
+
 /// Registration-order indices of the applets whose RSA keygen is fast-pathed.
 const IDX_OPENPGP: usize = 1;
 const IDX_PIV: usize = 5;
@@ -160,6 +162,7 @@ impl<'a, S: Storage, R: rsk_sdk::Rng + 'static, VP: rsk_vendor::Platform>
         sensor: &'a RefCell<dyn rsk_fido::fingerprint::Sensor>,
         bindings: &'a RefCell<dyn rsk_fido::fingerprint::Bindings<S>>,
     ) {
+        self.management.disable_factory_reset();
         self.fido.set_fingerprint((sensor, bindings));
     }
 
@@ -188,6 +191,10 @@ impl<'a, S: Storage, R: rsk_sdk::Rng + 'static, VP: rsk_vendor::Platform>
         flash_size: u32,
         openpgp_mfr: u16,
     ) -> Self {
+        let mut management = ManagementApplet::new(serial_id, presence);
+        if !rsk_fido::bio_directory::configuration_clean(&mut fs.borrow_mut()).unwrap_or(false) {
+            management.disable_factory_reset();
+        }
         Self {
             fs,
             rng,
@@ -199,7 +206,7 @@ impl<'a, S: Storage, R: rsk_sdk::Rng + 'static, VP: rsk_vendor::Platform>
             vendor: VendorApplet::new(vendor_platform, presence),
             openpgp: OpenpgpApplet::new(serial_id, serial_hash, mkek_source, rng, presence)
                 .with_manufacturer(openpgp_mfr),
-            management: ManagementApplet::new(serial_id, presence),
+            management,
             // Touch-flagged OATH credentials gate CALCULATE on the same button.
             oath: OathApplet::new(serial_id, serial_hash, mkek_source, rng, presence),
             otp: OtpApplet::new(serial_id, serial_hash, mkek_source, rng, presence),
@@ -317,6 +324,12 @@ impl<'a, S: Storage, R: rsk_sdk::Rng + 'static, VP: rsk_vendor::Platform>
     /// failed remove must not be laundered into a reboot that looks like success.
     #[cfg(not(feature = "strict-config"))]
     pub fn factory_wipe(&mut self) -> bool {
+        if self.fido.has_fingerprint()
+            || !rsk_fido::bio_directory::configuration_clean(&mut self.fs.borrow_mut())
+                .unwrap_or(false)
+        {
+            return false;
+        }
         self.fs
             .borrow_mut()
             .factory_wipe(
@@ -604,3 +617,7 @@ impl<'a, S: Storage, R: rsk_sdk::Rng + 'static, VP: rsk_vendor::Platform>
 #[cfg(test)]
 #[path = "ccid_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "ccid_bio_tests.rs"]
+mod bio_tests;

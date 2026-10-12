@@ -94,6 +94,17 @@ def test_the_shipped_tree_passes_its_own_self_test(tree):
     assert "self-test ok" in out
 
 
+def test_the_refusal_page_is_found_even_with_a_large_trailing_notice(tree):
+    edit(tree, 'echo "  Nothing in this script flashes, signs, or writes a fuse."',
+         'printf "%s\\n" "' + "x" * 65536 + '"')
+    query = subprocess.run(["bash", SCRIPT, "--refusals"], cwd=tree,
+                           capture_output=True, text=True, check=True)
+    assert "docs/reproducing.md" in query.stdout
+    rc, out = self_test(tree)
+    assert rc == 0, "a complete refusal block was wrongly rejected: " + out
+    assert "self-test ok" in out
+
+
 # --- clause: rows -------------------------------------------------------------
 
 

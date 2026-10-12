@@ -11,6 +11,7 @@ use std::task::Poll;
 use std::time::{Duration, Instant};
 
 use rsk_fido::CtapError;
+use rsk_fido::bio_sensor::{self, Capabilities, Command, Feedback, Inventory};
 use rsk_fido::fingerprint::{
     self, Attempt, Bindings, Failure, Lifecycle, Match, Matching, Observation, Operations, Sensor,
 };
@@ -32,6 +33,13 @@ enum ResultKind {
     UnknownTimeout,
     Wait,
     GenerationChange,
+    PoorQuality,
+    NoTransition,
+    NoActivity,
+    SaveFailure,
+    SaveUnknown,
+    DeleteFailure,
+    ClearFailure,
 }
 
 struct Event {
@@ -55,6 +63,13 @@ impl Event {
             Some("unknown-timeout") => ResultKind::UnknownTimeout,
             Some("wait") => ResultKind::Wait,
             Some("generation") => ResultKind::GenerationChange,
+            Some("poor-quality") => ResultKind::PoorQuality,
+            Some("no-transition") => ResultKind::NoTransition,
+            Some("no-activity") => ResultKind::NoActivity,
+            Some("save-failure") => ResultKind::SaveFailure,
+            Some("save-unknown") => ResultKind::SaveUnknown,
+            Some("delete-failure") => ResultKind::DeleteFailure,
+            Some("clear-failure") => ResultKind::ClearFailure,
             _ => return Err(Failure::Communication),
         };
         let mut number = || {
@@ -87,12 +102,15 @@ pub struct Script {
     operations: Operations,
     event: Option<Event>,
     drain_until_ms: u64,
+    inventory_path: Option<PathBuf>,
+    command: Option<Command>,
 }
 
 impl Script {
     pub fn reset(&mut self) {
         self.operations = Operations::new();
         self.event = None;
+        self.command = None;
         self.signals.end();
     }
 }
@@ -108,7 +126,7 @@ impl Sensor for Script {
         let event = Event::read(&self.path)?;
         let attempt = self.operations.begin(channel, self.now_ms())?;
         self.event = Some(event);
-        self.signals.clear_cancel();
+        self.command = None;
         self.signals.set_cancellable(true);
         self.signals.set_up_pending(true);
         eprintln!("fingerprint: start {} channel {}", attempt.id, channel);
@@ -149,7 +167,21 @@ impl Sensor for Script {
                     self.generation.set(self.generation.get().saturating_add(1));
                 }
                 Ok(Match {
-                    slot: SLOT,
+                    slot: if self.inventory_path.is_some() {
+                        match self.read_inventory() {
+                            Ok(inventory) => (0..bio_sensor::MODULE_SLOTS as u16)
+                                .find(|s| inventory.contains(*s))
+                                .unwrap_or(u16::MAX),
+                            Err(failure) => {
+                                return Poll::Ready(Observation {
+                                    attempt,
+                                    result: Err(failure),
+                                });
+                            }
+                        }
+                    } else {
+                        SLOT
+                    },
                     interaction: true,
                 })
             }
@@ -176,8 +208,12 @@ impl Sensor for Script {
     fn finish(&mut self, attempt: Attempt) {
         let now = self.now_ms();
         self.operations.finish(attempt, now);
-        self.drain_until_ms = now.saturating_add(self.event.as_ref().map_or(0, |e| e.drain_ms));
-        self.signals.set_cancellable(false);
+        self.drain_until_ms = now.saturating_add(if self.command == Some(Command::Inventory) {
+            0
+        } else {
+            self.event.as_ref().map_or(0, |e| e.drain_ms)
+        });
+        self.signals.set_cancellable(self.command.is_some());
         self.signals.set_up_pending(false);
         eprintln!("fingerprint: finish {}", attempt.id);
     }
@@ -192,15 +228,151 @@ impl Sensor for Script {
             eprintln!("fingerprint: idle {}", attempt.id);
         }
     }
+    fn capabilities(&self) -> Option<Capabilities> {
+        self.inventory_path.as_ref().map(|_| Capabilities {
+            samples: 3,
+            slots: bio_sensor::MODULE_SLOTS as u16,
+        })
+    }
+    fn start_management(&mut self, channel: u32, command: Command) -> Result<Attempt, Failure> {
+        if self.inventory_path.is_none() {
+            return Err(Failure::Unavailable);
+        }
+        let attempt = self.start(channel)?;
+        self.command = Some(command);
+        if command == Command::Inventory {
+            self.signals.set_up_pending(false);
+        }
+        eprintln!("fingerprint: management {command:?}");
+        Ok(attempt)
+    }
+    fn poll_management(&mut self) -> Poll<bio_sensor::Observation> {
+        let Lifecycle::Active(mut attempt) = self.operations.state() else {
+            return Poll::Pending;
+        };
+        if self.command == Some(Command::Inventory) {
+            return Poll::Ready(bio_sensor::Observation {
+                attempt,
+                result: self.read_inventory().map(bio_sensor::Result::Inventory),
+            });
+        }
+        let event = self.event.as_ref().expect("active attempt has event");
+        let elapsed = self.now_ms().saturating_sub(attempt.started_ms);
+        if elapsed < event.input_ms || matches!(event.result, ResultKind::Wait) {
+            return Poll::Pending;
+        }
+        self.signals.set_up_pending(false);
+        if elapsed < event.input_ms + event.processing_ms {
+            return Poll::Pending;
+        }
+        if matches!(event.result, ResultKind::Stale) {
+            attempt.id -= 1;
+        }
+        let feedback = match event.result {
+            ResultKind::PoorQuality => Feedback::PoorQuality,
+            ResultKind::NoTransition => Feedback::NoTransition,
+            ResultKind::NoActivity => Feedback::NoActivity,
+            _ => Feedback::Good,
+        };
+        let failure = matches!(
+            event.result,
+            ResultKind::Communication
+                | ResultKind::SaveFailure
+                | ResultKind::DeleteFailure
+                | ResultKind::ClearFailure
+        );
+        let unknown = matches!(event.result, ResultKind::SaveUnknown);
+        let result = if failure {
+            Err(Failure::Communication)
+        } else {
+            self.apply_management(feedback, unknown)
+        };
+        Poll::Ready(bio_sensor::Observation { attempt, result })
+    }
+}
+
+impl Script {
+    fn read_inventory(&mut self) -> Result<Inventory, Failure> {
+        let path = self.inventory_path.as_ref().ok_or(Failure::Unavailable)?;
+        let bytes = std::fs::read(path).map_err(|_| Failure::Communication)?;
+        Ok(Inventory(
+            bytes.try_into().map_err(|_| Failure::Communication)?,
+        ))
+    }
+    fn persist_inventory(&self, inventory: Inventory) -> Result<(), Failure> {
+        use std::io::Write;
+        let path = self.inventory_path.as_ref().ok_or(Failure::Unavailable)?;
+        let temporary = path.with_extension("inventory.tmp");
+        let mut file = std::fs::File::create(&temporary).map_err(|_| Failure::Communication)?;
+        file.write_all(&inventory.0)
+            .and_then(|_| file.sync_all())
+            .map_err(|_| Failure::Communication)?;
+        std::fs::rename(&temporary, path).map_err(|_| Failure::Communication)
+    }
+    fn apply_management(
+        &mut self,
+        feedback: Feedback,
+        unknown: bool,
+    ) -> Result<bio_sensor::Result, Failure> {
+        let command = self.command.ok_or(Failure::Unavailable)?;
+        let mut inventory = if command == Command::Clear {
+            Inventory::default()
+        } else {
+            self.read_inventory()?
+        };
+        let result = match command {
+            Command::Capture {
+                slot, remaining, ..
+            } => {
+                let remaining = if feedback == Feedback::Good {
+                    remaining.saturating_sub(1)
+                } else {
+                    remaining
+                };
+                let saved = remaining == 0;
+                if saved {
+                    inventory.set(slot, true);
+                    self.persist_inventory(inventory)?;
+                }
+                bio_sensor::Result::Sample {
+                    feedback,
+                    remaining,
+                    saved,
+                }
+            }
+            Command::Delete { slot } => {
+                inventory.set(slot, false);
+                self.persist_inventory(inventory)?;
+                bio_sensor::Result::Deleted
+            }
+            Command::Inventory => bio_sensor::Result::Inventory(inventory),
+            Command::Clear => {
+                self.persist_inventory(Inventory::default())?;
+                bio_sensor::Result::Cleared
+            }
+        };
+        if unknown {
+            Err(Failure::Communication)
+        } else {
+            Ok(result)
+        }
+    }
 }
 
 pub struct Directory {
     enabled: bool,
     generation: Rc<Cell<u32>>,
+    persistent: Option<rsk_fido::bio_directory::Directory>,
 }
 
 impl Bindings<EmuStore> for Directory {
+    fn management(&self) -> bool {
+        self.persistent.is_some()
+    }
     fn configuration(&mut self, fs: &mut Fs<EmuStore>) -> Result<Option<u32>, CtapError> {
+        if let Some(directory) = self.persistent.as_mut() {
+            return directory.configuration(fs);
+        }
         Ok((self.enabled
             && fs
                 .try_has_data(rsk_fido::consts::EF_PIN)
@@ -213,6 +385,9 @@ impl Bindings<EmuStore> for Directory {
         slot: u16,
         generation: u32,
     ) -> Result<bool, CtapError> {
+        if let Some(directory) = self.persistent.as_mut() {
+            return directory.authorizes(fs, slot, generation);
+        }
         Ok(slot == SLOT && self.configuration(fs)? == Some(generation))
     }
 }
@@ -220,6 +395,7 @@ impl Bindings<EmuStore> for Directory {
 pub fn fixture(
     path: PathBuf,
     initialize: bool,
+    management: bool,
     attach: Rc<Cell<Instant>>,
     signals: Arc<Signals>,
     fs: &mut Fs<EmuStore>,
@@ -229,11 +405,30 @@ pub fn fixture(
     let mut directory = Directory {
         enabled: false,
         generation: generation.clone(),
+        persistent: management.then_some(rsk_fido::bio_directory::Directory),
     };
     if initialize {
         fingerprint::initialize_unconfigured(fs, &mut directory)?;
     }
     directory.enabled = true;
+    let inventory_path = management.then(|| path.with_extension("inventory"));
+    if let Some(inventory_path) = &inventory_path {
+        let recovered = (|| -> Result<(), CtapError> {
+            if !inventory_path.exists() && rsk_fido::bio_directory::read(fs)?.head.is_none() {
+                std::fs::write(inventory_path, Inventory::default().0)
+                    .map_err(|_| CtapError::Other)?;
+            }
+            let inventory = std::fs::read(inventory_path).map_err(|_| CtapError::Other)?;
+            let inventory = Inventory(inventory.try_into().map_err(|_| CtapError::Other)?);
+            if !rsk_fido::bio_directory::reset_pending(fs)? {
+                rsk_fido::bio_directory::reconcile(fs, inventory, None)?;
+            }
+            Ok(())
+        })();
+        if let Err(error) = recovered {
+            eprintln!("emu: biometric state isolated ({error:?}); explicit CTAP Reset required");
+        }
+    }
     Ok((
         RefCell::new(Script {
             path,
@@ -243,6 +438,8 @@ pub fn fixture(
             operations: Operations::new(),
             event: None,
             drain_until_ms: 0,
+            inventory_path,
+            command: None,
         }),
         RefCell::new(directory),
     ))

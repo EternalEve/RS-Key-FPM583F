@@ -11,12 +11,8 @@ use embassy_rp::uart::{BufferedInterruptHandler, BufferedUart, Config};
 use embassy_rp::{Peri, bind_interrupts};
 use embedded_io_async::{Read, Write};
 use rsk_device::fingerprint_io::{Fault, SERVICE_INTERVAL_MS, STEP_BYTES, Stream};
-use rsk_fido::CtapError;
-use rsk_fido::fingerprint::{Attempt, Bindings, Failure, Matching, Observation, Sensor};
+use rsk_fido::fingerprint::{Attempt, Failure, Matching, Observation, Sensor};
 use static_cell::StaticCell;
-
-use crate::flash_storage::FlashStorage;
-use crate::handler::Store;
 
 const BAUD: u32 = 57_600;
 const TX_BYTES: usize = 128;
@@ -110,21 +106,5 @@ impl Sensor for Bridge {
                 self.fault = Some(fault);
             }
         }
-    }
-}
-
-pub struct Unconfigured;
-
-impl Bindings<FlashStorage> for Unconfigured {
-    fn configuration(&mut self, _fs: &mut Store) -> Result<Option<u32>, CtapError> {
-        Ok(None)
-    }
-    fn authorizes(
-        &mut self,
-        _fs: &mut Store,
-        _slot: u16,
-        _generation: u32,
-    ) -> Result<bool, CtapError> {
-        Ok(false)
     }
 }

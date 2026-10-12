@@ -38,13 +38,25 @@ tag: the USB `bcdDevice` build counter (bumped on every behavior change), and
 
 ## [Unreleased]
 
+- **Experimental fingerprint management:** standard BioEnrollment (`0x09`), PIN/BE
+  authorization, persistent template IDs and 64-byte UTF-8 names now run through
+  the shared HID/CCID FIDO business. Enrollment commits only after final module
+  save; deletion disables authorization before module cleanup. Reset retains an
+  independent marker through module clear and FIDO erasure; incomplete resets do
+  not provision a fresh seed on boot. Fingerprint configurations disable both
+  Management factory-reset aliases and the deferred shared wipe. The target UART
+  codec remains unavailable pending phase five; this is an offline software
+  implementation, not a deployable biometric image. `bcdDevice` advances to `0x09DC`.
+- **Reproduction:** check the entire refusal block during self-test, avoiding a
+  false missing-page failure when an early-exiting grep breaks the output pipe.
+
 - **FIDO:** keep HID and CCID entry points, but stamp each request's source so
   CCID cannot inherit a HID assertion or credential-enumeration walk. HID MSG
   also carries its CID; a CCID card reset retires its own stateful walks.
   **bcdDevice → 0x09DB.**
 - **fingerprint:** add an optional, screenless UART bridge and host-tested UV
   service with persistent retries, authorized-slot checks, cancellation and
-  bounded draining. Production bindings remain unconfigured. The isolated
+  bounded draining. The UART protocol codec remains pending. The isolated
   emulator fixture exercises real python-fido2 requests and RP signatures.
 - **transport:** process same-channel INIT during a cancellable operation after
   draining its old reply; keep matching cancellable while reporting PROCESSING.

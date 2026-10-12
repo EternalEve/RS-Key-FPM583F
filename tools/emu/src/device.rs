@@ -126,26 +126,39 @@ pub struct Config {
     pub power_cut: Option<u32>,
     pub fingerprint_script: Option<PathBuf>,
     pub fingerprint_init: bool,
+    pub fingerprint_management: bool,
 }
 
 /// One unit of work for the device thread.
 pub enum Job {
     /// CTAPHID_CBOR: a CTAP2 message on channel `cid`.
-    Cbor { cid: u32, data: Vec<u8> },
+    Cbor {
+        cid: u32,
+        data: Vec<u8>,
+    },
     /// CTAPHID_MSG: a U2F APDU on channel `cid`.
     ///
     /// The channel is carried for the same reason [`Job::Cbor`] carries it: a U2F
     /// REGISTER or AUTHENTICATE waits for a touch, and only the owning channel's
     /// `CTAPHID_CANCEL` may end that wait (CTAP 2.1 §11.2.9.1.4).
-    Msg { cid: u32, data: Vec<u8> },
+    Msg {
+        cid: u32,
+        data: Vec<u8>,
+    },
     /// A CTAPHID vendor command (the ykman Management reads).
-    Vendor { cmd: u8, data: Vec<u8> },
+    Vendor {
+        cmd: u8,
+        data: Vec<u8>,
+    },
     /// A CCID APDU.
     Apdu(Vec<u8>),
     /// One keyboard-interface OTP frame: `slot` is the command, `payload` its
     /// 64 bytes. Answers `status_frame(8) ‖ body` — one channel, and the status
     /// frame is fixed-width, so the split is unambiguous.
-    OtpHid { slot: u8, payload: Vec<u8> },
+    OtpHid {
+        slot: u8,
+        payload: Vec<u8>,
+    },
     /// The OTP applet's 7-byte status record, for seeding the idle status frame
     /// before the host's first poll.
     OtpStatus,
@@ -154,6 +167,7 @@ pub enum Job {
     /// The card was reset (PC/SC would have re-powered it): drop the selected
     /// applet's security status, so a reconnect really does re-authenticate.
     ResetCard,
+    EndEnrollment(u32),
     /// The device was unplugged and plugged back in.
     Replug(Unplug),
 }
@@ -509,7 +523,15 @@ async fn serve<PR: rsk_sdk::UserPresence + 'static>(
         rsk_oath::migrate_seal(&dev(), &mut fsb, &mut *rngb);
         rsk_otp::migrate_seal(&dev(), &mut fsb, &mut *rngb);
         rsk_fido::credential::migrate_rp_seal(&dev(), &mut fsb);
-        let seeded = rsk_fido::seed::ensure_seed(&dev(), &mut fsb, &mut *rngb);
+        let biometric = rsk_fido::bio_directory::reset_pending(&mut fsb)
+            .and_then(|pending| rsk_fido::bio_directory::read(&mut fsb).map(|_| pending));
+        let seeded = match biometric {
+            Ok(false) => rsk_fido::seed::ensure_seed(&dev(), &mut fsb, &mut *rngb),
+            Ok(true) | Err(_) => {
+                eprintln!("emu: biometric recovery required; provisioning deferred");
+                Ok(())
+            }
+        };
         let _ = rsk_openpgp::scan_files(&dev(), &mut fsb, &mut *rngb);
         seeded
     };
@@ -575,6 +597,7 @@ async fn serve<PR: rsk_sdk::UserPresence + 'static>(
         match crate::fingerprint::fixture(
             path.clone(),
             cfg.fingerprint_init,
+            cfg.fingerprint_management,
             links.attach.clone(),
             signals.clone(),
             &mut fs.borrow_mut(),
@@ -627,7 +650,9 @@ async fn serve<PR: rsk_sdk::UserPresence + 'static>(
             Job::Cbor { .. } | Job::Msg { .. } | Job::Vendor { .. } => signals::SCOPE_FIDO,
             Job::Apdu(_) | Job::ResetCard => signals::SCOPE_CCID,
             Job::OtpHid { .. } => signals::SCOPE_OTP,
-            Job::OtpStatus | Job::DeselectMsg | Job::Replug(_) => signals::SCOPE_NONE,
+            Job::OtpStatus | Job::DeselectMsg | Job::EndEnrollment(_) | Job::Replug(_) => {
+                signals::SCOPE_NONE
+            }
         });
         let out = match req.job {
             Job::Cbor { cid, data } => {
@@ -731,6 +756,11 @@ async fn serve<PR: rsk_sdk::UserPresence + 'static>(
             Job::OtpStatus => Some(ccid.otp_status_record().to_vec()),
             Job::DeselectMsg => {
                 ctap.deselect_msg();
+                Some(Vec::new())
+            }
+            Job::EndEnrollment(channel) => {
+                ctap.end_enrollment(Some(channel));
+                eprintln!("fingerprint: connection ended channel {channel}");
                 Some(Vec::new())
             }
             Job::ResetCard => {

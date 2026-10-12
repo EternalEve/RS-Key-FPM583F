@@ -1046,3 +1046,15 @@ cognitive-complexity ceiling (`COGNITIVE_CEILING`), catching a new hotspot the
 day it lands. Lower the ceiling as the peak falls; raise it only for a justified
 growth, in the same commit. `firmware/` is out of scope: it is embedded glue plus
 the trusted-display UI state machines, whose complexity is a separate concern.
+
+## Experimental biometric management
+
+`nix develop -c ./scripts/bio-client.sh` exercises standard BioEnrollment against
+an isolated, independently persistent module fixture using python-fido2 2.2.1.
+The `emu` reproduction phase also runs it. The production directory and shared
+FIDO policy are used over both HID and CCID; the fixture supplies module facts,
+not UV authorization. See [client acceptance](../tests/bio_client/README.md).
+Host tests in `bio_enrollment_tests.rs` cut actual Fs mutations and reopen the
+medium, while preserving the module's separate inventory. This is software
+recovery evidence; physical power-cut durability and real 583F responses remain
+board acceptance. Existing formal claims do not thereby cover biometrics.

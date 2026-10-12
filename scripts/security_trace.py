@@ -145,7 +145,7 @@ OUTCOMES_RATCHET = "@TraceSecurityOutcomesMin"
 # command space, so it cannot collide with a real command byte.
 POWER_CYCLE = 0xFF
 
-# `crates/rsk-fido/src/consts.rs:408`, applied at `crates/rsk-fido/src/reset.rs:260`
+# `crates/rsk-fido/src/consts.rs:415`, applied at `crates/rsk-fido/src/reset.rs:271`
 # as `!warm_boot && now_ms <= RESET_WINDOW_MS`. The model abstracts the clock to
 # `ResetWindow` plus a `Tick`; the mapper needs the real bound.
 RESET_WINDOW_MS = 10_000
@@ -218,7 +218,7 @@ NO_OPINION_EXEMPTIONS = {
     ),
     "pseudo-command": (
         "a power cycle is not a CTAP command and has no response: `outcome_raw` is"
-        " the literal 0 that `tools/emu/src/device.rs:788-789` passes as the status,"
+        " the literal 0 that `tools/emu/src/device.rs:818-819` passes as the status,"
         " so agreeing with `delta_c` of it would be agreeing with a placeholder",
         1,
     ),
@@ -395,7 +395,7 @@ def reset_gate(event: dict, ledger: dict) -> tuple[list[tuple[str, str]], tuple[
     A refused reset changes nothing, and over an already-empty store neither does
     a second successful one — so the raw footprint cannot tell them apart, and the
     mapper read the refusal that ends `27_reset_window` as a full successful wipe.
-    `now_ms` is what separates them (`reset.rs:260`); B's clock is advanced by
+    `now_ms` is what separates them (`reset.rs:271`); B's clock is advanced by
     `clock_ticks` before this runs, independently of the branch taken here.
     """
     before, after = event["pre"], event["post"]
@@ -478,7 +478,7 @@ def infer(event: dict, ledger: dict) -> tuple[list[tuple[str, str]], tuple[str, 
         "always_uv_record_len", "always_uv_raw"
     }:
         # authenticatorConfig toggleAlwaysUv. The model's ConfigOp flips
-        # `gate.alwaysUv` and spends nothing (config.rs:248 marks the token
+        # `gate.alwaysUv` and spends nothing (config.rs:249 marks the token
         # used, which is not a raw field), so the record moving IS the signature.
         actions = [("ConfigOp", "ConfigOp")]
         ledger["always_uv"] = bool(after["always_uv_raw"])
@@ -605,7 +605,7 @@ def no_opinion_class(event: dict, action_names: set[str]) -> str | None:
     """
     if event["command_raw"] == POWER_CYCLE:
         # The class's whole reason is that `outcome_raw` here is the literal 0
-        # `tools/emu/src/device.rs:788-789` passes for a replug, not a response.
+        # `tools/emu/src/device.rs:818-819` passes for a replug, not a response.
         # Asserted rather than described: with this unchecked, a power cycle
         # carrying 0x31 was excused and the row stayed green at 15/18.
         if event["outcome_raw"] != 0x00:

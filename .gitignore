@@ -58,3 +58,7 @@ sram.bin*
 # Full phase-3 logs, pre-cleanup snapshots, and resource images stay local.
 /RSKEY-FPM583F-PHASE-3-EVIDENCE/raw/
 /RSKEY-FPM583F-PHASE-3-EVIDENCE/build/
+
+# Phase-four local logs and raw build artifacts.
+/RSKEY-FPM583F-PHASE-4-EVIDENCE/raw/
+/RSKEY-FPM583F-PHASE-4-EVIDENCE/build/

@@ -145,6 +145,7 @@ pub fn cred_mgmt<S: Storage, R: Rng>(
     out: &mut [u8],
 ) -> CtapResult {
     let req = parse(data)?;
+    crate::fingerprint::refresh_token(ctx)?;
 
     // The Next walkers reuse saved state and carry no pinUvAuthParam.
     match req.subcommand {

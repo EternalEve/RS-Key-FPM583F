@@ -37,10 +37,10 @@
 | --- | --- |
 | 源码、固定依赖、测试、计划、验收摘要和必要缺陷摘录 | 随源码保留 |
 | 两份模块 PDF、第一阶段完整证据目录 | 按既有精确规则留在本地 |
-| 第二、三阶段 `EVIDENCE/raw/` | 保存完整日志；第三阶段同时保存整理前文档与历史校验清单，Git 忽略 |
-| 第三阶段 `EVIDENCE/build/`、ELF/UF2、target、Nix result、book/site | 本地构建产物，Git 忽略 |
+| 第二至四阶段 `EVIDENCE/raw/` | 保存完整日志；第三阶段同时保存整理前文档与历史校验清单，Git 忽略 |
+| 第三、四阶段 `EVIDENCE/build/`、ELF/UF2、target、Nix result、book/site | 本地构建产物，Git 忽略 |
 | 合成 `.store`、模拟器 SRAM、私钥与 secrets | 既有忽略规则覆盖；不作为源码交付物 |
 
-公开证据见[第二阶段摘要](RSKEY-FPM583F-PHASE-2-EVIDENCE/README.md)和[第三阶段摘要](RSKEY-FPM583F-PHASE-3-EVIDENCE/README.md)。本地归档路径只作文字说明；克隆仓库后可按摘要中的命令重新生成日志。归档中的 SHA256 对应当次原件，耗时、PID 和路径变化会使新日志的哈希不同。
+公开证据见[第二阶段](RSKEY-FPM583F-PHASE-2-EVIDENCE/README.md)、[第三阶段](RSKEY-FPM583F-PHASE-3-EVIDENCE/README.md)和[第四阶段摘要](RSKEY-FPM583F-PHASE-4-EVIDENCE/README.md)。本地归档路径只作文字说明；克隆仓库后可按摘要中的命令重新生成日志。归档中的 SHA256 对应当次原件，耗时、PID 和路径变化会使新日志的哈希不同。
 
 整理前的源文件与证据快照保留为历史记录；整理后的本地归档可从仓库根目录用 `sha256sum -c RSKEY-FPM583F-PHASE-3-EVIDENCE/raw/archive-snapshot.txt` 核对。该清单只用于本机归档，不声明当前文档仍与验收时同字节。

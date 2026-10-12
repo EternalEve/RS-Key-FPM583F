@@ -313,7 +313,7 @@ the aborting tree too.
 
 **Every caller now carries a written decision**, in
 [`assurance/deleters.toml`](https://github.com/TheMaxMur/RS-Key/blob/main/assurance/deleters.toml):
-43 sites — 24 `delete`, 9 `delete_key`, 5 `force_delete`, 5
+45 sites — 25 `delete`, 10 `delete_key`, 5 `force_delete`, 5
 `force_delete_halves` — each classed, each
 saying whether its fid can carry a head, and each saying whether discarding the
 answer is an allowed best-effort wipe there or a device reporting success over

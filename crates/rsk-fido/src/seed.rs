@@ -281,6 +281,9 @@ fn open_any(dev: &Device, buf: &[u8]) -> Option<[u8; 32]> {
 /// become loadable again once a successful PIN verify migrates them
 /// ([`migrate_keydev_pin`]).
 pub fn load_keydev<S: Storage>(dev: &Device, fs: &mut Fs<S>) -> Option<[u8; 32]> {
+    if crate::bio_directory::reset_pending(fs).ok()? {
+        return None;
+    }
     get_sealed32(dev, fs, EF_KEY_DEV)
 }
 
@@ -615,6 +618,26 @@ pub fn migrate_keydev_pin<S: Storage>(dev: &Device, fs: &mut Fs<S>, pin_hash: &[
 /// the seed is unreadable here anyway).
 /// Refines `RSKeySecurityState!RamNeverOutlivesFlashSeed` — SEC-FIDO-007.
 pub fn ensure_seed<S: Storage>(dev: &Device, fs: &mut Fs<S>, rng: &mut impl Rng) -> Result<()> {
+    if crate::bio_directory::reset_pending(fs).map_err(|_| Error::ExecError)? {
+        return Err(Error::ExecError);
+    }
+    if fs.try_has_data(crate::consts::EF_BIO_DIRECTORY)? {
+        crate::bio_directory::read(fs).map_err(|_| Error::ExecError)?;
+        if !fs.try_has_key(EF_KEY_DEV)?
+            && !lock_state(fs)?
+            && !crate::bio_directory::configuration_clean(fs).map_err(|_| Error::ExecError)?
+        {
+            return Err(Error::ExecError);
+        }
+    }
+    ensure_seed_after_reset(dev, fs, rng)
+}
+
+pub(crate) fn ensure_seed_after_reset<S: Storage>(
+    dev: &Device,
+    fs: &mut Fs<S>,
+    rng: &mut impl Rng,
+) -> Result<()> {
     let locked = lock_state(fs)?;
     if !fs.try_has_key(EF_KEY_DEV)? && !locked {
         let mut seed = [0u8; 32];
@@ -638,7 +661,7 @@ pub fn ensure_seed<S: Storage>(dev: &Device, fs: &mut Fs<S>, rng: &mut impl Rng)
         fs.put(EF_LARGEBLOB, &LARGEBLOB_INITIAL)?;
     }
     if !locked {
-        let mut seed = load_keydev(dev, fs).ok_or(Error::ExecError)?;
+        let mut seed = get_sealed32(dev, fs, EF_KEY_DEV).ok_or(Error::ExecError)?;
         let r = rebuild_att_cert(fs, rng, &seed);
         seed.zeroize();
         r?;

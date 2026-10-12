@@ -259,7 +259,7 @@ impl<S: Storage, R: rsk_sdk::Rng + 'static, VP: rsk_vendor::Platform> AppletHand
     }
 
     /// Whether §6.1.2 step 6.3's built-in-UV upgrade is available on this build —
-    /// the first conjunct of `crates/rsk-fido/src/clientpin.rs:651`. An INPUT to
+    /// the first conjunct of `crates/rsk-fido/src/clientpin.rs:655`. An INPUT to
     /// the token-less makeCredential gate the phase-4 replay states, not state:
     /// with a pad, `alwaysUv` upgrades a token-less request instead of refusing
     /// it, so a recording that did not carry this could not tell the two apart.
@@ -271,6 +271,10 @@ impl<S: Storage, R: rsk_sdk::Rng + 'static, VP: rsk_vendor::Platform> AppletHand
     #[cfg(any(test, feature = "security-trace"))]
     pub fn security_trace_builtin_uv(&self) -> bool {
         self.fingerprint.is_some() || self.presence.borrow().uv_available()
+    }
+
+    pub fn end_enrollment(&mut self, channel: Option<u32>) {
+        self.fido_state.borrow_mut().end_enrollment(channel);
     }
 
     /// Drop any applet selected over CTAPHID_MSG. Called (via the worker) on a

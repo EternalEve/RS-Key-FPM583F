@@ -337,7 +337,7 @@ fn get_pin_token<S: Storage, R: Rng>(
         if req.permissions == 0 {
             return Err(CtapError::InvalidParameter);
         }
-        if permissions & PERM_BE != 0 {
+        if permissions & PERM_BE != 0 && !crate::bio_enrollment::supported(ctx) {
             return Err(CtapError::UnauthorizedPermission);
         }
         if permissions & PERM_PCMR != 0 && permissions != PERM_PCMR {
@@ -429,6 +429,7 @@ fn issue_token<S: Storage, R: Rng>(
         }
         ctx.state.begin_using_token(user_present, ctx.now_ms);
         ctx.state.paut.permissions = permissions;
+        ctx.state.paut.fingerprint_verified = false;
         match rp_id {
             Some(rp) => {
                 ctx.state.paut.rp_id_hash = sha256(rp.as_bytes());
@@ -512,6 +513,9 @@ fn get_uv_token<S: Storage, R: Rng>(
         user_present,
         out,
     );
+    if res.is_ok() {
+        ctx.state.paut.fingerprint_verified = ctx.fingerprint.is_some();
+    }
     shared.zeroize();
     res
 }

@@ -90,6 +90,13 @@ impl Signals {
         self.cancellable.store(false, Ordering::Release);
     }
 
+    pub fn cancel_connection(&self, channels: &[u32]) {
+        let active = self.active_cid.load(Ordering::Acquire);
+        if active != 0 && channels.contains(&active) {
+            self.request_cancel(active);
+        }
+    }
+
     pub fn request_cancel(&self, cid: u32) {
         self.cancel_cid.store(cid, Ordering::Release);
     }

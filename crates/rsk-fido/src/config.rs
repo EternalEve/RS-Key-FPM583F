@@ -240,6 +240,7 @@ pub fn authenticator_config<S: Storage, R: Rng>(
     let mut vp = [0u8; 32 + 2 + MAX_RAW_SUBPARA];
     let vp_len = puat_subcommand_msg(&mut vp, CTAP_CONFIG, req.subcommand as u8, req.raw_subpara);
 
+    crate::fingerprint::refresh_token(ctx)?;
     if !ctx.state.verify_token(proto, &vp[..vp_len], param)
         || ctx.state.paut.permissions & PERM_ACFG == 0
     {

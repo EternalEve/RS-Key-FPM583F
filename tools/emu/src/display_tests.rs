@@ -436,6 +436,7 @@ fn panel_bench(
         power_cut: None,
         fingerprint_script: None,
         fingerprint_init: false,
+        fingerprint_management: false,
     };
 
     let (jobs_tx, jobs_rx) = job_queue();

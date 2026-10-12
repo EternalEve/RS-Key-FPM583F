@@ -21,7 +21,8 @@ use crate::{Ctx, Rng};
 
 /// Progress backstop for one [`sweep`] phase: the FIDO predicate spans four
 /// 256-slot ranges and 16 fixed records, so a converging sweep cannot exceed this.
-const RESET_MAX_DELETES: u32 = 4 * MAX_RESIDENT_CREDENTIALS as u32 + 16;
+const RESET_MAX_DELETES: u32 =
+    4 * MAX_RESIDENT_CREDENTIALS as u32 + 16 + 1 + crate::bio_sensor::MODULE_SLOTS as u32;
 
 /// Fids one [`sweep`] pass collects before deleting them. Named because the wrap
 /// to a second pass is a code path, and the test that crosses it has to size its
@@ -56,6 +57,7 @@ pub fn reset<S: Storage, R: Rng>(ctx: &mut Ctx<S, R>) -> CtapResult {
     // The failure does NOT stop the write, unlike the gated sites: "leave the
     // record in force" means, on a wipe, leave the secrets live.
     let _ = rsk_fs::request_rescrub(ctx.fs);
+    let bio_reset = crate::bio_management::prepare_reset(ctx)?;
     let wiped = wipe(ctx);
     // Retry, BETWEEN the wipe and its `?` rather than after its last one: a refused
     // head leaves the marker latched over every tombstone [`wipe`] appended, and a
@@ -69,7 +71,16 @@ pub fn reset<S: Storage, R: Rng>(ctx: &mut Ctx<S, R>) -> CtapResult {
     // because the sweeps' does, which skips either position identically, and not
     // because it supersedes nothing: its cert rewrite does, and `seed.rs` says why.
     let unproven = wiped?;
-    ensure_seed(&ctx.dev, ctx.fs, ctx.rng).map_err(|_| CtapError::Other)?;
+    if bio_reset {
+        if unproven {
+            return Err(CtapError::Other);
+        }
+        crate::seed::ensure_seed_after_reset(&ctx.dev, ctx.fs, ctx.rng)
+            .map_err(|_| CtapError::Other)?;
+        crate::bio_management::finish_reset(ctx)?;
+    } else {
+        ensure_seed(&ctx.dev, ctx.fs, ctx.rng).map_err(|_| CtapError::Other)?;
+    }
     // Privacy: fold the journal window into the epoch (per-event details are
     // scrubbed, aggregate history stays attested), then record the reset.
     journal::fold_and_scrub(ctx);
@@ -270,7 +281,9 @@ fn in_reset_window<S: Storage, R: Rng>(ctx: &Ctx<S, R>) -> bool {
 fn is_fido_fid(fid: u16) -> bool {
     // EF_KEY_DEV / EF_KEY_DEV_ENC / EF_PAUTHTOKEN are `KeyFid`s (sealed slots), so
     // they can't sit in the `u16` match arm — compare their raw FIDs explicitly.
-    fid == EF_KEY_DEV.get()
+    fid == crate::consts::EF_BIO_DIRECTORY
+        || (crate::consts::EF_BIO_TEMPLATE..crate::consts::EF_BIO_TEMPLATE + crate::bio_sensor::MODULE_SLOTS as u16).contains(&fid)
+        || fid == EF_KEY_DEV.get()
         || fid == EF_KEY_DEV_ENC.get()
         || fid == EF_PAUTHTOKEN.get()
         || matches!(

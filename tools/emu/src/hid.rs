@@ -50,10 +50,25 @@ pub struct Shared {
 /// arm for arm what `CtapHid::on_frame` (`crates/rsk-usb/src/ctaphid.rs:668-681`)
 /// does in the image, `lock.refuses` included — and the one `tests/*.py` runs.
 pub fn serve(mut stream: TcpStream, shared: Arc<Shared>) -> io::Result<()> {
+    let mut channels = Vec::new();
+    let result = serve_connection(&mut stream, &shared, &mut channels);
+    shared.signals.cancel_connection(&channels);
+    for cid in channels {
+        let (done, _) = mpsc::channel();
+        let _ = shared.jobs.send(Job::EndEnrollment(cid), done);
+    }
+    result
+}
+
+fn serve_connection(
+    stream: &mut TcpStream,
+    shared: &Arc<Shared>,
+    channels: &mut Vec<u32>,
+) -> io::Result<()> {
     let mut asm = Reassembler::new();
     let mut rx = FrameRx::default();
     loop {
-        match rx.next(&stream, asm.in_progress())? {
+        match rx.next(stream, asm.in_progress())? {
             Rx::Eof => return Ok(()),
             // A host that sends frame 1 and walks away otherwise keeps the
             // reassembler for the life of the connection, and one connection is one
@@ -63,22 +78,24 @@ pub fn serve(mut stream: TcpStream, shared: Arc<Shared>) -> io::Result<()> {
             Rx::Timeout => {
                 let cid = asm.current_cid();
                 asm.abort();
-                write_msg(&mut stream, cid, CTAPHID_ERROR, &[ERR_MSG_TIMEOUT])?;
+                write_msg(stream, cid, CTAPHID_ERROR, &[ERR_MSG_TIMEOUT])?;
             }
             Rx::Frame => {
+                let cid = u32::from_le_bytes([rx.frame[0], rx.frame[1], rx.frame[2], rx.frame[3]]);
+                if cid != CID_BROADCAST && !channels.contains(&cid) {
+                    channels.push(cid);
+                }
                 let now_ms = shared.boot.elapsed().as_millis() as u64;
                 match asm.feed(&rx.frame) {
                     Outcome::None => {}
-                    Outcome::Error(cid, code) => {
-                        write_msg(&mut stream, cid, CTAPHID_ERROR, &[code])?
-                    }
+                    Outcome::Error(cid, code) => write_msg(stream, cid, CTAPHID_ERROR, &[code])?,
                     Outcome::Message(cid, cmd)
                         if shared.lock.lock().unwrap().refuses(cid, cmd, now_ms) =>
                     {
-                        write_msg(&mut stream, cid, CTAPHID_ERROR, &[ERR_CHANNEL_BUSY])?
+                        write_msg(stream, cid, CTAPHID_ERROR, &[ERR_CHANNEL_BUSY])?
                     }
                     Outcome::Message(cid, cmd) => {
-                        dispatch(&mut stream, &shared, &mut asm, &mut rx, cid, cmd, now_ms)?
+                        dispatch(stream, shared, &mut asm, &mut rx, cid, cmd, now_ms)?
                     }
                 }
             }

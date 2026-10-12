@@ -707,6 +707,13 @@ where
         self.touch.wait_release(Instant::now(), idle_limit);
 
         if self.hold_to_confirm("Hold to wipe", rsk_ui::theme::DANGER_FILL) {
+            if !rsk_fido::bio_directory::configuration_clean(&mut self.fs.borrow_mut())
+                .unwrap_or(false)
+            {
+                self.show_wipe_failed();
+                self.end_modal();
+                return false;
+            }
             // The scrub blocks the panel for seconds, so paint the notice first, then
             // wipe everything but the attestation and reboot into a fresh device. The
             // reboot clears RAM and re-seeds at boot, so no rng/state is needed here.

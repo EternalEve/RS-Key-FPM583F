@@ -751,6 +751,9 @@ pub struct StatusHandler;
 
 impl embassy_usb::Handler for StatusHandler {
     fn configured(&mut self, configured: bool) {
+        if !configured && cfg!(feature = "fingerprint") {
+            crate::worker::end_usb_enrollment();
+        }
         set_status(if configured { STATUS_IDLE } else { STATUS_BOOT });
     }
 }

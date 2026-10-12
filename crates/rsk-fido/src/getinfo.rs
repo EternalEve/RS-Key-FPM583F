@@ -67,6 +67,7 @@ pub fn get_info(
         BuiltinUv {
             supported: builtin_uv,
             configured: pin_set,
+            management: false,
         },
         remaining_rk,
         enc_identifier,
@@ -79,6 +80,7 @@ pub fn get_info(
 pub(crate) struct BuiltinUv {
     pub supported: bool,
     pub configured: bool,
+    pub management: bool,
 }
 
 #[allow(clippy::too_many_arguments)] // same getInfo inputs as the public encoder
@@ -132,7 +134,8 @@ fn write_info<W: Write>(
     enc.map(
         23 + u64::from(!LARGE_BLOB_EXT)
             + u64::from(enc_identifier.is_some())
-            + u64::from(enc_cred_store_state.is_some()),
+            + u64::from(enc_cred_store_state.is_some())
+            + u64::from(builtin_uv.management),
     )?;
 
     // 0x01 versions — advertise the full backward-compatible superset up to
@@ -194,8 +197,11 @@ fn write_info<W: Write>(
     // out — "This option MUST NOT be set to true if the largeBlob extension is
     // supported instead" — and false and absent mean the same thing here, so the
     // key is simply not emitted.
-    enc.u8(0x04)?
-        .map(11 + u64::from(!LARGE_BLOB_EXT) + u64::from(builtin_uv.supported))?;
+    enc.u8(0x04)?.map(
+        11 + u64::from(!LARGE_BLOB_EXT)
+            + u64::from(builtin_uv.supported)
+            + 2 * u64::from(builtin_uv.management),
+    )?;
     enc.str("ep")?.bool(ea_enabled)?;
     enc.str("rk")?.bool(true)?;
     enc.str("up")?.bool(true)?;
@@ -205,9 +211,15 @@ fn write_info<W: Write>(
     enc.str("alwaysUv")?.bool(always_uv)?;
     enc.str("credMgmt")?.bool(true)?;
     enc.str("authnrCfg")?.bool(true)?;
+    if builtin_uv.management {
+        enc.str("bioEnroll")?.bool(builtin_uv.configured)?;
+    }
     enc.str("clientPin")?.bool(pin_set)?;
     if !LARGE_BLOB_EXT {
         enc.str("largeBlobs")?.bool(true)?;
+    }
+    if builtin_uv.management {
+        enc.str("uvBioEnroll")?.bool(false)?;
     }
     // perCredMgmtRO (CTAP 2.2 §6.4): the `pcmr` permission may be requested, which
     // hands the platform the persistent pinUvAuthToken for read-only credential
@@ -309,6 +321,10 @@ fn write_info<W: Write>(
     // minPinLengthRPIDs list accepts.
     enc.u8(0x10)?.u8(MAX_MIN_PIN_RPIDS as u8)?;
 
+    if builtin_uv.management {
+        enc.u8(0x12)?.u8(0x02)?; // FIDO Registry: USER_VERIFY_FINGERPRINT_INTERNAL.
+    }
+
     // 0x14 remainingDiscoverableCredentials — live estimate of free resident-key
     // slots (capacity minus the occupied EF_CRED slots), supplied by the caller.
     enc.u8(0x14)?.u16(remaining_rk)?;
@@ -324,10 +340,6 @@ fn write_info<W: Write>(
     // make us multi-format and subject to the lowest-index rule. Keep in sync with
     // the metadata statements.
     enc.u8(0x16)?.array(1)?.str(ATT_FMT_PACKED)?;
-
-    // 0x17 is absent: screen UV itself verifies the PIN. The experimental
-    // fingerprint service has no production bindings; biometric management and
-    // its complete getInfo surface belong to the provisioning stage.
 
     // 0x18 longTouchForReset — false: a reset takes the same touch every other
     // presence check takes. CTAP 2.3 §6.4 cut the long-touch hold from 2.2's 10 s to

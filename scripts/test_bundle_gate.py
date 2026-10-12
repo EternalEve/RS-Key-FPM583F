@@ -1020,12 +1020,12 @@ def test_a_transcribed_gate_line_that_the_gate_does_not_derive(tmp_path, key, ol
 
 @pytest.mark.parametrize(
     "old,new",
-    [("volatile=12/10", "volatile=12/12"),
-     ("persistent=14/5", "persistent=14/11"),
-     ("outcomes=7/6", "outcomes=7/12")],
+    [("volatile=14/11", "volatile=14/12"),
+     ("persistent=15/5", "persistent=15/11"),
+     ("outcomes=8/6", "outcomes=8/12")],
 )
 def test_a_transcribed_fraction_denominator_is_that_gate_s(tmp_path, old, new):
-    """The pair rule reads `persistent=14/5` as `persistent=14` and stops at the
+    """The pair rule reads `persistent=15/5` as `persistent=15` and stops at the
     slash, so the denominator was left to the bare-integer rule — which asks only
     whether the number stands SOMEWHERE in the derived line. Every denominator
     here is replaced by one the SAME line carries (`11` off `api=11`, `12` off

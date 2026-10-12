@@ -15,6 +15,8 @@ path = "src/main.rs"
 [features]
 # Synthetic module events and bindings, only for isolated phase-3 tests.
 fingerprint-fixture = []
+# Acceptance uses the 2 MB board's 896 KiB main / 128 KiB counter geometry.
+bio-fixture-2mb = ["fingerprint-fixture"]
 fido-conformance = ["rsk-fido/fido-conformance"]
 # Run the emulator with the CTAP 2.3 `largeBlob` extension in place of the CTAP
 # 2.1 pair, so that swap can be driven over a socket with no board.

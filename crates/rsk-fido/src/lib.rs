@@ -13,6 +13,10 @@
 // no-alloc.
 extern crate alloc;
 
+pub mod bio_directory;
+pub mod bio_enrollment;
+mod bio_management;
+pub mod bio_sensor;
 pub mod cbordec;
 pub mod cert;
 pub mod clientpin;
@@ -104,6 +108,12 @@ impl<S: Storage, R: Rng> Ctx<'_, S, R> {
     /// session, both fail and the operation errors out — that is the lock.
     /// Refines `RSKeySecurityState!ResetNeverWeakensSurvivingState` — SEC-FIDO-006.
     pub fn load_keydev(&mut self) -> Option<[u8; 32]> {
+        if bio_directory::reset_pending(self.fs).ok()? {
+            return None;
+        }
+        if self.fingerprint.is_none() && !bio_directory::configuration_clean(self.fs).ok()? {
+            return None;
+        }
         self.state
             .keydev_dec
             .or_else(|| seed::load_keydev(&self.dev, self.fs))
@@ -139,6 +149,16 @@ pub fn process_cbor<S: Storage, R: Rng>(ctx: &mut Ctx<S, R>, data: &[u8], out: &
     // is an initializer, and arms its own walk after this clears the previous one.
     ctx.state.retire_sequences_except(cmd);
 
+    if bio_directory::reset_pending(ctx.fs).unwrap_or(true)
+        && !matches!(
+            cmd,
+            consts::CTAP_RESET | consts::CTAP_GET_INFO | consts::CTAP_CLIENT_PIN
+        )
+    {
+        out[0] = CtapError::NotAllowed.as_u8();
+        return 1;
+    }
+
     // The canonical-form gate for the commands that parse a request body. getInfo,
     // reset, selection and getNextAssertion take no parameters and never look at
     // the bytes — the oracle likewise answers getInfo normally with a trailing byte.
@@ -157,7 +177,8 @@ pub fn process_cbor<S: Storage, R: Rng>(ctx: &mut Ctx<S, R>, data: &[u8], out: &
             | consts::CTAP_CONFIG
             | consts::CTAP_CREDENTIAL_MGMT
             | consts::CTAP_VENDOR
-    ) || (cmd == consts::CTAP_LARGE_BLOBS && !consts::LARGE_BLOB_EXT))
+    ) || (cmd == consts::CTAP_BIO_ENROLLMENT && bio_enrollment::supported(ctx))
+        || (cmd == consts::CTAP_LARGE_BLOBS && !consts::LARGE_BLOB_EXT))
         && let Err(e) = cbordec::one_cbor_item(params)
     {
         out[0] = e.as_u8();
@@ -194,6 +215,7 @@ pub fn process_cbor<S: Storage, R: Rng>(ctx: &mut Ctx<S, R>, data: &[u8], out: &
                     getinfo::BuiltinUv {
                         supported,
                         configured,
+                        management: bio_enrollment::supported(ctx),
                     },
                     remaining_rk,
                     enc_id.as_ref(),
@@ -206,6 +228,7 @@ pub fn process_cbor<S: Storage, R: Rng>(ctx: &mut Ctx<S, R>, data: &[u8], out: &
         consts::CTAP_GET_ASSERTION => getassertion::get_assertion(ctx, params, &mut out[1..]),
         consts::CTAP_GET_NEXT_ASSERTION => getassertion::get_next_assertion(ctx, &mut out[1..]),
         consts::CTAP_CLIENT_PIN => clientpin::client_pin(ctx, params, &mut out[1..]),
+        consts::CTAP_BIO_ENROLLMENT => bio_enrollment::bio_enrollment(ctx, params, &mut out[1..]),
         consts::CTAP_RESET => reset::reset(ctx),
         consts::CTAP_SELECTION => selection::selection(ctx),
         consts::CTAP_CONFIG => config::authenticator_config(ctx, params, &mut out[1..]),

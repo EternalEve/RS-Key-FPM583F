@@ -417,6 +417,7 @@ fn enforce_pin<S: Storage, R: Rng>(
         }
         Some(param) => {
             let proto = proto.ok_or(CtapError::MissingParameter)?;
+            crate::fingerprint::refresh_token(ctx)?;
             if !ctx.state.verify_token(proto, req.client_data_hash, param)
                 || !ctx.state.user_verified()
                 || ctx.state.paut.permissions & PERM_GA == 0

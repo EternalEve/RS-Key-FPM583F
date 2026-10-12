@@ -26,7 +26,7 @@ pub enum Failure {
 }
 
 impl Failure {
-    fn ctap(self) -> CtapError {
+    pub(crate) fn ctap(self) -> CtapError {
         match self {
             Self::NoMatch => CtapError::UvInvalid,
             Self::InputTimeout | Self::Timeout => CtapError::UserActionTimeout,
@@ -169,10 +169,26 @@ pub trait Sensor {
     fn wait(&mut self);
     fn finish(&mut self, attempt: Attempt);
     fn service_idle(&mut self);
+    fn capabilities(&self) -> Option<crate::bio_sensor::Capabilities> {
+        None
+    }
+    fn start_management(
+        &mut self,
+        _channel: u32,
+        _command: crate::bio_sensor::Command,
+    ) -> Result<Attempt, Failure> {
+        Err(Failure::Unavailable)
+    }
+    fn poll_management(&mut self) -> Poll<crate::bio_sensor::Observation> {
+        Poll::Pending
+    }
 }
 
 /// Reads use the already-borrowed FIDO store, never a second RefCell borrow.
 pub trait Bindings<S: Storage> {
+    fn management(&self) -> bool {
+        false
+    }
     fn configuration(&mut self, fs: &mut Fs<S>) -> Result<Option<u32>, CtapError>;
     fn authorizes(&mut self, fs: &mut Fs<S>, slot: u16, generation: u32)
     -> Result<bool, CtapError>;
@@ -263,6 +279,7 @@ fn prepare_attempt<S: Storage>(
     if remaining == 0 {
         return Err(CtapError::UvBlocked);
     }
+    fp.sensor.service_idle();
     if !fp.sensor.ready() {
         return Err(CtapError::Other);
     }
@@ -375,7 +392,21 @@ fn accept_match_and_restore<S: Storage>(
     Ok(matched.interaction)
 }
 
+pub(crate) fn refresh_token<S: Storage, R: Rng>(ctx: &mut Ctx<S, R>) -> Result<(), CtapError> {
+    if !ctx.state.paut.fingerprint_verified {
+        return Ok(());
+    }
+    if let Err(error) = crate::bio_enrollment::refresh(ctx) {
+        ctx.state.stop_using_token();
+        return Err(error);
+    }
+    ctx.state.expire_stale_token(ctx.now_ms);
+    ctx.state.expire_user_presence(ctx.now_ms);
+    Ok(())
+}
+
 pub(crate) fn verify<S: Storage, R: Rng>(ctx: &mut Ctx<S, R>) -> Result<bool, CtapError> {
+    crate::bio_enrollment::refresh(ctx)?;
     let fp = ctx
         .fingerprint
         .as_mut()

@@ -294,7 +294,7 @@ def test_the_shipped_registry_and_tree_are_green_together():
     assert not findings, findings
     assert {c["subject"]: c["method"] for c in claims} == gate.SUBJECTS
     sites = {(f, fn) for _axis, f, fn in gate.roster(ROOT)}
-    assert len(sites) == 48, len(sites)
+    assert len(sites) == 52, len(sites)
     # The shipped floor, held from BOTH sides. Zero is the weakening a case
     # cannot see — the cases hand their own floor in — and a floor set AT the
     # measurement of 21 turns a deleted guard into a report about its reader,
@@ -310,14 +310,14 @@ def test_the_shipped_registry_and_tree_are_green_together():
 
 
 def test_the_roster_deduplicates_a_ledger_that_owns_more_rows_than_sites():
-    """51 rows over 48 sites, so the dedup is load-bearing on live data — and it
+    """55 rows over 52 sites, so the dedup is load-bearing on live data — and it
     is asserted HERE and not through `audit`, whose oracle would have to rebuild
     a set of sites and re-deduplicate them to compare at all."""
     doc = tomllib.loads((ROOT / refinement.MANIFEST).read_text(encoding="utf-8"))
     rows = sum(len(doc.get(axis, [])) for axis in refinement.AXES)
     sites = gate.roster(ROOT)
-    assert rows == 51, rows
-    assert len(sites) == 48 == len({(f, fn) for _axis, f, fn in sites}), len(sites)
+    assert rows == 55, rows
+    assert len(sites) == 52 == len({(f, fn) for _axis, f, fn in sites}), len(sites)
 
 
 # ---- the registry shape ------------------------------------------------------

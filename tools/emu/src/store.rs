@@ -39,7 +39,10 @@ use sequential_storage::mock_flash::{MockFlashBase, MockFlashError, WriteCountCh
 const WORD: usize = 4;
 const PAGE_WORDS: usize = 1024;
 const SECTOR: u32 = (WORD * PAGE_WORDS) as u32;
+#[cfg(not(feature = "bio-fixture-2mb"))]
 const MAIN_PAGES: usize = 352;
+#[cfg(feature = "bio-fixture-2mb")]
+const MAIN_PAGES: usize = 224;
 const COUNTER_PAGES: usize = 32;
 const PAGES: usize = MAIN_PAGES + COUNTER_PAGES;
 

@@ -90,6 +90,7 @@ static WORKER_LOCK: Mutex<Cs, ()> = Mutex::new(());
 static REQ: Signal<Cs, ()> = Signal::new();
 /// Worker → transport: the response is ready in [`EXCHANGE`].
 static DONE: Signal<Cs, ()> = Signal::new();
+static END_ENROLLMENT: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
 /// Transport → worker: a CTAPHID_INIT started a fresh session, so the worker must
 /// drop any applet selected over the MSG transport before the next U2F/CTAP1
 /// command (U2F has no SELECT and must not inherit a sticky vendor selection).
@@ -209,6 +210,11 @@ async fn roundtrip_secure(data: &[u8], out: &mut [u8]) -> SecureResult {
         status,
         error,
     }
+}
+
+pub fn end_usb_enrollment() {
+    END_ENROLLMENT.store(true, core::sync::atomic::Ordering::Release);
+    crate::presence::request_cancel();
 }
 
 /// CTAPHID client handler (runs on the high-priority executor) — forwards to the
@@ -374,6 +380,9 @@ impl<'a> Worker<'a> {
         // slot bits, and any that landed earlier got `OtpHid::new`'s placeholder.
         otp_kbd::set_status(otp_kbd::make_status_frame(self.ccid.otp_status_record()));
         loop {
+            if END_ENROLLMENT.swap(false, core::sync::atomic::Ordering::AcqRel) {
+                self.ctap.end_enrollment(None);
+            }
             self.ctap.service_fingerprint();
             match select3(
                 REQ.wait(),
@@ -389,6 +398,9 @@ impl<'a> Worker<'a> {
             .await
             {
                 Either3::First(_) => {
+                    if END_ENROLLMENT.swap(false, core::sync::atomic::Ordering::AcqRel) {
+                        self.ctap.end_enrollment(None);
+                    }
                     self.handle_transport().await;
                     // A vendor reboot command takes effect only after its SW_OK has
                     // been sent (the reset can't run mid-dispatch).

@@ -431,7 +431,7 @@ fn reset_sweep_fails_when_storage_does_not_converge() {
 /// the mutation hangs the suite instead of failing it.
 #[test]
 fn a_sweep_that_never_converges_stops_inside_its_delete_budget() {
-    const UNDEAD: u16 = 7;
+    const UNDEAD: u16 = 5;
     // The premise, made checkable rather than argued: `deleted` rises a whole
     // UNDEAD per pass, so a batch that DIVIDES the budget lets `==` fire on the
     // nose and this test stops seeing the valve — silently, suite still green.

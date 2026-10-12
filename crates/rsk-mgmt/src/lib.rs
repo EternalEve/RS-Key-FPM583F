@@ -49,6 +49,7 @@ pub struct ManagementApplet<'a> {
     serial: [u8; 4],
     /// Touch/approval gate for the privileged WRITE CONFIG.
     presence: &'a RefCell<dyn UserPresence>,
+    factory_reset_enabled: bool,
 }
 
 impl<'a> ManagementApplet<'a> {
@@ -57,7 +58,12 @@ impl<'a> ManagementApplet<'a> {
         Self {
             serial: rsk_sdk::serial4(serial_id),
             presence,
+            factory_reset_enabled: true,
         }
+    }
+
+    pub fn disable_factory_reset(&mut self) {
+        self.factory_reset_enabled = false;
     }
 
     /// Require a physical user-presence confirmation before a privileged op.
@@ -109,6 +115,9 @@ impl<'a> ManagementApplet<'a> {
     /// footgun. The firmware does the flash wipe + reboot after this SW_OK.
     #[cfg(not(feature = "strict-config"))]
     fn request_device_reset(&mut self) -> Sw {
+        if !self.factory_reset_enabled {
+            return Sw::INS_NOT_SUPPORTED;
+        }
         if !self.require_presence(Confirm::titled("Factory reset device?")) {
             return Sw::CONDITIONS_NOT_SATISFIED;
         }

@@ -91,6 +91,11 @@ impl<'a, S: Storage, R: rsk_sdk::Rng + 'static> FidoCcidApplet<'a, S, R> {
         self.fingerprint = Some(services);
     }
 
+    #[cfg(not(feature = "strict-config"))]
+    pub fn has_fingerprint(&self) -> bool {
+        self.fingerprint.is_some()
+    }
+
     pub fn reset_card(&mut self) {
         self.state
             .borrow_mut()

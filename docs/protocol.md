@@ -653,11 +653,77 @@ fingerprint UV. Reset deletes this ordinary deny-state record with other FIDO
 state. Existing builds without a fingerprint context never initialize it, and
 older provisioned PIN/passkey records retain their layouts and keys.
 
-Production bindings are deliberately unconfigured in this stage. BioEnrollment,
-biometric GetInfo fields, a persistent authorization directory, and coordinated
-module/template cleanup remain separate provisioning work. The emulator's
-`fingerprint-fixture` is a loopback-only test input with an owned store, not a
-host protocol or a production provisioning route.
+The optional production binding service now uses the persistent directory below.
+The target UART bridge still reports unavailable for actual module operations;
+only the isolated emulator module supplies sampling and inventory facts at this
+stage. `fingerprint-fixture` is a loopback-only test input with an owned store,
+without a host provisioning protocol or automatic production bindings.
+
+### 5.4 Standard biometric management (experimental)
+
+`authenticatorBioEnrollment` (`0x09`, fingerprint modality `1`) implements begin,
+capture-next, cancel, enumerate, rename, remove and sensor-info subcommands
+(`1`–`7`). Modality, sensor-info and standard enrollment cancellation require no
+token. All other operations require a current PIN token with `be=0x08`; protocols
+1 and 2 authenticate `modality || subCommand || raw-CBOR-subCommandParams` (the
+parameters are omitted for enumerate). Built-in UV cannot issue `be` tokens.
+Unknown fields remain subject to the canonical CBOR gate and are otherwise ignored.
+
+`getInfo` adds `bioEnroll` (configuration), `uvBioEnroll=false` and
+`uvModality=0x02` at key `0x12`. The `uv` and `bioEnroll` configuration values come
+from the same authorized directory. Temporary module unavailability and UV retry
+exhaustion do not turn a configured binding into an empty library. Sensor-info
+reports the module's declared sample limit and the 64-byte name limit. The script
+module declares three samples; this is not a capability claim for real 583F units.
+
+Template IDs are 16 opaque bytes, separate from module slot numbers; the last
+four bytes encode a monotonically allocated binding generation. The limit is
+16 templates, with UTF-8 names up to 64 bytes. The worst full enumeration is
+1381 bytes, below both CTAP's 7609-byte limit and the CCID response buffer. Names
+are never truncated, and unnamed entries include an empty string field. Full
+capacity returns `FP_DATABASE_FULL=0x17` before starting a new module capture.
+Unknown IDs return `INVALID_OPTION=0x2C`; missing authorization returns
+`PUAT_REQUIRED=0x36`, and failed MACs or permissions return `PIN_AUTH_INVALID=0x33`.
+
+Internal records use version 1 and CRC-32 (accidental-corruption detection, not
+response or metadata authentication). They do not depend on the credential seed:
+
+| FID | Record |
+| --- | --- |
+| `0xC200` | version, isolation flag, generation (u32 LE), CRC-32 LE: 10 bytes |
+| `0xC201` | version, Reset-pending flag (0/1), CRC-32 LE: 6 bytes; preallocated idle before enrollment |
+| `0xC210`–`0xC21F` | version, stage, generation (u32 LE), ID (16), name byte length, UTF-8 name, CRC-32 LE: 27–91 bytes |
+| `0x1092` | existing three-byte UV retry record; never regenerated over an authorized set |
+
+Stages are pending (1), saved but isolated (2), authorized (3), deleting and
+disabled (4), retired (5). A pending entry lands before any capture. Only an
+observed final save, matching inventory and a successful authorized-entry append
+permit `remainingSamples=0`. A saved template whose authorization commit fails
+can be enumerated and removed through authorized standard management. A committed
+entry remains valid if the completion response is lost. No boot-time scan imports module inventory into authorization. An authenticated
+new Begin can clean known, unsaved partial entries before reserving its new slot;
+startup and anonymous cancellation do not erase reboot leftovers. Capture
+commands carry the binding generation and distinguish first from later samples.
+A disconnected entry ends its current RAM enrollment; authenticated continuation
+may transfer entry ownership, while standard cancel remains device-wide. USB
+deconfiguration ends enrollment without automatically deleting module data.
+
+Deletion commits stage 4 before deleting the module slot; failure keeps that ID
+and slot reserved and disabled. Confirmed absence permits retirement, after which
+slot reuse gets a new generation and ID. A missing formerly authorized slot is
+durably disabled; later reappearance cannot revive it. Unknown stock isolates the
+directory until legal Reset. Unknown versions, truncated values, read failures and
+incomplete scans refuse authorization rather than initialize an empty directory.
+
+CTAP Reset keeps its existing confirmation and cold-boot window. It persists
+`0xC201= pending`, clears and verifies the module, sweeps FIDO seeds/secrets/gates
+in the existing order, provisions the new FIDO seed, and removes the marker last.
+A failure retains isolation and prevents normal seed provisioning at boot. A new
+legal Reset may retry; startup sends no automatic erase commands. Management
+factory-reset `0x1E`/`0x1F` and the deferred shared wipe are disabled when a
+fingerprint service is wired. The display factory-wipe flow also refuses retained biometric state after a
+configuration switch. Ordinary HID/CCID session resets never clear the module. Disabling fingerprint while a binding, pending operation or isolation
+remains cannot load the FIDO seed; a clean retired directory may be retained.
 
 ## 6. Management applet (Yubico-compatible) — applet enable/disable
 

@@ -57,8 +57,14 @@ const DEFAULT_CCID_PORT: u16 = 7800;
 const DEFAULT_SERIAL: [u8; 8] = *b"RSKEMU\x00\x01";
 
 /// Reported store and flash sizes. The applets only ever report these back.
+#[cfg(not(feature = "bio-fixture-2mb"))]
 const KV_TOTAL: u32 = 512 * 1024;
+#[cfg(feature = "bio-fixture-2mb")]
+const KV_TOTAL: u32 = 1024 * 1024;
+#[cfg(not(feature = "bio-fixture-2mb"))]
 const FLASH_SIZE: u32 = 4 * 1024 * 1024;
+#[cfg(feature = "bio-fixture-2mb")]
+const FLASH_SIZE: u32 = 2 * 1024 * 1024;
 
 const USAGE: &str = "\
 rsk-emu — RS-Key software emulator (no hardware)
@@ -71,6 +77,7 @@ usage: rsk-emu [options]
   --store <path>      persist the file system here (default: memory only)
   --fingerprint-script <path>
                       fingerprint-fixture feature only: isolated scripted sensor
+  --fingerprint-management  standard management with a persistent module fixture
   --fingerprint-init   initialize its test UV budget (first provisioning only)
   --touch             ask for every user presence on the terminal
   --auto-touch-ms <n> mark presence pending, then approve it after n milliseconds
@@ -118,6 +125,7 @@ fn main() {
         power_cut: None,
         fingerprint_script: None,
         fingerprint_init: false,
+        fingerprint_management: false,
     };
     let mut touch = false;
     let mut auto_touch = None;
@@ -144,6 +152,7 @@ fn main() {
                 cfg.fingerprint_script = Some(value("--fingerprint-script").into())
             }
             "--fingerprint-init" => cfg.fingerprint_init = true,
+            "--fingerprint-management" => cfg.fingerprint_management = true,
             "--auto-touch-ms" => auto_touch = Some(parse_millis(&value("--auto-touch-ms"))),
             "--display" => cfg.display = true,
             "--taps" => tap_script = Some(read_taps(&value("--taps"))),
@@ -186,8 +195,11 @@ fn main() {
                 "fingerprint fixtures require loopback, --touch and an owned --store, without display or USB/IP",
             );
         }
-    } else if cfg.fingerprint_init {
+    } else if cfg.fingerprint_init || cfg.fingerprint_management {
         die("--fingerprint-init requires --fingerprint-script");
+    }
+    if cfg.fingerprint_init && cfg.fingerprint_management {
+        die("management uses the persistent directory, without --fingerprint-init");
     }
     if auto_touch.is_some() && (touch || cfg.display) {
         die("--auto-touch-ms is mutually exclusive with --touch and --display");

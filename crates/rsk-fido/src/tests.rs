@@ -136,3 +136,12 @@ fn dispatch_get_info_carries_the_encrypted_members_once_a_token_exists() {
         "the declared count must consume the map"
     );
 }
+
+#[test]
+fn default_build_keeps_unimplemented_bio_enrollment_invalid_command_for_any_body() {
+    for data in [&[0x09][..], &[0x09, 0xff], &[0x09, 0xa0]] {
+        let mut out = [0; 32];
+        assert_eq!(dispatch(data, &mut out), 1);
+        assert_eq!(out[0], CtapError::InvalidCommand.as_u8());
+    }
+}

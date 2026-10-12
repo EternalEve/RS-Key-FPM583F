@@ -27,6 +27,7 @@ pub const CTAP_GET_INFO: u8 = 0x04;
 pub const CTAP_CLIENT_PIN: u8 = 0x06;
 pub const CTAP_RESET: u8 = 0x07;
 pub const CTAP_GET_NEXT_ASSERTION: u8 = 0x08;
+pub const CTAP_BIO_ENROLLMENT: u8 = 0x09;
 pub const CTAP_CREDENTIAL_MGMT: u8 = 0x0A;
 pub const CTAP_SELECTION: u8 = 0x0B;
 pub const CTAP_LARGE_BLOBS: u8 = 0x0C;
@@ -358,6 +359,12 @@ pub const EF_CRED_BLOB: u16 = 0xD500;
 pub const EF_PIN: u16 = 0x1080; // PIN: [retries, len, format, verifier(32)]
 pub const EF_UV_STATE: u16 = 0x1092; // fingerprint UV: [version, retries, !retries]
 pub const MAX_UV_RETRIES: u8 = 8;
+pub const EF_BIO_DIRECTORY: u16 = 0xC200;
+pub const EF_BIO_RESET: u16 = 0xC201;
+pub const EF_BIO_TEMPLATE: u16 = 0xC210;
+pub const MAX_BIO_TEMPLATES: usize = 16;
+pub const BIO_ID_LEN: usize = 16;
+pub const BIO_NAME_MAX: usize = 64;
 /// CCID has no CTAPHID channel; zero is invalid on the HID transport.
 pub const CHANNEL_NONE: u32 = 0;
 /// The **persistent** pinUvAuthToken (CTAP 2.2 §6.5.2.2): a bearer secret the

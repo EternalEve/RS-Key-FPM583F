@@ -23,6 +23,7 @@ pub enum CtapError {
     CredentialExcluded = 0x19,     // CTAP2_ERR_CREDENTIAL_EXCLUDED
     Processing = 0x21,             // CTAP2_ERR_PROCESSING
     InvalidCredential = 0x22,      // CTAP2_ERR_INVALID_CREDENTIAL
+    FpDatabaseFull = 0x17,         // CTAP2_ERR_FP_DATABASE_FULL
     UnsupportedAlgorithm = 0x26,   // CTAP2_ERR_UNSUPPORTED_ALGORITHM
     OperationDenied = 0x27,        // CTAP2_ERR_OPERATION_DENIED
     KeyStoreFull = 0x28,           // CTAP2_ERR_KEY_STORE_FULL

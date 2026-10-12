@@ -22,7 +22,7 @@ use crate::hmacsecret::{SALT_AUTH_MAX, SALT_ENC_MAX};
 pub const PERM_MC: u8 = 0x01; // makeCredential
 pub const PERM_GA: u8 = 0x02; // getAssertion
 pub const PERM_CM: u8 = 0x04; // credentialManagement
-pub const PERM_BE: u8 = 0x08; // bioEnrollment (unsupported)
+pub const PERM_BE: u8 = 0x08; // bioEnrollment (PIN authorization only)
 pub const PERM_LBW: u8 = 0x10; // largeBlobWrite
 pub const PERM_ACFG: u8 = 0x20; // authenticatorConfiguration
 pub const PERM_PCMR: u8 = 0x40; // per-credential-management read-only
@@ -253,6 +253,7 @@ pub struct PinUvAuthToken {
     pub has_rp_id: bool,
     pub user_present: bool,
     pub user_verified: bool,
+    pub fingerprint_verified: bool,
     /// `now_ms` when the token was issued; the absolute-lifetime cap measures
     /// from here and never moves.
     pub issued_at_ms: u64,
@@ -271,6 +272,7 @@ impl PinUvAuthToken {
             has_rp_id: false,
             user_present: false,
             user_verified: false,
+            fingerprint_verified: false,
             issued_at_ms: 0,
             last_used_ms: 0,
         }
@@ -295,6 +297,7 @@ pub struct PinLock {
 /// All clientPIN state that must survive between CBOR commands within one power
 /// cycle.
 pub struct FidoState {
+    pub enrollment: Option<crate::bio_enrollment::Session>,
     ephemeral: [u8; 32],
     ephemeral_set: bool,
     /// Cached `getKeyAgreement` public key `d·G` for the current `ephemeral`
@@ -370,6 +373,7 @@ impl Default for FidoState {
 impl FidoState {
     pub const fn new() -> Self {
         Self {
+            enrollment: None,
             ephemeral: [0; 32],
             ephemeral_set: false,
             ephemeral_pub: ([0; 32], [0; 32]),
@@ -411,6 +415,7 @@ impl FidoState {
 
     /// ICC reset ends CCID walks without revoking device-wide token authorization.
     pub fn end_channel_sequences(&mut self, channel: u32) {
+        self.end_enrollment(Some(channel));
         if self.gna.channel == channel {
             self.gna.reset();
         }
@@ -419,6 +424,15 @@ impl FidoState {
         }
         if self.mse_cid == channel {
             self.clear_mse();
+        }
+    }
+
+    pub fn end_enrollment(&mut self, channel: Option<u32>) {
+        if self
+            .enrollment
+            .is_some_and(|session| channel.is_none_or(|cid| session.channel == cid))
+        {
+            self.enrollment = None;
         }
     }
 
@@ -502,6 +516,8 @@ impl FidoState {
     /// credMgmt cursor goes with it, like [`Self::stop_using_token`].
     /// Refines `RSKeySecurityState!NoTokenAfterInvalidation` — SEC-FIDO-003.
     pub fn reset_pin_uv_auth_token(&mut self, rng: &mut impl Rng) {
+        self.enrollment = None;
+        self.paut.fingerprint_verified = false;
         self.cm.reset();
         rng.fill(&mut self.paut.token);
         self.paut.permissions = 0;
@@ -562,6 +578,8 @@ impl FidoState {
     /// zero permissions make every downstream check fail closed.
     /// Refines `RSKeySecurityState!NoTokenAfterInvalidation` — SEC-FIDO-003.
     pub fn stop_using_token(&mut self) {
+        self.enrollment = None;
+        self.paut.fingerprint_verified = false;
         self.paut.in_use = false;
         self.paut.permissions = 0;
         self.paut.has_rp_id = false;
@@ -572,6 +590,13 @@ impl FidoState {
         // §6.8 exempts them) — they inherit the *Begin* call's authorization, so the
         // cursor must die with the token that granted it.
         self.cm.reset();
+    }
+
+    pub fn invalidate_fingerprint_authorization(&mut self) {
+        self.gna.reset();
+        if self.paut.fingerprint_verified {
+            self.stop_using_token();
+        }
     }
 
     /// Abandon every multi-call sequence `cmd` does not continue — the assertion
@@ -714,6 +739,7 @@ impl Drop for FidoState {
             audit_boot_logged: _,
             warm_boot: _,
             channel: _,
+            enrollment: _, // Public IDs and a hash, never the management token.
         } = self;
         ephemeral.zeroize();
         paut.token.zeroize();
