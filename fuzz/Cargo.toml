@@ -71,6 +71,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "fpm_frames"
+path = "fuzz_targets/fpm_frames.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "tlv"
 path = "fuzz_targets/tlv.rs"
 test = false

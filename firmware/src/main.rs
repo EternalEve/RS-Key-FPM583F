@@ -748,7 +748,7 @@ async fn main(spawner: Spawner) {
     config.max_power = 100;
     config.max_packet_size_0 = 64;
     // bcdDevice build counter; also surfaced on the trusted-display Firmware screen.
-    let device_release: u16 = 0x09DC;
+    let device_release: u16 = 0x09DD;
     config.device_release = device_release;
 
     let mut builder = Builder::new(
@@ -1226,9 +1226,7 @@ async fn main(spawner: Spawner) {
         static SENSOR: StaticCell<RefCell<fingerprint::Bridge>> = StaticCell::new();
         static BINDINGS: StaticCell<RefCell<rsk_fido::bio_directory::Directory>> =
             StaticCell::new();
-        let sensor = SENSOR.init(RefCell::new(fingerprint::Bridge::new(
-            p.UART0, p.PIN_0, p.PIN_1,
-        )));
+        let sensor = SENSOR.init(RefCell::new(fingerprint::bridge(p.UART0, p.PIN_0, p.PIN_1)));
         let bindings = BINDINGS.init(RefCell::new(rsk_fido::bio_directory::Directory));
         worker.set_fingerprint(sensor, bindings);
     }

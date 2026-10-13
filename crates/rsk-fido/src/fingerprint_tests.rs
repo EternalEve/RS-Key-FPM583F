@@ -14,6 +14,7 @@ enum Action {
     Cancel,
     Stale,
     Wait(Matching),
+    ConfirmNoFinger,
 }
 
 struct Script {
@@ -47,7 +48,11 @@ impl Sensor for Script {
     }
     fn start(&mut self, channel: u32) -> Result<Attempt, Failure> {
         self.starts += 1;
-        self.operations.begin(channel, self.now)
+        let attempt = self.operations.begin(channel, self.now)?;
+        if matches!(self.action, Action::ConfirmNoFinger) {
+            self.operations.mark_matching(attempt, Matching::Unknown);
+        }
+        Ok(attempt)
     }
     fn poll(&mut self) -> Poll<Observation> {
         let Lifecycle::Active(mut attempt) = self.operations.state() else {
@@ -79,6 +84,11 @@ impl Sensor for Script {
             Action::Wait(matching) => {
                 self.operations.mark_matching(attempt, matching);
                 return Poll::Pending;
+            }
+            Action::ConfirmNoFinger => {
+                self.operations
+                    .mark_matching(attempt, Matching::NotAttempted);
+                Err(Failure::InputTimeout)
             }
         };
         Poll::Ready(Observation { attempt, result })
@@ -265,6 +275,44 @@ fn only_proven_input_timeout_refunds_the_persisted_attempt() {
         let medium = fs.into_storage();
         assert_eq!(retries(&mut Fs::new(medium)), Ok(Some(expected)));
     }
+}
+
+#[test]
+fn a_current_no_finger_result_can_resolve_an_unknown_matching_phase() {
+    let mut fs = Fs::new(RamStorage::new());
+    prepare(&mut fs);
+    let mut script = Script::new(Action::ConfirmNoFinger);
+    assert_eq!(
+        run(
+            &mut fs,
+            &mut script,
+            &mut Directory::active(),
+            &mut crate::FidoState::new()
+        ),
+        Err(CtapError::UserActionTimeout)
+    );
+    assert_eq!(retries(&mut fs), Ok(Some(MAX_UV_RETRIES)));
+}
+
+#[test]
+fn no_attempt_evidence_cannot_override_a_started_match_or_an_old_operation() {
+    let mut operations = Operations::new();
+    let attempt = operations.begin(1, 0).unwrap();
+    operations.mark_matching(attempt, Matching::Started);
+    operations.mark_matching(attempt, Matching::NotAttempted);
+    assert_eq!(operations.matching(), Matching::Started);
+    operations.mark_matching(attempt, Matching::Unknown);
+    assert_eq!(operations.matching(), Matching::Started);
+    operations.mark_matching(attempt, Matching::NotAttempted);
+    assert_eq!(operations.matching(), Matching::Started);
+    operations.finish(attempt, 1);
+    assert!(operations.drained(attempt));
+    let next = operations.begin(1, 2).unwrap();
+    operations.mark_matching(next, Matching::Unknown);
+    operations.mark_matching(attempt, Matching::NotAttempted);
+    assert_eq!(operations.matching(), Matching::Unknown);
+    operations.mark_matching(next, Matching::NotAttempted);
+    assert_eq!(operations.matching(), Matching::NotAttempted);
 }
 
 #[test]

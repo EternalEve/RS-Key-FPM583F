@@ -270,7 +270,7 @@ stops_harnesses_in_file = "the five harnesses the column does not count. Seven l
 bound_harnesses_counted = 2
 stops_harnesses_counted = "any claim that the two counted harnesses are the strongest available. The count is what the column credits, not a judgement about which proofs are load-bearing"
 shipped_relation = "`git grep -n 'cancel_requested.store(true'` is exactly TWO sites — crates/rsk-device/src/presence.rs:122 inside `request_cancel`'s SCOPE_FIDO test and :131 inside `cancel_otp_wait`'s SCOPE_OTP test — and both carry a tag, so both halves of the cancel decision are covered, which is the thing that had to be confirmed rather than assumed. The four `set_wait_scope` call sites are firmware/src/worker.rs:465, :528, :663 and :665. Two files are credited to the `rust` column and one of them carries no tag; seven harnesses live in the proof file and two are counted. These bounds are counts of SITES and not shrinks of a shipped constant, because a review has no other unit — the same weakness SEC-FIDO-007 recorded about its own review row"
-cfg = "none — every site above is unconditional production code on a button build; the two `cfg(feature = \"display\")` forwarders at firmware/src/presence.rs:268-274 are counted apart and are AS-XT-4's"
+cfg = "none — every site above is unconditional production code on a button build; the two presence-flag forwarders at firmware/src/presence.rs:268-275 are counted apart and are AS-XT-4's. The first also compiles for the experimental fingerprint service; its P0-family refinements remain open"
 features = "none"
 
 [[method]]

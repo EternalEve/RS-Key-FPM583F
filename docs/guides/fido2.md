@@ -26,10 +26,11 @@ Resetting the CCID card retires its own walks; selecting an applet does not
 erase the shared PIN/token state.
 
 The experimental `fingerprint` build includes standard BioEnrollment, PIN/BE
-management, persistent template bindings and reset isolation. The RP2350 bridge
-still has no real sensor codec: enrollment and fingerprint authentication are
-currently verified with an isolated persistent module fixture. Hardware delivery
-requires the later protocol, board and interoperability acceptance.
+management, persistent template bindings and reset isolation. Its FPM583F UART
+driver is shared with the isolated byte-level module fixture. Enrollment uses
+six successful samples, followed by confirmed save and directory authorization;
+failed samples can be retried. The module's percentage does not decide completion.
+Hardware delivery requires board and interoperability acceptance.
 
 Management uses a PIN token with `BIO_ENROLL` permission through standard client
 APIs. It supports up to 16 templates with stable IDs, empty or UTF-8 names up to

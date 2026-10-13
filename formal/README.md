@@ -2978,7 +2978,7 @@ evidence columns and validated cross-model support edges below on every gate run
 | `rsk-bip39` | pure | `crates/rsk-bip39/src/kani.rs` | — |
 | `rsk-crypto` | pure | `crates/rsk-crypto/src/base64url_kani.rs`<br>`fuzz/fuzz_targets/aes_gcm.rs`<br>`fuzz/fuzz_targets/chachapoly.rs` | — |
 | `rsk-devconf` | state-partial | `RSKeyAdminSurface` | the enabled-set lifecycle is modelled (mask writes, the lock-code-only write, the clamp as a construction). This crate DOES touch flash — it owns EF_DEV_CONF end to end (validate, merge onto the stored record, trim to cap, put) and the DEV_CONF_DIRTY latch the composition roots drain to reload their cached mask; who may drive a write is the four callers' gate, not this crate's. The TLV codec itself — well-formedness, merge widths, the two-parsers refusal — is single-step and carried by the crate's tests; still zero Kani proofs. |
-| `rsk-device` | state-partial | `RSKeySecurityState` | presence arbitration is modelled and Kani-proved; capability gating is RSKeyAdminSurface. Dispatcher selection/reset semantics are RSKeyAppletSeams; the remaining fast-path wiring is single-dispatch glue rather than a separately modelled state machine. |
+| `rsk-device` | state-partial | `RSKeySecurityState` | presence arbitration is modelled and Kani-proved; capability gating is RSKeyAdminSurface. Dispatcher selection/reset semantics are RSKeyAppletSeams; the remaining fast-path wiring is single-dispatch glue rather than a separately modelled state machine. The experimental FPM583F UART lifecycle is host-tested, but not included in those state-machine refinements. |
 | `rsk-display` | state-partial | `RSKeyTrustedDisplay` | the confirm ceremony (WhatIsConfirmedIsWhatIsShown, decomposed as SEC-DISP-001..003) is modelled; the wait owner and the fourth PIN door stay in RSKeySecurityState. The menus and settings flows are navigation over that same armed-touch chokepoint. The device-PIN SCREENS are too, but `EF_DEVICE_PIN` itself is not: it carries a second independent persistent retry ladder that `local_pin_gate` spends, and it is the PIN half of the host-side vendor gate as well — PLAT-MODEL-011 is where that scope obligation lives. |
 | `rsk-ec` | pure | `crates/rsk-ec/src/tests.rs`<br>`crates/rsk-ec/src/key_tests.rs`<br>`crates/rsk-ec/src/key_x25519_tests.rs`<br>`crates/rsk-ec/src/key_bp_kat.rs`<br>`crates/rsk-ec/src/curve_tests.rs`<br>`crates/rsk-ec/src/pubdo_tests.rs` | — |
 | `rsk-fido` | state-modelled | `RSKeySecurityState` | — |
@@ -3014,7 +3014,7 @@ it does not promote MODELLED-ONLY to a proof or turn bounded Kani into PROVEN.
 behaviour than the firmware, "which is sound for safety". That was false**, and
 the one that broke it was holding the green run up: `PowerCut` left the seed as
 the cut found it, while the firmware regenerates a missing seed on **every**
-boot (`firmware/src/main.rs:663`, `tools/emu/src/device.rs:529`). A cut device
+boot (`firmware/src/main.rs:663`, `tools/emu/src/device.rs:530`). A cut device
 was permanently seedless in the model and could never hold a usable credential
 again — the model was *narrower* than the code, which is the one direction a
 safety argument cannot absorb. It is fixed (`BootEnsuresSeed`), and every

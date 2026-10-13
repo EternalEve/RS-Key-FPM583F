@@ -95,6 +95,7 @@ impl Event {
 }
 
 pub struct Script {
+    wire: Option<crate::fingerprint_wire::Fixture>,
     path: PathBuf,
     attach: Rc<Cell<Instant>>,
     signals: Arc<Signals>,
@@ -107,22 +108,35 @@ pub struct Script {
 }
 
 impl Script {
-    pub fn reset(&mut self) {
+    pub fn reset(&mut self) -> Result<(), CtapError> {
+        if let Some(wire) = self.wire.as_mut() {
+            return wire.reset();
+        }
         self.operations = Operations::new();
         self.event = None;
         self.command = None;
         self.signals.end();
+        Ok(())
     }
 }
 
 impl Sensor for Script {
     fn now_ms(&self) -> u64 {
+        if let Some(wire) = &self.wire {
+            return wire.driver.now_ms();
+        }
         self.attach.get().elapsed().as_millis() as u64
     }
     fn ready(&self) -> bool {
+        if let Some(wire) = &self.wire {
+            return wire.driver.ready();
+        }
         self.operations.state() == Lifecycle::Idle
     }
     fn start(&mut self, channel: u32) -> Result<Attempt, Failure> {
+        if let Some(wire) = self.wire.as_mut() {
+            return wire.driver.start(channel);
+        }
         let event = Event::read(&self.path)?;
         let attempt = self.operations.begin(channel, self.now_ms())?;
         self.event = Some(event);
@@ -133,6 +147,9 @@ impl Sensor for Script {
         Ok(attempt)
     }
     fn poll(&mut self) -> Poll<Observation> {
+        if let Some(wire) = self.wire.as_mut() {
+            return wire.driver.poll();
+        }
         let Lifecycle::Active(mut attempt) = self.operations.state() else {
             return Poll::Pending;
         };
@@ -197,15 +214,29 @@ impl Sensor for Script {
         Poll::Ready(Observation { attempt, result })
     }
     fn cancelled(&self) -> bool {
+        if let Some(wire) = &self.wire {
+            return wire.driver.cancelled();
+        }
         self.signals.cancelled()
     }
     fn matching(&self) -> Matching {
+        if let Some(wire) = &self.wire {
+            return wire.driver.matching();
+        }
         self.operations.matching()
     }
     fn wait(&mut self) {
+        if let Some(wire) = self.wire.as_mut() {
+            wire.driver.wait();
+            return;
+        }
         std::thread::sleep(Duration::from_millis(1));
     }
     fn finish(&mut self, attempt: Attempt) {
+        if let Some(wire) = self.wire.as_mut() {
+            wire.driver.finish(attempt);
+            return;
+        }
         let now = self.now_ms();
         self.operations.finish(attempt, now);
         self.drain_until_ms = now.saturating_add(if self.command == Some(Command::Inventory) {
@@ -218,6 +249,10 @@ impl Sensor for Script {
         eprintln!("fingerprint: finish {}", attempt.id);
     }
     fn service_idle(&mut self) {
+        if let Some(wire) = self.wire.as_mut() {
+            wire.driver.service_idle();
+            return;
+        }
         let now = self.now_ms();
         self.operations.expire_drain(now);
         if let Lifecycle::Draining { attempt, .. } = self.operations.state()
@@ -229,12 +264,18 @@ impl Sensor for Script {
         }
     }
     fn capabilities(&self) -> Option<Capabilities> {
+        if let Some(wire) = &self.wire {
+            return wire.driver.capabilities();
+        }
         self.inventory_path.as_ref().map(|_| Capabilities {
             samples: 3,
             slots: bio_sensor::MODULE_SLOTS as u16,
         })
     }
     fn start_management(&mut self, channel: u32, command: Command) -> Result<Attempt, Failure> {
+        if let Some(wire) = self.wire.as_mut() {
+            return wire.driver.start_management(channel, command);
+        }
         if self.inventory_path.is_none() {
             return Err(Failure::Unavailable);
         }
@@ -247,6 +288,9 @@ impl Sensor for Script {
         Ok(attempt)
     }
     fn poll_management(&mut self) -> Poll<bio_sensor::Observation> {
+        if let Some(wire) = self.wire.as_mut() {
+            return wire.driver.poll_management();
+        }
         let Lifecycle::Active(mut attempt) = self.operations.state() else {
             return Poll::Pending;
         };
@@ -396,11 +440,14 @@ pub fn fixture(
     path: PathBuf,
     initialize: bool,
     management: bool,
+    protocol: bool,
     attach: Rc<Cell<Instant>>,
     signals: Arc<Signals>,
     fs: &mut Fs<EmuStore>,
 ) -> Result<(RefCell<Script>, RefCell<Directory>), CtapError> {
-    Event::read(&path).map_err(|_| CtapError::Other)?;
+    if !protocol {
+        Event::read(&path).map_err(|_| CtapError::Other)?;
+    }
     let generation = Rc::new(Cell::new(1));
     let mut directory = Directory {
         enabled: false,
@@ -420,7 +467,7 @@ pub fn fixture(
             }
             let inventory = std::fs::read(inventory_path).map_err(|_| CtapError::Other)?;
             let inventory = Inventory(inventory.try_into().map_err(|_| CtapError::Other)?);
-            if !rsk_fido::bio_directory::reset_pending(fs)? {
+            if !protocol && !rsk_fido::bio_directory::reset_pending(fs)? {
                 rsk_fido::bio_directory::reconcile(fs, inventory, None)?;
             }
             Ok(())
@@ -429,8 +476,18 @@ pub fn fixture(
             eprintln!("emu: biometric state isolated ({error:?}); explicit CTAP Reset required");
         }
     }
+    let wire = if protocol {
+        Some(crate::fingerprint_wire::Fixture::new(
+            path.clone(),
+            attach.clone(),
+            signals.clone(),
+        )?)
+    } else {
+        None
+    };
     Ok((
         RefCell::new(Script {
+            wire,
             path,
             attach,
             signals,

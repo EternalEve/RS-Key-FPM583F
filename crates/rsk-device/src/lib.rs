@@ -32,7 +32,12 @@ mod ccid;
 mod ccid_fido;
 pub mod click;
 mod ctap;
+pub mod fingerprint_driver;
+#[cfg(test)]
+mod fingerprint_driver_fixture;
+mod fingerprint_exchange;
 pub mod fingerprint_io;
+pub mod fingerprint_protocol;
 pub mod presence;
 
 pub use ccid::CcidApplets;

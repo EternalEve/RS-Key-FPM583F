@@ -127,6 +127,7 @@ pub struct Config {
     pub fingerprint_script: Option<PathBuf>,
     pub fingerprint_init: bool,
     pub fingerprint_management: bool,
+    pub fingerprint_protocol: bool,
 }
 
 /// One unit of work for the device thread.
@@ -594,10 +595,14 @@ async fn serve<PR: rsk_sdk::UserPresence + 'static>(
     );
     #[cfg(feature = "fingerprint-fixture")]
     let fingerprint = if let Some(path) = &cfg.fingerprint_script {
+        if cfg.fingerprint_protocol {
+            links.attach.set(Instant::now());
+        }
         match crate::fingerprint::fixture(
             path.clone(),
             cfg.fingerprint_init,
             cfg.fingerprint_management,
+            cfg.fingerprint_protocol,
             links.attach.clone(),
             signals.clone(),
             &mut fs.borrow_mut(),
@@ -620,7 +625,9 @@ async fn serve<PR: rsk_sdk::UserPresence + 'static>(
     // Time is measured from the USB *attach*, not from process start: the CTAP 2.1
     // §6.6 reset window a host has to hit runs from the moment the device could
     // answer at all, so a replug has to restart it (`usb_attach::elapsed_ms`).
-    links.attach.set(Instant::now());
+    if !cfg.fingerprint_protocol {
+        links.attach.set(Instant::now());
+    }
 
     eprintln!("emu: device ready — serial {}", hex(&serial_id));
 
@@ -806,7 +813,10 @@ async fn serve<PR: rsk_sdk::UserPresence + 'static>(
                 links.attach.set(Instant::now());
                 #[cfg(feature = "fingerprint-fixture")]
                 if let Some((sensor, bindings)) = &fingerprint {
-                    sensor.borrow_mut().reset();
+                    if let Err(error) = sensor.borrow_mut().reset() {
+                        eprintln!("emu: module fixture restart failed: {error:?}");
+                        return;
+                    }
                     ctap.set_fingerprint(sensor, bindings);
                 }
                 #[cfg(feature = "security-trace")]
@@ -876,7 +886,10 @@ async fn serve<PR: rsk_sdk::UserPresence + 'static>(
             eprintln!("emu: warm reboot — RAM state dropped, the reset window stays shut");
             #[cfg(feature = "fingerprint-fixture")]
             if let Some((sensor, bindings)) = &fingerprint {
-                sensor.borrow_mut().reset();
+                if let Err(error) = sensor.borrow_mut().reset() {
+                    eprintln!("emu: module fixture restart failed: {error:?}");
+                    return;
+                }
                 ctap.set_fingerprint(sensor, bindings);
             }
         }

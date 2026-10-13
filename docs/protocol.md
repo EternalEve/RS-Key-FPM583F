@@ -654,10 +654,10 @@ state. Existing builds without a fingerprint context never initialize it, and
 older provisioned PIN/passkey records retain their layouts and keys.
 
 The optional production binding service now uses the persistent directory below.
-The target UART bridge still reports unavailable for actual module operations;
-only the isolated emulator module supplies sampling and inventory facts at this
-stage. `fingerprint-fixture` is a loopback-only test input with an owned store,
-without a host provisioning protocol or automatic production bindings.
+The target UART bridge uses the same FPM583F driver and decoder as the byte-level
+emulator fixture. Physical compatibility is still subject to board acceptance.
+`fingerprint-fixture` is a loopback-only test input with an owned store, without
+a host provisioning protocol or automatic production bindings.
 
 ### 5.4 Standard biometric management (experimental)
 
@@ -675,6 +675,10 @@ from the same authorized directory. Temporary module unavailability and UV retry
 exhaustion do not turn a configured binding into an empty library. Sensor-info
 reports the module's declared sample limit and the 64-byte name limit. The script
 module declares three samples; this is not a capability claim for real 583F units.
+The FPM583F profile declares six good samples: each successful manual capture
+reduces the remaining count once, while busy replies and failed samples do not.
+The configured policy uses sample count, not the module's `PROC` percentage, to
+start saving. Final save and directory authorization still precede completion.
 
 Template IDs are 16 opaque bytes, separate from module slot numbers; the last
 four bytes encode a monotonically allocated binding generation. The limit is
@@ -724,6 +728,46 @@ factory-reset `0x1E`/`0x1F` and the deferred shared wipe are disabled when a
 fingerprint service is wired. The display factory-wipe flow also refuses retained biometric state after a
 configuration switch. Ordinary HID/CCID session resets never clear the module. Disabling fingerprint while a binding, pending operation or isolation
 remains cannot load the FIDO seed; a clean retired directory may be retained.
+
+### 5.5 FPM583F UART profile (experimental)
+
+The selected profile follows the user-supplied FPM383C/583F V1.2.0 manual.
+The link is 57600 baud, 8N1, with header `F1 1F E2 2E B6 6B A8 8A`, a
+big-endian application length and a header checksum. Requests contain the
+four-byte default password, two-byte command, parameters and application
+checksum; replies add a four-byte completion code. Each checksum makes its
+covered byte sum zero modulo 256. Neither the password nor checksum authenticates
+the sensor. The module and bus remain trusted.
+
+| Operation | Commands and acceptance |
+| --- | --- |
+| Verification | Observe finger absence with `01 35`, start fresh matching with `01 21`, query `01 22`; only result 1 with a valid slot supplies a match |
+| Enrollment | First/next manual captures use `01 11` with indices 1–6 and `01 12`; next captures require absence via `01 35`. A current successful result counts once. Six good samples initiate `01 13`; `01 14` must confirm the reserved slot |
+| Inventory | `02 03`, all 100 explicit `01 33` slot queries, then `02 03`; both counts must agree with the complete occupancy set |
+| Delete/clear | `01 31` with flag 0 for one checked slot or flag 1 for the whole library, followed by `01 32` and complete inventory verification |
+| Cancellation | Complete any outstanding exchange, use `01 15` for capture/matching, then require a current original-result completion or forced-interruption result before reuse |
+
+The driver has one outstanding request, bounded 16-byte service steps and fixed
+buffers. Transmission is bounded by 1 s and receiving by 2 s; busy result replies
+allow another query after 200 ms within the operation's 30 s deadline. Bootstrap
+waits 200 ms and requires a complete read-only count response within 3 s; absence
+of startup byte `55` alone is not failure. A payload byte `55` is ordinary data.
+Input waiting and cancellability are separate flags; uncertain matching progress
+reports PROCESSING. A current `01 22` error 8 can resolve unknown progress into
+proof that no matching was attempted and refund the prepaid UV retry. It cannot
+override an observed started match or a different operation.
+
+Communication timeout, malformed frames, extra replies and uncertain writes keep the module
+unavailable. Logical cancellation never promotes a late result into success;
+draining expires after 2 s. The driver does not resend saves/deletes, configure
+the module or use resets to resolve uncertain writes. PIN plus independent
+button presence stays on its normal path. Main-controller records remain v1;
+existing seeds, PINs and bindings are read using the existing layouts.
+
+The wire fixture uses independent request decoding and hand-built responses
+through this same driver. It is not a hardware capture or a physical capability
+claim. Electrical behavior, fresh physical interactions, response ordering and
+nonvolatile durability remain board acceptance items.
 
 ## 6. Management applet (Yubico-compatible) — applet enable/disable
 

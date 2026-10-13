@@ -38,7 +38,7 @@ ign='(fuzz/fuzz_targets/|/\.cargo/registry/|/rustc/|/library/|/rustlib/)'
 # row in scripts/check.sh; lower all three in the same commit.
 # A literal, not `${FUZZ_TARGET_FLOOR:-53}`: a floor the environment can lower is
 # not a ratchet, so `env FUZZ_TARGET_FLOOR=… ` in front of this script does nothing.
-FUZZ_TARGET_FLOOR=53
+FUZZ_TARGET_FLOOR=54
 targets=("$@")
 if [ "${#targets[@]}" -eq 0 ]; then
   mapfile -t targets < <(cargo fuzz list)

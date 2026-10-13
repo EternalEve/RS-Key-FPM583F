@@ -38,6 +38,13 @@ tag: the USB `bcdDevice` build counter (bumped on every behavior change), and
 
 ## [Unreleased]
 
+- **FPM583F:** implement the bounded V1.2.0 UART codec and serialized matching,
+  six-good-sample enrollment, inventory, deletion and clearing. Current result
+  queries and cancellation drain prevent late replies from authorizing a new
+  request; uncertain writes are not resent. A confirmed no-finger result can
+  refund the UV retry while unknown timeouts retain it. Firmware and the isolated
+  byte fixture share the driver; physical board acceptance remains pending.
+  Persistent record formats stay v1. **bcdDevice → 0x09DD.**
 - **Experimental fingerprint management:** standard BioEnrollment (`0x09`), PIN/BE
   authorization, persistent template IDs and 64-byte UTF-8 names now run through
   the shared HID/CCID FIDO business. Enrollment commits only after final module

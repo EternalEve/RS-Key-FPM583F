@@ -14,5 +14,5 @@ client_python="$(nix build --impure --file tests/standard_client/env.nix --no-li
 
 env -u PYTHONPATH -u PYTHONHOME \
   RSK_CLIENT_EMU="$work/rsk-emu" \
-  "$client_python/bin/python" -m pytest tests/bio_client \
+  "$client_python/bin/python" -m pytest tests/bio_client tests/fpm_client \
   -q -s --tb=short -p no:cacheprovider --basetemp="$work/bio-tests" "$@"

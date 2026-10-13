@@ -934,10 +934,10 @@ Which P0-family statements remain valid when the shared applets receive a \
 fingerprint context and the worker services UART0? Phase three exercises \
 authorization, persistent retry accounting, cancellation and source ownership \
 with a loopback sensor fixture, plus two bounded operation-lifecycle proofs. \
-The existing TLA/trace evidence still uses the default PIN/screen context, and \
-the production binding remains unconfigured. Settle each row with evidence for \
-this feature after the stage-four directory and stage-five sensor protocol are \
-integrated; stage-six UART/IRQ/XIP and presence measurements must discharge the \
+The existing TLA/trace evidence still uses the default PIN/screen context. \
+The persistent directory and shared FPM583F driver now have offline tests; \
+these do not establish the P0-family refinements for this feature. Settle each \
+row with evidence for the integrated feature; stage-six UART/IRQ/XIP and presence measurements must discharge the \
 hardware assumptions before extending the default build's claims."""
 
 [[question]]

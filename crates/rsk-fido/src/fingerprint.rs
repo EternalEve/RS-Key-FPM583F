@@ -69,6 +69,7 @@ pub enum Matching {
     NotStarted,
     Started,
     Unknown,
+    NotAttempted,
 }
 
 pub struct Operations {
@@ -101,7 +102,10 @@ impl Operations {
     }
 
     pub fn mark_matching(&mut self, attempt: Attempt, matching: Matching) {
-        if self.state == Lifecycle::Active(attempt) && matching != Matching::NotStarted {
+        if self.state == Lifecycle::Active(attempt)
+            && matching != Matching::NotStarted
+            && (self.matching != Matching::Started || matching == Matching::Started)
+        {
             self.matching = matching;
         }
     }
@@ -297,7 +301,11 @@ struct Verification {
 impl Verification {
     fn sample(&mut self, sensor: &dyn Sensor, now_ms: &mut u64) {
         *now_ms = sensor.now_ms();
-        self.may_have_matched |= sensor.matching() != Matching::NotStarted;
+        match sensor.matching() {
+            Matching::NotAttempted => self.may_have_matched = false,
+            Matching::NotStarted => {}
+            Matching::Started | Matching::Unknown => self.may_have_matched = true,
+        }
     }
 
     fn invalid_match(&self) -> CtapError {

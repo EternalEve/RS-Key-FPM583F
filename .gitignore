@@ -51,6 +51,7 @@ sram.bin*
 /RSKEY-FPM583F-PHASE-1-EVIDENCE
 /FPM583F.pdf
 /FPM383C583F通用用户通信协议手册V1.2.pdf
+/FPM383C583F通用模组通信协议_V1.2.pdf
 
 # Full phase-2 logs are retained locally; summaries and regressions are tracked.
 /RSKEY-FPM583F-PHASE-2-EVIDENCE/raw/
@@ -62,3 +63,7 @@ sram.bin*
 # Phase-four local logs and raw build artifacts.
 /RSKEY-FPM583F-PHASE-4-EVIDENCE/raw/
 /RSKEY-FPM583F-PHASE-4-EVIDENCE/build/
+
+# Phase-five local logs and raw build artifacts.
+/RSKEY-FPM583F-PHASE-5-EVIDENCE/raw/
+/RSKEY-FPM583F-PHASE-5-EVIDENCE/build/

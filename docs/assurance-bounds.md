@@ -214,7 +214,7 @@ Every one of the 11 is a `p0-launch` row of `assurance/configurations.toml`, all
 
 #### Method 6 — the production side: which sites own the decision, whether the tagged owners are those sites, and what the derived columns see
 
-`review` over crates/rsk-device/src/presence.rs::request_cancel crates/rsk-device/src/presence.rs::cancel_otp_wait crates/rsk-device/src/presence.rs::pending_for firmware/src/presence.rs::up_pending scripts/assurance_gate.py. cfg: none — every site above is unconditional production code on a button build; the two `cfg(feature = "display")` forwarders at firmware/src/presence.rs:268-274 are counted apart and are AS-XT-4's. features: none.
+`review` over crates/rsk-device/src/presence.rs::request_cancel crates/rsk-device/src/presence.rs::cancel_otp_wait crates/rsk-device/src/presence.rs::pending_for firmware/src/presence.rs::up_pending scripts/assurance_gate.py. cfg: none — every site above is unconditional production code on a button build; the two presence-flag forwarders at firmware/src/presence.rs:268-275 are counted apart and are AS-XT-4's. The first also compiles for the experimental fingerprint service; its P0-family refinements remain open. features: none.
 
 | Bound | Value | What stops being proved |
 |---|---|---|

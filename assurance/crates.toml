@@ -40,7 +40,7 @@ model = "RSKeySecurityState"
 [crate.rsk-device]
 class = "state-partial"
 model = "RSKeySecurityState"
-gap = "presence arbitration is modelled and Kani-proved; capability gating is RSKeyAdminSurface. Dispatcher selection/reset semantics are RSKeyAppletSeams; the remaining fast-path wiring is single-dispatch glue rather than a separately modelled state machine."
+gap = "presence arbitration is modelled and Kani-proved; capability gating is RSKeyAdminSurface. Dispatcher selection/reset semantics are RSKeyAppletSeams; the remaining fast-path wiring is single-dispatch glue rather than a separately modelled state machine. The experimental FPM583F UART lifecycle is host-tested, but not included in those state-machine refinements."
 
 [crate.rsk-sdk]
 class = "state-partial"

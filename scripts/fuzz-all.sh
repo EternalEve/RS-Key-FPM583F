@@ -36,7 +36,7 @@ FUZZ_SECONDS="${FUZZ_SECONDS:-120}"
 # firmware-size ratchet: a target count has no build noise. A literal, not
 # `${FUZZ_TARGET_FLOOR:-53}`, because a floor the environment can lower is not a
 # floor. Lower all three copies in the commit that removes a target.
-FUZZ_TARGET_FLOOR=53
+FUZZ_TARGET_FLOOR=54
 
 mapfile -t targets < <(cargo fuzz list)
 # The corpus lives in one LRU-evictable cache entry; on a restore miss every

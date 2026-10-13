@@ -265,7 +265,7 @@ impl rsk_sdk::UserPresence for ButtonPresence {
 
 // Accessors for the trusted display, which reaches these through
 // `rsk_display::Hooks` rather than naming the arbiter across a crate boundary.
-#[cfg(feature = "display")]
+#[cfg(any(feature = "display", feature = "fingerprint"))]
 pub fn set_up_pending(pending: bool) {
     ARBITER.set_up_pending(pending);
 }
@@ -276,6 +276,12 @@ pub fn set_cancel_requested(requested: bool) {
 #[cfg(any(feature = "display", feature = "fingerprint"))]
 pub fn cancel_requested() -> bool {
     ARBITER.cancel_requested()
+}
+
+#[cfg(feature = "fingerprint")]
+pub fn fingerprint_processing(active: bool) {
+    ARBITER.set_cancellable(active);
+    ARBITER.set_up_pending(false);
 }
 #[cfg(feature = "display")]
 pub fn presence_timeout_ms() -> u32 {

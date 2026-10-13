@@ -92,7 +92,7 @@ embedded-storage-async = "0.4"
 embedded-io-async = { version = "=0.7.0", optional = true }
 
 [features]
-# Unconfigured UART bridge for phases 4–6; no 583F commands or production bindings yet.
+# FPM583F V1.2.0 UART service; physical compatibility is measured in phase 6.
 fingerprint = ["dep:embedded-io-async"]
 # Physical BOOTSEL touch for user presence is REQUIRED BY DEFAULT and is NOT a
 # feature: the shipped firmware demands a touch for makeCredential / getAssertion
