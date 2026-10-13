@@ -39,6 +39,9 @@ pub struct Module {
     pub offline: bool,
     pub samples: u8,
     pub match_slot: u16,
+    pub startup_ms: u64,
+    pub holds: Vec<bool>,
+    pub prepares: usize,
     operations: Operations,
     command: Option<Command>,
 }
@@ -57,12 +60,33 @@ impl Default for Module {
             offline: false,
             samples: 3,
             match_slot: 0,
+            startup_ms: 0,
+            holds: Vec::new(),
+            prepares: 0,
             operations: Operations::new(),
             command: None,
         }
     }
 }
 impl Sensor for Module {
+    fn prepare(&mut self, deadline_ms: u64) -> Result<(), CtapError> {
+        self.prepares += 1;
+        self.now = self.now.saturating_add(self.startup_ms);
+        self.startup_ms = 0;
+        self.service_idle();
+        if self.now >= deadline_ms {
+            Err(CtapError::UserActionTimeout)
+        } else if self.cancelled() {
+            Err(CtapError::KeepAliveCancel)
+        } else if self.ready() {
+            Ok(())
+        } else {
+            Err(CtapError::Other)
+        }
+    }
+    fn release(&mut self, enrollment: bool) {
+        self.holds.push(enrollment);
+    }
     fn now_ms(&self) -> u64 {
         self.now
     }

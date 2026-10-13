@@ -13,6 +13,85 @@ extern crate std;
 use std::vec;
 use std::vec::Vec;
 
+struct PulseBoard<'a> {
+    arb: &'a Arbiter,
+    touch: &'a crate::touch::Touch,
+    window: Option<u32>,
+    now: u64,
+    released: bool,
+    cancel: bool,
+}
+
+impl Board for PulseBoard<'_> {
+    fn pressed(&mut self) -> bool {
+        false
+    }
+    fn now_us(&self) -> u64 {
+        self.now
+    }
+    fn begin_touch(&mut self) {
+        self.window = self.touch.open(self.arb.wait_scope());
+    }
+    fn touch_confirmed(&mut self) -> bool {
+        self.window.is_some_and(|w| self.touch.take(w))
+    }
+    fn end_touch(&mut self) {
+        if let Some(w) = self.window.take() {
+            self.touch.close(w);
+        }
+    }
+    fn block_for_ms(&mut self, ms: u64) {
+        self.now += ms * US_PER_MS;
+        if let Some(w) = self.window {
+            if self.released {
+                self.touch.released(w);
+            }
+            self.touch.record(w);
+        }
+        if self.cancel {
+            self.arb.request_cancel();
+        }
+    }
+}
+
+#[test]
+fn a_fido_pulse_drives_the_real_wait_once_and_cancellation_wins() {
+    let arb = Arbiter::new();
+    let touch = crate::touch::Touch::new();
+    arb.set_wait_scope(SCOPE_FIDO);
+    arb.set_timeout_ms(POLL_MS as u32 * 3);
+    let mut board = PulseBoard {
+        arb: &arb,
+        touch: &touch,
+        window: None,
+        now: 0,
+        released: true,
+        cancel: false,
+    };
+    let mut wait = ButtonWait::new();
+    assert_eq!(wait.wait(&arb, &mut board), Outcome::Confirmed);
+    assert!(!arb.pending_for(SCOPE_FIDO));
+    board.released = false;
+    arb.set_wait_scope(SCOPE_CCID);
+    assert_eq!(
+        wait.wait(&arb, &mut board),
+        Outcome::Timeout,
+        "a still-high input and old pulse cannot confirm the next transport's wait"
+    );
+    board.released = true;
+    assert_eq!(wait.wait(&arb, &mut board), Outcome::Confirmed);
+    arb.set_wait_scope(SCOPE_FIDO);
+    board.cancel = true;
+    assert_eq!(wait.wait(&arb, &mut board), Outcome::Cancelled);
+    arb.set_wait_scope(SCOPE_OTP);
+    board.cancel = false;
+    assert_eq!(
+        wait.wait(&arb, &mut board),
+        Outcome::Timeout,
+        "a non-FIDO wait must retain its original presence source"
+    );
+}
+
 /// A transport event, fired between two poll iterations — the point where the
 /// real device's high-priority executor runs.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

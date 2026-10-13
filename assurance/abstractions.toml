@@ -83,8 +83,8 @@ body = '''
 - **The wait's scope is modelled as the owner of an open touch wait**, where the
   worker sets it around the whole dispatch (`Arbiter::set_wait_scope`). The
   review showed this is exactly as narrow as it sounds: the cancel is dropped at
-  **both** ends of a wait (`crates/rsk-device/src/presence.rs:206` *and*
-  `:240`), so removing either alone leaves the model green — a reviewer trusting
+  **both** ends of a wait (`crates/rsk-device/src/presence.rs:215` *and*
+  `:254`), so removing either alone leaves the model green — a reviewer trusting
   one citation would see nothing fall. The Kani harness has the same blind spot
   and says so; the unit test `w8_…` is what pins the drop at exit.
 '''
@@ -122,10 +122,10 @@ body = '''
 - **A registration with a PIN set and no token — CLOSED, and what is left of it
   is one conjunct.** CTAP 2.1 §6.1.2 steps 7/10 serve a NON-discoverable
   credential on presence alone even where a PIN is set
-  (`makecredential.rs:590-592`), and `Next` carries it now:
+  (`makecredential.rs:595-597`), and `Next` carries it now:
   `RegisterNdStart` / `RegisterNdTouched` / `RegisterNdRefused`, guarded by
   `McTokenlessGuard(FALSE)`. It writes nothing, because
-  `makecredential.rs:824-825` stores only under `req.rk`, so it carries no `rp`
+  `makecredential.rs:829-830` stores only under `req.rk`, so it carries no `rp`
   either. What stays narrow is the `~tok.live` conjunct in that guard: above
   `state.rs:559` the same touch SPENDS a live token without binding it, and tier
   A has no word for that edge — its `UseMc` admits an authorized event only

@@ -128,6 +128,7 @@ pub struct Config {
     pub fingerprint_init: bool,
     pub fingerprint_management: bool,
     pub fingerprint_protocol: bool,
+    pub fingerprint_power: bool,
 }
 
 /// One unit of work for the device thread.
@@ -603,6 +604,7 @@ async fn serve<PR: rsk_sdk::UserPresence + 'static>(
             cfg.fingerprint_init,
             cfg.fingerprint_management,
             cfg.fingerprint_protocol,
+            cfg.fingerprint_power,
             links.attach.clone(),
             signals.clone(),
             &mut fs.borrow_mut(),

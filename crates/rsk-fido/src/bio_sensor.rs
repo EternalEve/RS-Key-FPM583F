@@ -99,19 +99,24 @@ pub fn execute(
     command: Command,
     timeout_ms: u64,
 ) -> core::result::Result<Result, CtapError> {
-    sensor.service_idle();
+    let deadline_ms = sensor.now_ms().saturating_add(timeout_ms);
+    execute_until(sensor, channel, command, deadline_ms)
+}
+
+pub(crate) fn execute_until(
+    sensor: &mut dyn Sensor,
+    channel: u32,
+    command: Command,
+    deadline: u64,
+) -> core::result::Result<Result, CtapError> {
     if sensor.cancelled() {
         return Err(CtapError::KeepAliveCancel);
     }
-    if !sensor.ready() {
-        return Err(CtapError::Other);
-    }
+    sensor.prepare(deadline)?;
     let attempt = sensor
         .start_management(channel, command)
         .map_err(Failure::ctap)?;
-    let deadline = attempt
-        .deadline_ms
-        .min(attempt.started_ms.saturating_add(timeout_ms));
+    let deadline = attempt.deadline_ms.min(sensor.deadline_ms(deadline));
     let result = wait(sensor, attempt, deadline);
     sensor.finish(attempt);
     result

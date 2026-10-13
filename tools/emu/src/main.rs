@@ -81,6 +81,7 @@ usage: rsk-emu [options]
                       fingerprint-fixture feature only: isolated scripted sensor
   --fingerprint-management  standard management with a persistent module fixture
   --fingerprint-protocol    FPM583F byte model through the production UART driver
+  --fingerprint-power       Model task-driven supply cycles (requires protocol)
   --fingerprint-init   initialize its test UV budget (first provisioning only)
   --touch             ask for every user presence on the terminal
   --auto-touch-ms <n> mark presence pending, then approve it after n milliseconds
@@ -130,6 +131,7 @@ fn main() {
         fingerprint_init: false,
         fingerprint_management: false,
         fingerprint_protocol: false,
+        fingerprint_power: false,
     };
     let mut touch = false;
     let mut auto_touch = None;
@@ -158,6 +160,7 @@ fn main() {
             "--fingerprint-init" => cfg.fingerprint_init = true,
             "--fingerprint-management" => cfg.fingerprint_management = true,
             "--fingerprint-protocol" => cfg.fingerprint_protocol = true,
+            "--fingerprint-power" => cfg.fingerprint_power = true,
             "--auto-touch-ms" => auto_touch = Some(parse_millis(&value("--auto-touch-ms"))),
             "--display" => cfg.display = true,
             "--taps" => tap_script = Some(read_taps(&value("--taps"))),
@@ -200,7 +203,11 @@ fn main() {
                 "fingerprint fixtures require loopback, --touch and an owned --store, without display or USB/IP",
             );
         }
-    } else if cfg.fingerprint_init || cfg.fingerprint_management || cfg.fingerprint_protocol {
+    } else if cfg.fingerprint_init
+        || cfg.fingerprint_management
+        || cfg.fingerprint_protocol
+        || cfg.fingerprint_power
+    {
         die("--fingerprint-init requires --fingerprint-script");
     }
     if cfg.fingerprint_init && cfg.fingerprint_management {
@@ -208,6 +215,9 @@ fn main() {
     }
     if cfg.fingerprint_protocol && !cfg.fingerprint_management {
         die("--fingerprint-protocol requires --fingerprint-management");
+    }
+    if cfg.fingerprint_power && !cfg.fingerprint_protocol {
+        die("--fingerprint-power requires --fingerprint-protocol");
     }
     if auto_touch.is_some() && (touch || cfg.display) {
         die("--auto-touch-ms is mutually exclusive with --touch and --display");

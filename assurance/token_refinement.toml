@@ -292,9 +292,15 @@ why = "the same guard one walk over; same reason it maps to no A operation"
 
 [[walk_owner]]
 file = "crates/rsk-fido/src/credmgmt.rs"
+function = "cred_mgmt"
+disposition = "out-of-scope"
+why = "a Next checks its inherited walk owner before fingerprint inventory can wait or power the module; the serving tail checks it again after expiring the elapsed sequence. Tier A has no channel or walk, so both gates belong to B's CmNextPolicy"
+
+[[walk_owner]]
+file = "crates/rsk-fido/src/credmgmt.rs"
 function = "enumerate_rps"
 disposition = "out-of-scope"
-why = "the guard's only production caller: the getNextRP arm. The Begin one frame out is authorize_cm's, and that decision is proved at its call site by no_authorization_bypass_cm_begin_at_call_site"
+why = "the getNextRP serving tail rechecks the inherited walk after the demux's fingerprint inventory wait and sequence expiration. The Begin one frame out is authorize_cm's, and that decision is proved at its call site by no_authorization_bypass_cm_begin_at_call_site"
 
 [[walk_owner]]
 file = "crates/rsk-fido/src/credmgmt.rs"

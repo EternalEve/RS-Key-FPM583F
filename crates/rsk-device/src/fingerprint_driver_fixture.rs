@@ -45,6 +45,10 @@ pub(crate) struct Module {
     pub active: u16,
     pub cancelled: bool,
     pub busy_wire: bool,
+    pub controlled: bool,
+    pub powered: bool,
+    pub cycles: usize,
+    pub cuts: usize,
 }
 
 impl Default for Module {
@@ -71,6 +75,10 @@ impl Default for Module {
             active: 0,
             cancelled: false,
             busy_wire: false,
+            controlled: false,
+            powered: true,
+            cycles: 0,
+            cuts: 0,
         }
     }
 }
@@ -87,6 +95,7 @@ impl Module {
         let mut code = 0;
         let mut data = Vec::new();
         match command {
+            0x020c => assert_eq!(params, &[0], "only ordinary sleep is supported"),
             0x0203 => data.extend_from_slice(
                 &self
                     .count_override
@@ -197,8 +206,36 @@ impl Module {
 pub(crate) struct Wire(pub Rc<RefCell<Module>>);
 
 impl Stream for Wire {
+    fn power_controlled(&self) -> bool {
+        self.0.borrow().controlled
+    }
+    fn power_on(&mut self) -> Result<(), Fault> {
+        let mut module = self.0.borrow_mut();
+        assert!(!module.powered);
+        assert!(module.tx.is_empty() && module.rx.is_empty());
+        module.powered = true;
+        module.cycles += 1;
+        module.rx.push_back(0x55);
+        Ok(())
+    }
+    fn power_off(&mut self) -> Result<(), Fault> {
+        let mut module = self.0.borrow_mut();
+        assert!(module.powered);
+        assert!(module.tx.is_empty() && module.rx.is_empty());
+        assert!(!module.busy_wire);
+        assert_eq!(module.commands.last().unwrap().0, 0x020c);
+        module.powered = false;
+        module.cuts += 1;
+        module.good_samples = 0;
+        module.active = 0;
+        Ok(())
+    }
     fn read(&mut self, bytes: &mut [u8]) -> Poll<Result<usize, Fault>> {
         let mut module = self.0.borrow_mut();
+        assert!(
+            module.powered,
+            "UART must not be used while the supply is off"
+        );
         if module.rx.is_empty() {
             return Poll::Pending;
         }
@@ -210,6 +247,10 @@ impl Stream for Wire {
     }
     fn write(&mut self, bytes: &[u8]) -> Poll<Result<usize, Fault>> {
         let mut module = self.0.borrow_mut();
+        assert!(
+            module.powered,
+            "UART must not be used while the supply is off"
+        );
         let n = bytes.len().min(module.write_bytes);
         module.tx.extend_from_slice(&bytes[..n]);
         if module.tx.len() >= 11 {
@@ -230,13 +271,13 @@ impl Stream for Wire {
 }
 
 #[derive(Clone, Default)]
-pub(crate) struct Clock(pub Rc<Cell<u64>>);
+pub(crate) struct Clock(pub Rc<Cell<u64>>, pub Rc<Cell<bool>>);
 impl Runtime for Clock {
     fn now_ms(&self) -> u64 {
         self.0.get()
     }
     fn cancelled(&self) -> bool {
-        false
+        self.1.get()
     }
     fn wait(&mut self) {
         self.0.set(self.0.get() + 1);

@@ -13,10 +13,11 @@ use rsk_fido::fingerprint::{
 use crate::fingerprint_exchange::Exchange;
 pub use crate::fingerprint_exchange::{Failure as WireFailure, Progress};
 use crate::fingerprint_io::{STEP_BYTES, Stream};
+pub use crate::fingerprint_power::BOOT_TIMEOUT_MS;
+use crate::fingerprint_power::{Phase, Power};
 use crate::fingerprint_protocol::{Completion, Data, ENROLL_SAMPLES, Error, Reply, Request};
 
 pub const BOOT_DELAY_MS: u64 = 200;
-pub const BOOT_TIMEOUT_MS: u64 = 3_000;
 pub const QUERY_INTERVAL_MS: u64 = 200;
 
 pub trait Runtime {
@@ -38,6 +39,7 @@ pub struct Diagnostic {
 #[derive(Clone, Copy)]
 enum Purpose {
     Boot,
+    Sleep,
     Verify,
     Management(Command),
 }
@@ -45,6 +47,7 @@ enum Purpose {
 #[derive(Clone, Copy)]
 enum Step {
     Boot,
+    Sleep,
     Match,
     MatchResult,
     Finger,
@@ -82,9 +85,9 @@ pub struct Driver<U, C> {
     step: Step,
     exchange: Option<Exchange>,
     due_ms: u64,
-    boot_deadline_ms: u64,
+    power: Power,
+    request_deadline_ms: Option<u64>,
     healthy: bool,
-    booting: bool,
     temporary: Option<Temporary>,
     inventory: Inventory,
     inventory_count: u16,
@@ -97,6 +100,7 @@ pub struct Driver<U, C> {
 impl<U: Stream, C: Runtime> Driver<U, C> {
     pub fn new(stream: U, runtime: C) -> Self {
         let now_ms = runtime.now_ms();
+        let power = Power::new(stream.power_controlled(), now_ms);
         Self {
             stream,
             runtime,
@@ -105,9 +109,9 @@ impl<U: Stream, C: Runtime> Driver<U, C> {
             step: Step::Boot,
             exchange: None,
             due_ms: now_ms.saturating_add(BOOT_DELAY_MS),
-            boot_deadline_ms: now_ms.saturating_add(BOOT_TIMEOUT_MS),
+            power,
+            request_deadline_ms: None,
             healthy: true,
-            booting: true,
             temporary: None,
             inventory: Inventory::default(),
             inventory_count: 0,
@@ -126,9 +130,14 @@ impl<U: Stream, C: Runtime> Driver<U, C> {
         self.diagnostic
     }
 
+    pub fn power_phase(&self) -> Phase {
+        self.power.phase()
+    }
+
     fn wire_request(&self) -> Request {
         match self.step {
             Step::Boot | Step::CountBefore | Step::CountAfter => Request::Count,
+            Step::Sleep => Request::Sleep,
             Step::Match => Request::Match,
             Step::MatchResult => Request::MatchResult,
             Step::Finger => Request::Finger,
@@ -157,12 +166,15 @@ impl<U: Stream, C: Runtime> Driver<U, C> {
     fn fail(&mut self, failure: Failure, terminal: bool) {
         self.terminal = terminal;
         self.healthy &= terminal;
+        if !self.healthy {
+            self.power.fail();
+        }
         self.temporary = None;
         self.exchange = None;
         self.outcome = match self.purpose {
             Purpose::Verify => Some(Outcome::Verify(Err(failure))),
             Purpose::Management(_) => Some(Outcome::Management(Err(failure))),
-            Purpose::Boot => None,
+            Purpose::Boot | Purpose::Sleep => None,
         };
         if matches!(self.operations.state(), Lifecycle::Draining { .. }) && terminal {
             self.complete_drain();
@@ -197,14 +209,15 @@ impl<U: Stream, C: Runtime> Driver<U, C> {
         }
         let now_ms = self.runtime.now_ms();
         if let Lifecycle::Active(attempt) = self.operations.state()
-            && (now_ms < attempt.started_ms || now_ms >= attempt.deadline_ms)
+            && (now_ms < attempt.started_ms || now_ms >= self.deadline_ms(attempt.deadline_ms))
         {
             self.fail(Failure::Timeout, false);
             return;
         }
         self.operations.expire_drain(now_ms);
         if self.operations.state() == Lifecycle::Unavailable
-            || (self.booting && now_ms >= self.boot_deadline_ms)
+            || (matches!(self.power.phase(), Phase::Starting | Phase::Stopping)
+                && now_ms >= self.power.deadline_ms)
         {
             self.fail(Failure::Unavailable, false);
             return;
@@ -279,8 +292,17 @@ impl<U: Stream, C: Runtime> Driver<U, C> {
         }
         match (self.step, reply.data) {
             (Step::Boot, Data::Count(_)) => {
-                self.booting = false;
+                self.power.started();
                 self.terminal = false;
+            }
+            (Step::Sleep, Data::None) => {
+                if self.stream.power_off().is_err() {
+                    self.fail(Failure::Communication, false);
+                    return;
+                }
+                self.temporary = None;
+                self.power.stopped();
+                self.runtime.end();
             }
             (Step::Match, Data::None) => self.schedule(Step::MatchResult, QUERY_INTERVAL_MS),
             (Step::MatchResult, Data::Match { matched, slot, .. }) => {
@@ -405,6 +427,10 @@ impl<U: Stream, C: Runtime> Driver<U, C> {
             progress: self.last_progress,
             failure: WireFailure::Module(completion),
         });
+        if matches!(self.step, Step::Boot | Step::Sleep) {
+            self.fail(Failure::Communication, false);
+            return;
+        }
         if matches!(self.step, Step::CaptureResult) {
             let feedback = match completion.0 {
                 8 => Some(Feedback::NoActivity),
@@ -493,7 +519,7 @@ impl<U: Stream, C: Runtime> Driver<U, C> {
         match self.stream.read(&mut bytes) {
             Poll::Pending => {}
             Poll::Ready(Ok(n))
-                if self.booting
+                if self.power.phase() == Phase::Starting
                     && self.exchange.is_none()
                     && n > 0
                     && n <= bytes.len()
@@ -508,7 +534,9 @@ impl<U: Stream, C: Runtime> Sensor for Driver<U, C> {
         self.runtime.now_ms()
     }
     fn ready(&self) -> bool {
-        self.healthy && !self.booting && self.operations.state() == Lifecycle::Idle
+        self.healthy
+            && self.power.phase() == Phase::Running
+            && self.operations.state() == Lifecycle::Idle
     }
     fn start(&mut self, channel: u32) -> Result<Attempt, Failure> {
         self.begin(channel, Purpose::Verify, Step::Finger)
@@ -557,19 +585,79 @@ impl<U: Stream, C: Runtime> Sensor for Driver<U, C> {
         }
     }
     fn service_idle(&mut self) {
-        if self.booting {
+        if self.power.phase() == Phase::Off || !self.healthy {
+            return;
+        }
+        if self.power.phase() == Phase::Starting {
             if self.exchange.is_none() {
                 self.idle_input();
             }
             self.pump();
-        } else if matches!(self.operations.state(), Lifecycle::Draining { .. }) {
+        } else if matches!(self.operations.state(), Lifecycle::Draining { .. })
+            || self.power.phase() == Phase::Stopping
+        {
             self.pump();
         } else if self.operations.state() == Lifecycle::Idle && self.healthy {
             self.idle_input();
+            if self.healthy && self.power.stop(self.runtime.now_ms(), true) {
+                self.purpose = Purpose::Sleep;
+                self.runtime.processing();
+                self.schedule(Step::Sleep, 0);
+            }
         }
     }
+    fn prepare(&mut self, deadline_ms: u64) -> Result<(), rsk_fido::CtapError> {
+        let deadline_ms = self.deadline_ms(deadline_ms);
+        self.request_deadline_ms = Some(deadline_ms);
+        let start = self.runtime.now_ms();
+        self.runtime.processing();
+        let result = (|| {
+            loop {
+                let now_ms = self.runtime.now_ms();
+                if self.runtime.cancelled() {
+                    if self.power.phase() == Phase::Starting {
+                        self.fail(Failure::Unavailable, false);
+                    }
+                    return Err(rsk_fido::CtapError::KeepAliveCancel);
+                }
+                if now_ms < start || now_ms >= deadline_ms {
+                    if self.power.phase() == Phase::Starting {
+                        self.fail(Failure::Timeout, false);
+                    }
+                    return Err(rsk_fido::CtapError::UserActionTimeout);
+                }
+                if !self.healthy {
+                    return Err(rsk_fido::CtapError::Other);
+                }
+                if self.power.wake(now_ms, deadline_ms) {
+                    if self.stream.power_on().is_err() {
+                        self.fail(Failure::Communication, false);
+                        return Err(rsk_fido::CtapError::Other);
+                    }
+                    self.purpose = Purpose::Boot;
+                    self.terminal = false;
+                    self.schedule(Step::Boot, BOOT_DELAY_MS);
+                }
+                self.service_idle();
+                if self.ready() {
+                    return Ok(());
+                }
+                self.runtime.wait();
+            }
+        })();
+        self.runtime.end();
+        result
+    }
+    fn release(&mut self, enrollment: bool) {
+        self.power.release(enrollment);
+        self.request_deadline_ms = None;
+    }
+    fn deadline_ms(&self, deadline_ms: u64) -> u64 {
+        self.request_deadline_ms
+            .map_or(deadline_ms, |old| old.min(deadline_ms))
+    }
     fn capabilities(&self) -> Option<Capabilities> {
-        if self.healthy && !self.booting {
+        if self.power.phase() != Phase::Unavailable {
             Some(Capabilities {
                 samples: ENROLL_SAMPLES,
                 slots: MODULE_SLOTS as u16,
@@ -643,3 +731,7 @@ impl<U: Stream, C: Runtime> Sensor for Driver<U, C> {
 #[cfg(test)]
 #[path = "fingerprint_driver_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "fingerprint_power_driver_tests.rs"]
+mod power_tests;

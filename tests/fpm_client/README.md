@@ -16,6 +16,13 @@ python-fido2 2.2.1 API and the real FIDO business, directory and cryptography.
 The module fixture independently decodes requests and builds UART replies;
 firmware and the fixture use the same production driver and response decoder.
 
+Each UART case runs against constant supply and `--fingerprint-power`. The latter
+starts off, retains nonvolatile inventory across cycles and destroys temporary
+samples at power-off. Transition logs come from the module stream, below FIDO.
+Power regressions additionally cover idle/PIN/UP-only processing, session release,
+sleep response loss and startup failure. They do not emulate physical TOUCHOUT;
+the host-tested event window covers old/duplicate pulses and high-at-arm rejection.
+
 Six successful manual captures initiate a single save. The fixture's sixth
 capture reports `PROC=60`, deliberately separating the approved sample-count
 policy from percentage. Failed samples retain the remaining count. Save/delete

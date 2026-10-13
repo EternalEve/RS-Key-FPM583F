@@ -145,9 +145,18 @@ const _: () = assert!(embassy_time::TICK_HZ == 1_000_000);
 /// keepalives) runs between polls; only the ~4000-cycle `is_bootsel_pressed` read
 /// briefly masks them.
 #[cfg(all(not(feature = "no-touch"), not(feature = "display")))]
-impl Board for Button {
+struct WaitBoard<'a> {
+    button: &'a mut Button,
+    #[cfg(fingerprint_touch)]
+    touch: bool,
+    #[cfg(fingerprint_touch)]
+    window: Option<u32>,
+}
+
+#[cfg(all(not(feature = "no-touch"), not(feature = "display")))]
+impl Board for WaitBoard<'_> {
     fn pressed(&mut self) -> bool {
-        self.sample()
+        self.button.sample()
     }
 
     fn now_us(&self) -> u64 {
@@ -156,6 +165,22 @@ impl Board for Button {
 
     fn block_for_ms(&mut self, ms: u64) {
         block_for(Duration::from_millis(ms));
+    }
+    #[cfg(fingerprint_touch)]
+    fn begin_touch(&mut self) {
+        if self.touch {
+            self.window = crate::fingerprint_touch::open(ARBITER.wait_scope());
+        }
+    }
+    #[cfg(fingerprint_touch)]
+    fn touch_confirmed(&mut self) -> bool {
+        self.window.is_some_and(crate::fingerprint_touch::take)
+    }
+    #[cfg(fingerprint_touch)]
+    fn end_touch(&mut self) {
+        if let Some(window) = self.window.take() {
+            crate::fingerprint_touch::close(window);
+        }
     }
 }
 
@@ -216,11 +241,20 @@ impl ButtonPresence {
     }
 
     #[cfg(not(feature = "no-touch"))]
-    fn wait(&mut self) -> Outcome {
+    fn wait(&mut self, ceremony: bool) -> Outcome {
         // Save the LED status, show the touch status for the wait, restore after.
         let saved = crate::led::status();
         crate::led::set_status(crate::led::STATUS_TOUCH);
-        let result = self.latch.wait(&ARBITER, &mut self.button);
+        #[cfg(not(fingerprint_touch))]
+        let _ = ceremony;
+        let mut board = WaitBoard {
+            button: &mut self.button,
+            #[cfg(fingerprint_touch)]
+            touch: ceremony,
+            #[cfg(fingerprint_touch)]
+            window: None,
+        };
+        let result = self.latch.wait(&ARBITER, &mut board);
         crate::led::set_status(saved);
         result
     }
@@ -234,7 +268,7 @@ impl rsk_sdk::UserPresence for ButtonPresence {
     fn request(&mut self, _confirm: rsk_sdk::Confirm<'_>) -> rsk_sdk::Presence {
         #[cfg(not(feature = "no-touch"))]
         {
-            match self.wait() {
+            match self.wait(false) {
                 Outcome::Confirmed => rsk_sdk::Presence::Confirmed,
                 Outcome::Timeout | Outcome::Cancelled => rsk_sdk::Presence::Timeout,
             }
@@ -250,7 +284,7 @@ impl rsk_sdk::UserPresence for ButtonPresence {
     fn request_ceremony(&mut self, _confirm: rsk_sdk::Confirm<'_>) -> rsk_sdk::Presence {
         #[cfg(not(feature = "no-touch"))]
         {
-            match self.wait() {
+            match self.wait(true) {
                 Outcome::Confirmed => rsk_sdk::Presence::Confirmed,
                 Outcome::Timeout => rsk_sdk::Presence::Timeout,
                 Outcome::Cancelled => rsk_sdk::Presence::Cancelled,

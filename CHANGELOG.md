@@ -38,6 +38,17 @@ tag: the USB `bcdDevice` build counter (bumped on every behavior change), and
 
 ## [Unreleased]
 
+- **FPM583F power and touch:** add opt-in active-low supply control and a separate
+  FIDO touch input. Module work waits for bounded startup; inventory, matching,
+  enrollment sessions and durable management commits retain power. Released,
+  drained work sleeps with `02 0C 00`, disables UART and removes the supply;
+  uncertain writes or shutdown replies remain isolated without automatic restart.
+  Idle/GetInfo/PIN/UP-only paths do not start the module. Touch pulses are scoped
+  to fresh FIDO windows, with BOOTSEL retained; hardware acceptance is pending.
+  Fingerprint-token consumers validate authentication, permission and RP scope
+  before waking for inventory, then revalidate after waiting.
+  **bcdDevice → 0x09DE.**
+
 - **FPM583F:** implement the bounded V1.2.0 UART codec and serialized matching,
   six-good-sample enrollment, inventory, deletion and clearing. Current result
   queries and cancellation drain prevent late replies from authorizing a new

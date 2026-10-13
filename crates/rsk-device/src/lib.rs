@@ -37,8 +37,10 @@ pub mod fingerprint_driver;
 mod fingerprint_driver_fixture;
 mod fingerprint_exchange;
 pub mod fingerprint_io;
+pub mod fingerprint_power;
 pub mod fingerprint_protocol;
 pub mod presence;
+pub mod touch;
 
 pub use ccid::CcidApplets;
 // The union is only reachable where a device-wide wipe is: `Management RESET` on

@@ -7,13 +7,13 @@ contained. Adding a new `unsafe` requires updating this page. (Safe Rust rules
 out memory-corruption bugs in this code. It is not a security audit; see the
 [threat model](threat-model.md).)
 
-**Runtime sites: 22.** Twelve in the firmware proper (`main.rs` + `presence.rs`):
-the interrupt-handler pair (2), the `Send` impl, the heap init, and the eight
+**Runtime sites: 24.** Fourteen in the firmware proper (`main.rs` + `presence.rs`):
+the interrupt-handler pair (2), the `Send` impl, the heap init, and the ten
 GPIO-pin `steal`s (the presence button, the LED power-enable rail, the nuisance
-USR LED, the display build's wake button, and — display builds only — the panel's
-CS/DC/RST/TP_RST control lines). Three for the per-core prime sieves and one
-stack limit per core, three in the RSA assembly FFI, two in the standalone
-flash-wipe tool.
+USR LED, the fingerprint VCC/TOUCHOUT, the display build's wake button, and —
+display builds only — the panel's CS/DC/RST/TP_RST control lines). Three for the
+per-core prime sieves and one stack limit per core, three in the RSA assembly
+FFI, two in the standalone flash-wipe tool.
 
 ```mermaid
 flowchart TB
@@ -21,7 +21,7 @@ flowchart TB
       a["interrupt executor (×2)"]
       b["Send for SendUsb"]
       c["heap init"]
-      d["GPIO pin steal ×8 (presence, LED power, USR LED, display wake + CS/DC/RST/TP_RST)"]
+      d["GPIO pin steal ×10 (presence, LED power, USR LED, display wake + CS/DC/RST/TP_RST, fingerprint VCC/TOUCHOUT)"]
       d2["core0 stack limit (MSPLIM)"]
     end
     subgraph kg["firmware/src/core1.rs"]
@@ -85,13 +85,13 @@ static buffer used by nothing else.
 *Safe alternative:* none; every embedded allocator initializes this way.
 *Containment:* one call, before any allocation can happen.
 
-### 5–12. GPIO pin type-erasure (presence button, LED power rail, USR-LED-off, display wake + control pins, ×8) — `PLAT-UNSAFE-004`
+### 5–14. GPIO pin type-erasure (presence button, LED power rail, USR-LED-off, display wake + control pins, fingerprint VCC/TOUCHOUT, ×10) — `PLAT-UNSAFE-004`
 
 ```rust
 let any = unsafe { AnyPin::steal(pin) };
 ```
 
-Eight build-configurable GPIOs are chosen by *number* at build time rather than as
+Ten build-configurable GPIOs are chosen by *number* at build time rather than as
 a concrete `PIN_n` type, so each must be converted to embassy's type-erased
 `AnyPin`: the optional `PRESENCE_PIN=<gpio>` presence button
 (`ButtonPresence::new_gpio`, `presence.rs`), the optional `LED_POWER_PIN`
@@ -124,7 +124,7 @@ silently drives one pad from two owners at runtime, so it is checked at build ti
 
 ## Firmware dual-core keygen (`firmware/src/core1.rs`)
 
-### 13–15. The per-core prime sieves — `PLAT-UNSAFE-005`
+### 15–17. The per-core prime sieves — `PLAT-UNSAFE-005`
 
 ```rust
 static mut CORE0_SIEVE: IncrementalSieve = IncrementalSieve::new();
@@ -156,7 +156,7 @@ on core0; the partition (which core touches which sieve) is structural, and the 
 a candidate, scrubbed at the top of every keygen). A wrong residue can only let
 a composite through to the strong-MR/Lucas test, which still rejects it.
 
-### 16–17. The per-core stack limits (`main.rs`, `core1.rs`) — `PLAT-UNSAFE-006`
+### 18–19. The per-core stack limits (`main.rs`, `core1.rs`) — `PLAT-UNSAFE-006`
 
 ```rust
 unsafe { cortex_m::register::msplim::write(&raw const _stack_end as u32) }; // core0, entering `main`
@@ -189,9 +189,24 @@ the device until it is replugged. That is the trade being made — a wedge a rep
 clears, rather than a silent write into whatever `.bss` the linker put below,
 issued by the routine that is at that moment generating and storing a key.
 
+The optional fingerprint VCC switch and TOUCHOUT input are the two additional
+number-selected owners in `main.rs`. Build assertions reject UART0, each other,
+presence, user LED and LED power/data collisions; the `EF_PHY` LED filter also
+protects them and the fixed Pimoroni pins. The VCC `Output` moves into the one
+UART service; the TOUCHOUT `Input` moves into one interrupt-executor task.
+
+The UART service adds no unsafe site. It retains UART0, GP0/GP1 and the two
+once-initialized static buffers. Before dropping `BufferedUart`, core0 interrupts
+are masked and UART0 IRQ disabled; its ring-buffer deinitialization cannot race
+that IRQ. The peripheral is held in reset, pending IRQ removed, and `Flex` inputs
+with no pulls are dropped to NULL function/input-disabled pads before VCC is
+removed. Reinitialization reborrows the same owners and buffers after reset-done;
+no other task or core touches UART0. Real leakage/backfeed and silicon errata
+remain hardware measurements, not conclusions from HAL destruction.
+
 ## RSA assembly FFI (`crates/rsk-rsa/src/lib.rs`)
 
-### 18–20. The modexp / CRT-sign calls — `PLAT-UNSAFE-007`
+### 20–22. The modexp / CRT-sign calls — `PLAT-UNSAFE-007`
 
 On-card RSA key generation needs hundreds of modular exponentiations over
 1024–2048-bit candidates. The pure-Rust path was ~7× too slow on the
@@ -210,7 +225,7 @@ all host tests exercise the same API safely.
 
 ## Flash wiper (`rsk-wipe/src/main.rs`)
 
-### 21–22. Raw flash erase/program in a critical section — `PLAT-UNSAFE-008`
+### 23–24. Raw flash erase/program in a critical section — `PLAT-UNSAFE-008`
 
 The wiper's entire job is to erase the flash the firmware lives on, from a
 RAM-resident image. It calls the ROM flash-erase/program routines inside

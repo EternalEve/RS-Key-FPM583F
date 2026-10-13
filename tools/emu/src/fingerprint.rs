@@ -121,6 +121,29 @@ impl Script {
 }
 
 impl Sensor for Script {
+    fn prepare(&mut self, deadline_ms: u64) -> Result<(), CtapError> {
+        if let Some(wire) = self.wire.as_mut() {
+            return wire.driver.prepare(deadline_ms);
+        }
+        self.service_idle();
+        if self.cancelled() {
+            Err(CtapError::KeepAliveCancel)
+        } else if self.ready() {
+            Ok(())
+        } else {
+            Err(CtapError::Other)
+        }
+    }
+    fn release(&mut self, enrollment: bool) {
+        if let Some(wire) = self.wire.as_mut() {
+            wire.driver.release(enrollment);
+        }
+    }
+    fn deadline_ms(&self, deadline_ms: u64) -> u64 {
+        self.wire
+            .as_ref()
+            .map_or(deadline_ms, |wire| wire.driver.deadline_ms(deadline_ms))
+    }
     fn now_ms(&self) -> u64 {
         if let Some(wire) = &self.wire {
             return wire.driver.now_ms();
@@ -436,11 +459,13 @@ impl Bindings<EmuStore> for Directory {
     }
 }
 
+#[allow(clippy::too_many_arguments)] // One-time wiring of the isolated module fixture.
 pub fn fixture(
     path: PathBuf,
     initialize: bool,
     management: bool,
     protocol: bool,
+    power: bool,
     attach: Rc<Cell<Instant>>,
     signals: Arc<Signals>,
     fs: &mut Fs<EmuStore>,
@@ -481,6 +506,7 @@ pub fn fixture(
             path.clone(),
             attach.clone(),
             signals.clone(),
+            power,
         )?)
     } else {
         None

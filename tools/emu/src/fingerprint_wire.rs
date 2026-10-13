@@ -34,6 +34,8 @@ enum Mode {
     Duplicate,
     Unknown,
     NoLift,
+    SleepLost,
+    BootLost,
 }
 
 impl Mode {
@@ -51,6 +53,8 @@ impl Mode {
             "duplicate" => Ok(Self::Duplicate),
             "unknown" => Ok(Self::Unknown),
             "no-lift" => Ok(Self::NoLift),
+            "sleep-lost" => Ok(Self::SleepLost),
+            "boot-lost" => Ok(Self::BootLost),
             _ => Err(Fault::Communication),
         }
     }
@@ -85,6 +89,9 @@ impl Runtime for Clock {
 }
 
 pub struct Wire {
+    controlled: bool,
+    powered: bool,
+    asleep: bool,
     path: PathBuf,
     inventory_path: PathBuf,
     rx: VecDeque<u8>,
@@ -135,7 +142,16 @@ impl Wire {
             }
         };
         match command {
+            0x020c if params == [0] => {
+                if mode == Mode::SleepLost {
+                    return Ok(());
+                }
+                self.asleep = true;
+            }
             0x0203 if params.is_empty() => {
+                if mode == Mode::BootLost {
+                    return Ok(());
+                }
                 let inventory = self.read_inventory()?;
                 let count = (0..MODULE_SLOTS as u16)
                     .filter(|s| inventory.contains(*s))
@@ -268,7 +284,36 @@ impl Wire {
 }
 
 impl Stream for Wire {
+    fn power_controlled(&self) -> bool {
+        self.controlled
+    }
+    fn power_on(&mut self) -> Result<(), Fault> {
+        if self.powered || !self.rx.is_empty() || !self.tx.is_empty() {
+            return Err(Fault::Communication);
+        }
+        self.powered = true;
+        self.asleep = false;
+        self.rx.push_back(0x55);
+        eprintln!("fpm-power: on");
+        Ok(())
+    }
+    fn power_off(&mut self) -> Result<(), Fault> {
+        if !self.powered || !self.asleep || !self.rx.is_empty() || !self.tx.is_empty() {
+            return Err(Fault::Communication);
+        }
+        self.powered = false;
+        self.samples = 0;
+        self.requested = 0;
+        self.sample_result = None;
+        self.save_slot = 0;
+        self.interrupted = false;
+        eprintln!("fpm-power: off");
+        Ok(())
+    }
     fn read(&mut self, bytes: &mut [u8]) -> Poll<Result<usize, Fault>> {
+        if !self.powered {
+            return Poll::Ready(Err(Fault::Communication));
+        }
         if self.rx.is_empty() {
             return Poll::Pending;
         }
@@ -279,6 +324,9 @@ impl Stream for Wire {
         Poll::Ready(Ok(n))
     }
     fn write(&mut self, bytes: &[u8]) -> Poll<Result<usize, Fault>> {
+        if !self.powered || self.asleep {
+            return Poll::Ready(Err(Fault::Communication));
+        }
         let n = bytes.len().min(7);
         self.tx.extend_from_slice(&bytes[..n]);
         if self.tx.len() >= 11 {
@@ -305,6 +353,7 @@ impl Stream for Wire {
 
 pub struct Fixture {
     pub driver: Driver<Wire, Clock>,
+    controlled: bool,
     path: PathBuf,
     attach: Rc<Cell<Instant>>,
     signals: Arc<Signals>,
@@ -315,12 +364,20 @@ impl Fixture {
         path: PathBuf,
         attach: Rc<Cell<Instant>>,
         signals: Arc<Signals>,
+        controlled: bool,
     ) -> Result<Self, CtapError> {
         Mode::read(&path).map_err(|_| CtapError::Other)?;
         let wire = Wire {
+            controlled,
+            powered: !controlled,
+            asleep: false,
             inventory_path: path.with_extension("inventory"),
             path: path.clone(),
-            rx: VecDeque::from([0x55]),
+            rx: if controlled {
+                VecDeque::new()
+            } else {
+                VecDeque::from([0x55])
+            },
             tx: Vec::new(),
             samples: 0,
             requested: 0,
@@ -335,18 +392,19 @@ impl Fixture {
         };
         let mut driver = Driver::new(wire, clock);
         let deadline = driver.now_ms() + 3_100;
-        while !driver.ready() && driver.now_ms() < deadline {
+        while !controlled && !driver.ready() && driver.now_ms() < deadline {
             driver.service_idle();
             if driver.diagnostic().is_some() {
                 return Err(CtapError::Other);
             }
             driver.wait();
         }
-        if !driver.ready() {
+        if !controlled && !driver.ready() {
             return Err(CtapError::Other);
         }
         Ok(Self {
             driver,
+            controlled,
             path,
             attach,
             signals,
@@ -354,7 +412,12 @@ impl Fixture {
     }
 
     pub fn reset(&mut self) -> Result<(), CtapError> {
-        *self = Self::new(self.path.clone(), self.attach.clone(), self.signals.clone())?;
+        *self = Self::new(
+            self.path.clone(),
+            self.attach.clone(),
+            self.signals.clone(),
+            self.controlled,
+        )?;
         Ok(())
     }
 }

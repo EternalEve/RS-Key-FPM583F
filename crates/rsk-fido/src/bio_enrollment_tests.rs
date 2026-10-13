@@ -17,6 +17,85 @@ use crate::bio_directory::Stage;
 use crate::bio_sensor::{Command, Feedback, Inventory};
 use crate::consts::*;
 use crate::fingerprint::Sensor;
+
+#[test]
+fn idle_expiry_and_new_commands_release_the_session_without_waking_the_sensor() {
+    for expire in [true, false] {
+        let mut env = Environment::provisioned(RamStorage::new());
+        env.begin();
+        assert_eq!(env.module.holds.last(), Some(&true));
+        let prepares = env.module.prepares;
+        if expire {
+            env.module.now += crate::bio_sensor::SESSION_TIMEOUT_MS;
+            crate::service_fingerprint(&mut env.state, &mut env.module);
+        } else {
+            let mut out = [0; MAX_MSG_SIZE as usize];
+            crate::process_cbor(&mut env.ctx(), &[CTAP_SELECTION], &mut out);
+            assert_eq!(out[0], 0);
+        }
+        assert!(env.state.enrollment.is_none());
+        assert_eq!(env.module.holds.last(), Some(&false));
+        assert_eq!(
+            env.module.prepares, prepares,
+            "session release must not request startup"
+        );
+        assert_eq!(env.snapshot().entries[0].unwrap().stage, Stage::Pending);
+    }
+}
+
+#[test]
+fn startup_and_inventory_cannot_extend_an_expiring_management_token() {
+    let mut env = Environment::provisioned(RamStorage::new());
+    env.module.now = crate::consts::PUAT_MAX_USAGE_PERIOD_MS - 100;
+    env.state.paut.last_used_ms = env.module.now;
+    env.state.paut.issued_at_ms = 0;
+    env.module.startup_ms = 200;
+    assert_eq!(
+        env.exchange(1, None, None)[0],
+        CtapError::PinAuthInvalid.as_u8()
+    );
+    assert!(
+        env.module
+            .commands
+            .iter()
+            .all(|command| *command == crate::bio_sensor::Command::Inventory)
+    );
+    assert_eq!(env.module.holds.last(), Some(&false));
+    assert!(env.state.enrollment.is_none());
+}
+
+#[test]
+fn a_refused_startup_does_not_spend_a_biometric_attempt() {
+    let mut env = Environment::provisioned(RamStorage::new());
+    env.enroll();
+    env.module.startup_ms = crate::fingerprint::VERIFY_TIMEOUT_MS;
+    assert_eq!(
+        crate::fingerprint::verify(&mut env.ctx()),
+        Err(CtapError::UserActionTimeout)
+    );
+    assert_eq!(
+        crate::fingerprint::retries(&mut env.fs),
+        Ok(Some(MAX_UV_RETRIES))
+    );
+}
+
+#[test]
+fn a_config_request_with_an_invalid_fingerprint_token_does_not_prepare_inventory() {
+    let mut env = Environment::provisioned(RamStorage::new());
+    env.enroll();
+    env.state.paut.fingerprint_verified = true;
+    env.state.paut.permissions = crate::state::PERM_GA;
+    let prepares = env.module.prepares;
+    let mut request = vec![CTAP_CONFIG, 0xa3, 1, 2, 3, 1, 4, 0x50];
+    request.extend_from_slice(&[0; 16]);
+    let mut out = [0; MAX_MSG_SIZE as usize];
+    crate::process_cbor(&mut env.ctx(), &request, &mut out);
+    assert_eq!(out[0], CtapError::PinAuthInvalid.as_u8());
+    assert_eq!(
+        env.module.prepares, prepares,
+        "invalid authentication must be refused before module preparation"
+    );
+}
 use rsk_fs::storage::{
     faults::{Cut, ProbeStuck},
     ram::RamStorage,

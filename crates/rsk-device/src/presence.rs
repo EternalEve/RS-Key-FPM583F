@@ -67,6 +67,11 @@ pub trait Board {
 
     /// Block for `ms`, leaving whatever else the board runs free to run.
     fn block_for_ms(&mut self, ms: u64);
+    fn begin_touch(&mut self) {}
+    fn touch_confirmed(&mut self) -> bool {
+        false
+    }
+    fn end_touch(&mut self) {}
 }
 
 /// Cross-executor presence/cancellation state and the runtime touch-wait timeout.
@@ -104,6 +109,10 @@ impl Arbiter {
     /// to cancel.
     pub fn set_wait_scope(&self, scope: u8) {
         self.wait_scope.store(scope, Ordering::Release);
+    }
+
+    pub fn wait_scope(&self) -> u8 {
+        self.wait_scope.load(Ordering::Acquire)
     }
 
     /// Is a touch pending *for `scope`*? Every transport hook needs the
@@ -205,6 +214,7 @@ impl ButtonWait {
         // this wait starts clean.
         arb.set_cancel_requested(false);
         arb.set_up_pending(true);
+        board.begin_touch();
         let start = board.now_us();
         let timeout_us = arb.timeout_ms() as u64 * US_PER_MS;
         // Wait for a press; a scoped cancel aborts it, and with neither before
@@ -225,8 +235,12 @@ impl ButtonWait {
             if board.now_us().wrapping_sub(start) >= timeout_us {
                 break Outcome::Timeout;
             }
+            if board.touch_confirmed() {
+                break Outcome::Confirmed;
+            }
             board.block_for_ms(POLL_MS);
         };
+        board.end_touch();
         if result == Outcome::Confirmed {
             // The debounce runs inside what is LEFT of this ceremony's budget, not a
             // fresh copy of it: the window the operator configured is the whole

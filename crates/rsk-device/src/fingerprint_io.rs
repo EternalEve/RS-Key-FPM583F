@@ -22,6 +22,15 @@ pub trait Stream {
     fn write(&mut self, bytes: &[u8]) -> Poll<Result<usize, Fault>>;
     fn flush(&mut self) -> Poll<Result<(), Fault>>;
     fn busy(&self) -> bool;
+    fn power_controlled(&self) -> bool {
+        false
+    }
+    fn power_on(&mut self) -> Result<(), Fault> {
+        Ok(())
+    }
+    fn power_off(&mut self) -> Result<(), Fault> {
+        Ok(())
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

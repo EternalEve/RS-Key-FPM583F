@@ -18,6 +18,7 @@ fuzz_target!(|data: &[u8]| {
                 Request::Finger,
                 Request::Count,
                 Request::DeleteResult,
+                Request::Sleep,
             ] {
                 let _ = frame.decode(request, [0; 4]);
             }

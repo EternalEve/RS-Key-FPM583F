@@ -417,12 +417,17 @@ fn enforce_pin<S: Storage, R: Rng>(
         }
         Some(param) => {
             let proto = proto.ok_or(CtapError::MissingParameter)?;
+            let denied = |state: &crate::FidoState| {
+                !state.verify_token(proto, req.client_data_hash, param)
+                    || !state.user_verified()
+                    || state.paut.permissions & PERM_GA == 0
+                    || (state.paut.has_rp_id && state.paut.rp_id_hash != *rp_id_hash)
+            };
+            if denied(ctx.state) {
+                return Err(CtapError::PinAuthInvalid);
+            }
             crate::fingerprint::refresh_token(ctx)?;
-            if !ctx.state.verify_token(proto, req.client_data_hash, param)
-                || !ctx.state.user_verified()
-                || ctx.state.paut.permissions & PERM_GA == 0
-                || (ctx.state.paut.has_rp_id && ctx.state.paut.rp_id_hash != *rp_id_hash)
-            {
+            if denied(ctx.state) {
                 return Err(CtapError::PinAuthInvalid);
             }
             ctx.state.mark_token_used(ctx.now_ms);

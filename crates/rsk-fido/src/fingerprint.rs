@@ -173,6 +173,20 @@ pub trait Sensor {
     fn wait(&mut self);
     fn finish(&mut self, attempt: Attempt);
     fn service_idle(&mut self);
+    fn prepare(&mut self, _deadline_ms: u64) -> Result<(), CtapError> {
+        self.service_idle();
+        if self.cancelled() {
+            Err(CtapError::KeepAliveCancel)
+        } else if self.ready() {
+            Ok(())
+        } else {
+            Err(CtapError::Other)
+        }
+    }
+    fn release(&mut self, _enrollment: bool) {}
+    fn deadline_ms(&self, deadline_ms: u64) -> u64 {
+        deadline_ms
+    }
     fn capabilities(&self) -> Option<crate::bio_sensor::Capabilities> {
         None
     }
@@ -258,7 +272,7 @@ pub(crate) fn configured<S: Storage, R: Rng>(ctx: &mut Ctx<S, R>) -> Result<bool
     Ok(fp.bindings.configuration(ctx.fs)?.is_some())
 }
 
-fn prepare_attempt<S: Storage>(
+fn check_attempt<S: Storage>(
     fs: &mut Fs<S>,
     fp: &mut Context<'_, S>,
 ) -> Result<(u32, u8), CtapError> {
@@ -283,16 +297,12 @@ fn prepare_attempt<S: Storage>(
     if remaining == 0 {
         return Err(CtapError::UvBlocked);
     }
-    fp.sensor.service_idle();
-    if !fp.sensor.ready() {
-        return Err(CtapError::Other);
-    }
-    store_retries(fs, remaining - 1)?;
     Ok((generation, remaining))
 }
 
 struct Verification {
     attempt: Attempt,
+    deadline_ms: u64,
     generation: u32,
     remaining: u8,
     may_have_matched: bool,
@@ -320,7 +330,7 @@ impl Verification {
         if now_ms < self.attempt.started_ms {
             return Err(CtapError::Other);
         }
-        if now_ms >= self.attempt.deadline_ms {
+        if now_ms >= self.deadline_ms {
             if !self.may_have_matched {
                 store_retries(fs, self.remaining)?;
             }
@@ -386,7 +396,7 @@ fn accept_match_and_restore<S: Storage>(
     if fp.sensor.cancelled() {
         return Err(CtapError::KeepAliveCancel);
     }
-    if fp.sensor.now_ms() >= verification.attempt.deadline_ms {
+    if fp.sensor.now_ms() >= verification.deadline_ms {
         return Err(CtapError::UserActionTimeout);
     }
     store_retries(fs, MAX_UV_RETRIES)?;
@@ -394,7 +404,7 @@ fn accept_match_and_restore<S: Storage>(
         return Err(CtapError::KeepAliveCancel);
     }
     *now_ms = fp.sensor.now_ms();
-    if *now_ms >= verification.attempt.deadline_ms || *now_ms < verification.attempt.started_ms {
+    if *now_ms >= verification.deadline_ms || *now_ms < verification.attempt.started_ms {
         return Err(CtapError::UserActionTimeout);
     }
     Ok(matched.interaction)
@@ -414,15 +424,26 @@ pub(crate) fn refresh_token<S: Storage, R: Rng>(ctx: &mut Ctx<S, R>) -> Result<(
 }
 
 pub(crate) fn verify<S: Storage, R: Rng>(ctx: &mut Ctx<S, R>) -> Result<bool, CtapError> {
-    crate::bio_enrollment::refresh(ctx)?;
+    let deadline_ms = ctx.now_ms.saturating_add(VERIFY_TIMEOUT_MS);
+    check_attempt(
+        ctx.fs,
+        ctx.fingerprint
+            .as_mut()
+            .ok_or(CtapError::UnsupportedOption)?,
+    )?;
+    crate::bio_enrollment::refresh_until(ctx, deadline_ms)?;
     let fp = ctx
         .fingerprint
         .as_mut()
         .ok_or(CtapError::UnsupportedOption)?;
-    let (generation, remaining) = prepare_attempt(ctx.fs, fp)?;
+    let (generation, remaining) = check_attempt(ctx.fs, fp)?;
+    fp.sensor.prepare(deadline_ms)?;
+    ctx.now_ms = fp.sensor.now_ms();
+    store_retries(ctx.fs, remaining - 1)?;
     let attempt = fp.sensor.start(ctx.state.channel).map_err(Failure::ctap)?;
     let mut verification = Verification {
         attempt,
+        deadline_ms: fp.sensor.deadline_ms(deadline_ms).min(attempt.deadline_ms),
         generation,
         remaining,
         may_have_matched: false,

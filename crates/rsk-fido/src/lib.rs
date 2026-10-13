@@ -125,6 +125,25 @@ impl<S: Storage, R: Rng> Ctx<'_, S, R> {
 /// Writes the response — one status byte then, on success, the CBOR payload —
 /// into `out` and returns its length.
 pub fn process_cbor<S: Storage, R: Rng>(ctx: &mut Ctx<S, R>, data: &[u8], out: &mut [u8]) -> usize {
+    let n = process_cbor_inner(ctx, data, out);
+    if let Some(fp) = ctx.fingerprint.as_mut() {
+        bio_enrollment::expire_session(ctx.state, fp.sensor.now_ms());
+        fp.sensor.release(ctx.state.enrollment.is_some());
+    }
+    n
+}
+
+pub fn service_fingerprint(state: &mut FidoState, sensor: &mut dyn fingerprint::Sensor) {
+    bio_enrollment::expire_session(state, sensor.now_ms());
+    sensor.release(state.enrollment.is_some());
+    sensor.service_idle();
+}
+
+fn process_cbor_inner<S: Storage, R: Rng>(
+    ctx: &mut Ctx<S, R>,
+    data: &[u8],
+    out: &mut [u8],
+) -> usize {
     if out.is_empty() {
         return 0;
     }
@@ -148,6 +167,11 @@ pub fn process_cbor<S: Storage, R: Rng>(ctx: &mut Ctx<S, R>, data: &[u8], out: &
     // command does not continue ends here. `getAssertion` continues nothing — it
     // is an initializer, and arms its own walk after this clears the previous one.
     ctx.state.retire_sequences_except(cmd);
+    bio_enrollment::expire_session(ctx.state, ctx.now_ms);
+    // A second standard client queries GetInfo before resuming via CCID.
+    if !matches!(cmd, consts::CTAP_BIO_ENROLLMENT | consts::CTAP_GET_INFO) {
+        ctx.state.end_enrollment(None);
+    }
 
     if bio_directory::reset_pending(ctx.fs).unwrap_or(true)
         && !matches!(

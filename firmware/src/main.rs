@@ -49,6 +49,8 @@ mod core1;
 mod display;
 #[cfg(all(feature = "fingerprint", not(feature = "display")))]
 mod fingerprint;
+#[cfg(all(feature = "fingerprint", fingerprint_touch))]
+mod fingerprint_touch;
 mod flash_storage;
 #[cfg(all(feature = "fingerprint", feature = "display", not(doc)))]
 compile_error!("fingerprint currently requires a board without the display feature");
@@ -163,8 +165,12 @@ const XOSC_DELAY_MULT: u32 = env_u32(env!("PK_XOSC_DELAY_MULT"));
     all(feature = "fingerprint", not(feature = "display")),
     not(led_kind = "none")
 ))]
-const fn fingerprint_uart_pin(pin: u8) -> bool {
+const fn fingerprint_reserved_pin(pin: u8) -> bool {
     matches!(pin, 0 | 1)
+        || (env_u16(env!("PK_FINGERPRINT_POWER_PIN_ENABLED")) != 0
+            && pin == env_u16(env!("PK_FINGERPRINT_POWER_PIN")) as u8)
+        || (env_u16(env!("PK_FINGERPRINT_TOUCH_PIN_ENABLED")) != 0
+            && pin == env_u16(env!("PK_FINGERPRINT_TOUCH_PIN")) as u8)
 }
 
 // Build-time LED defaults. The runtime `EF_PHY` record (PicoForge / `rsk hw`)
@@ -180,21 +186,44 @@ const _: () = {
     #[cfg(not(led_kind = "none"))]
     {
         assert!(
-            !fingerprint_uart_pin(BUILD_LED_PIN),
-            "fingerprint reserves GP0/GP1 for UART0"
+            !fingerprint_reserved_pin(BUILD_LED_PIN),
+            "LED overlaps a fingerprint pin"
         );
         assert!(
-            !BUILD_LED_POWER_ENABLED || !fingerprint_uart_pin(BUILD_LED_POWER_PIN),
-            "LED power overlaps UART0"
-        );
-        assert!(
-            !BUILD_USR_LED_ENABLED || !fingerprint_uart_pin(BUILD_USR_LED_PIN),
-            "user LED overlaps UART0"
+            !BUILD_LED_POWER_ENABLED || !fingerprint_reserved_pin(BUILD_LED_POWER_PIN),
+            "LED power overlaps a fingerprint pin"
         );
     }
     assert!(
-        !BUILD_PRESENCE_IS_GPIO || !fingerprint_uart_pin(BUILD_PRESENCE_PIN),
-        "presence overlaps UART0"
+        !BUILD_USR_LED_ENABLED || !fingerprint_reserved_pin(BUILD_USR_LED_PIN),
+        "user LED overlaps a fingerprint pin"
+    );
+    #[cfg(led_kind = "pimoroni")]
+    assert!(
+        !fingerprint_reserved_pin(18)
+            && !fingerprint_reserved_pin(19)
+            && !fingerprint_reserved_pin(20),
+        "Pimoroni LED overlaps a fingerprint pin"
+    );
+    assert!(
+        !BUILD_PRESENCE_IS_GPIO || !fingerprint_reserved_pin(BUILD_PRESENCE_PIN),
+        "presence overlaps a fingerprint pin"
+    );
+    let power_enabled = env_u16(env!("PK_FINGERPRINT_POWER_PIN_ENABLED")) != 0;
+    let touch_enabled = env_u16(env!("PK_FINGERPRINT_TOUCH_PIN_ENABLED")) != 0;
+    let power = env_u16(env!("PK_FINGERPRINT_POWER_PIN"));
+    let touch = env_u16(env!("PK_FINGERPRINT_TOUCH_PIN"));
+    assert!(
+        !power_enabled || power > 1,
+        "fingerprint power overlaps UART0"
+    );
+    assert!(
+        !touch_enabled || touch > 1,
+        "fingerprint touch overlaps UART0"
+    );
+    assert!(
+        !power_enabled || !touch_enabled || power != touch,
+        "fingerprint power and touch overlap"
     );
 };
 // Optional LED power-enable pin: a GPIO driven high at boot to power a gated LED
@@ -748,7 +777,7 @@ async fn main(spawner: Spawner) {
     config.max_power = 100;
     config.max_packet_size_0 = 64;
     // bcdDevice build counter; also surfaced on the trusted-display Firmware screen.
-    let device_release: u16 = 0x09DD;
+    let device_release: u16 = 0x09DE;
     config.device_release = device_release;
 
     let mut builder = Builder::new(
@@ -928,7 +957,7 @@ async fn main(spawner: Spawner) {
             .as_ref()
             .and_then(|p| p.led_gpio)
             .filter(|&g| g <= 29)
-            .filter(|&g| !cfg!(feature = "fingerprint") || !fingerprint_uart_pin(g))
+            .filter(|&g| !cfg!(feature = "fingerprint") || !fingerprint_reserved_pin(g))
             .filter(|&g| !(BUILD_PRESENCE_IS_GPIO && g == BUILD_PRESENCE_PIN))
             .filter(|&g| !(BUILD_LED_POWER_ENABLED && g == BUILD_LED_POWER_PIN))
             .filter(|&g| !(BUILD_USR_LED_ENABLED && g == BUILD_USR_LED_PIN))
@@ -936,6 +965,14 @@ async fn main(spawner: Spawner) {
         // PHY led_driver (1=gpio, 2=pimoroni, 3=ws2812) overrides the build kind;
         // anything else (unset, or the N/A esp32 value) keeps the build default.
         let led_driver = match phy.as_ref().and_then(|p| p.led_driver) {
+            Some(2)
+                if cfg!(feature = "fingerprint")
+                    && (fingerprint_reserved_pin(18)
+                        || fingerprint_reserved_pin(19)
+                        || fingerprint_reserved_pin(20)) =>
+            {
+                BUILD_DRIVER
+            }
             Some(d @ 1..=3) => d,
             _ => BUILD_DRIVER,
         };
@@ -1223,10 +1260,39 @@ async fn main(spawner: Spawner) {
     );
     #[cfg(all(feature = "fingerprint", not(feature = "display")))]
     {
+        #[cfg(any(fingerprint_power, fingerprint_touch))]
+        use embassy_rp::gpio::AnyPin;
+        #[cfg(fingerprint_power)]
+        use embassy_rp::gpio::Level;
+        use embassy_rp::gpio::Output;
+        #[cfg(fingerprint_power)]
+        let power = {
+            // Safety: compile-time and EF_PHY guards reserve this pin exclusively.
+            let power_pin = env_u16(env!("PK_FINGERPRINT_POWER_PIN")) as u8;
+            let pin = unsafe { AnyPin::steal(power_pin) };
+            Some(Output::new(pin, Level::High))
+        };
+        #[cfg(not(fingerprint_power))]
+        let power: Option<Output<'static>> = None;
+        #[cfg(fingerprint_touch)]
+        {
+            // Safety: compile-time and EF_PHY guards reserve this pin exclusively.
+            let touch_pin = env_u16(env!("PK_FINGERPRINT_TOUCH_PIN")) as u8;
+            let pin = unsafe { AnyPin::steal(touch_pin) };
+            hp.spawn(
+                fingerprint_touch::task(embassy_rp::gpio::Input::new(
+                    pin,
+                    embassy_rp::gpio::Pull::None,
+                ))
+                .unwrap(),
+            );
+        }
         static SENSOR: StaticCell<RefCell<fingerprint::Bridge>> = StaticCell::new();
         static BINDINGS: StaticCell<RefCell<rsk_fido::bio_directory::Directory>> =
             StaticCell::new();
-        let sensor = SENSOR.init(RefCell::new(fingerprint::bridge(p.UART0, p.PIN_0, p.PIN_1)));
+        let sensor = SENSOR.init(RefCell::new(fingerprint::bridge(
+            p.UART0, p.PIN_0, p.PIN_1, power,
+        )));
         let bindings = BINDINGS.init(RefCell::new(rsk_fido::bio_directory::Directory));
         worker.set_fingerprint(sensor, bindings);
     }

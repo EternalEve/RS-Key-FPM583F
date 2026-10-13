@@ -222,7 +222,7 @@ Three spellings of "not current", which used to sit on two different pages and i
 | platform | `PLAT-TOOLCHAIN-002` | docs/unsafe.md is the enumeration of the first-party `unsafe` sites: e |
 | platform | `PLAT-UNSAFE-002` | `SendUsb` is sound: `embassy_usb::UsbDevice` is `!Send` only for the ` |
 | platform | `PLAT-UNSAFE-003` | `HEAP.init` runs exactly once, over a static buffer nothing else touch |
-| platform | `PLAT-UNSAFE-004` | Each of the eight build-selected GPIOs handed to `AnyPin::steal` has e |
+| platform | `PLAT-UNSAFE-004` | Each of the ten build-selected GPIOs handed to `AnyPin::steal` has exa |
 | platform | `PLAT-UNSAFE-005` | The two `static mut` prime sieves are single-core-exclusive: `CORE0_SI |
 | platform | `PLAT-UNSAFE-006` | Each core programs MSPLIM once, on the core that owns that stack, befo |
 | platform | `PLAT-UNSAFE-007` | The three FFI calls into the vendored ARM assembly pass fully owned, l |

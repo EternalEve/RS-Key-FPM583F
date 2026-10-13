@@ -746,6 +746,32 @@ the sensor. The module and bus remain trusted.
 | Inventory | `02 03`, all 100 explicit `01 33` slot queries, then `02 03`; both counts must agree with the complete occupancy set |
 | Delete/clear | `01 31` with flag 0 for one checked slot or flag 1 for the whole library, followed by `01 32` and complete inventory verification |
 | Cancellation | Complete any outstanding exchange, use `01 15` for capture/matching, then require a current original-result completion or forced-interruption result before reuse |
+| Ordinary sleep | `02 0C` with one-byte MODE=0; require an exact empty-payload success reply, both checksums and the echoed command before disabling UART and VCC. Deep sleep MODE=1 is not used |
+
+With an opt-in VCC control pin, normal power-off means the service can start on
+demand, and does not change GetInfo's configured UV or management capabilities.
+Only actual module work wakes it: inventory, verification, authorized management
+and Reset. Bootstrap and consecutive operations share the request's deadline;
+startup does not spend a UV attempt. Authentication and enrollment/token expiry
+are checked again after waiting. A complete enrollment session holds VCC across
+captures; completion, cancellation, expiry, connection reset or a different CTAP
+business command releases that hold while retaining existing persistent recovery records.
+GetInfo does not end enrollment, allowing a second standard client to query
+capabilities before continuing across HID/CCID. Fingerprint-token consumers
+check authentication, permissions and RP scope before preparing inventory; valid
+tokens still require the original inventory reconciliation and a fresh check
+after its elapsed time. Invalid parameters do not wake a normally-off service.
+
+Shutdown runs only after business holds and old exchanges end. Ordinary sleep
+and its reply have a 3 s bound. Unknown terminal state, missing reply or residual
+bytes leave the service unavailable and powered, without automatic power cycling
+or reissuing writes. GetInfo and PIN with backup presence remain usable.
+Optional TOUCHOUT only supplies UP in a current FIDO ceremony: it must first be
+low after arming, then present a new rising edge. One event is consumed once;
+outside-window, stale or repeat events cannot approve another request and never
+start VCC or supply UV. Physical pulse/contact semantics still require validation;
+fingerprint matching retains the existing `01 35` finger-absence guard at cold
+startup and during continuations.
 
 The driver has one outstanding request, bounded 16-byte service steps and fixed
 buffers. Transmission is bounded by 1 s and receiving by 2 s; busy result replies

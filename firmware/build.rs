@@ -404,6 +404,24 @@ fn main() {
     );
     println!("cargo:rerun-if-env-changed=PRESENCE_ACTIVE_HIGH");
 
+    for (var, cfg) in [
+        ("FINGERPRINT_POWER_PIN", "fingerprint_power"),
+        ("FINGERPRINT_TOUCH_PIN", "fingerprint_touch"),
+    ] {
+        let (enabled, pin) = resolve_fingerprint_pin(var);
+        assert!(
+            !enabled || env::var_os("CARGO_FEATURE_FINGERPRINT").is_some(),
+            "{var} requires --features fingerprint"
+        );
+        println!("cargo:rustc-env=PK_{var}_ENABLED={}", u8::from(enabled));
+        println!("cargo:rustc-env=PK_{var}={pin}");
+        println!("cargo:rustc-check-cfg=cfg({cfg})");
+        if enabled {
+            println!("cargo:rustc-cfg={cfg}");
+        }
+        println!("cargo:rerun-if-env-changed={var}");
+    }
+
     // Display-sleep wake button (the `display` build only): default the BAT_PWR button
     // (GPIO25), `WAKE_PIN=none` for touch-only wake, or any GPIO. Polarity via
     // `WAKE_ACTIVE_HIGH` (default active-low). Baked as env consts read in `display.rs`.
@@ -775,6 +793,19 @@ fn resolve_presence_pin() -> (bool, u8) {
         pin <= MAX_GPIO,
         "PRESENCE_PIN={pin} out of range 0..=29 (RP2350A GPIOs)"
     );
+    (true, pin)
+}
+
+fn resolve_fingerprint_pin(var: &str) -> (bool, u8) {
+    let raw = env::var(var).unwrap_or_default();
+    let value = raw.trim().to_ascii_lowercase();
+    if value.is_empty() || value == "none" {
+        return (false, 0);
+    }
+    let pin = value
+        .parse::<u8>()
+        .unwrap_or_else(|_| panic!("{var} must be none or 0..=29"));
+    assert!(pin <= MAX_GPIO, "{var} out of range 0..={MAX_GPIO}");
     (true, pin)
 }
 

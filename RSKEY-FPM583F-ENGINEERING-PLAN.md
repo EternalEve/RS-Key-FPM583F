@@ -1,6 +1,6 @@
 # RP2350 + FPM583F 工程实施计划
 
-2026-10-13 · v1.15 · 步骤 1–5 的离线软件范围已验收；第五阶段协议适配、标准客户端回归与完整 gate 通过，见[第五阶段记录](RSKEY-FPM583F-PHASE-5-RECORD.md)。按需供电与触摸 UP 的追加修改尚未实施，见[修改计划](RSKEY-FPM583F-POWER-CONTROL-PLAN.md)。协议依据为用户指定的 583F/383C 通用手册。设备操作遵循 [SAFETY.md](SAFETY.md)。
+2026-10-13 · v1.16 · 步骤 1–5 的离线软件范围已验收；第五阶段协议适配、标准客户端回归与完整 gate 通过，见[第五阶段记录](RSKEY-FPM583F-PHASE-5-RECORD.md)。按需供电与触摸 UP 的软件离线范围已验收，完整 gate、新证据与实物边界见[追加执行记录](RSKEY-FPM583F-POWER-CONTROL-RECORD.md)；[修改计划](RSKEY-FPM583F-POWER-CONTROL-PLAN.md)继续约束步骤 6–7。协议依据为用户指定的 583F/383C 通用手册。设备操作遵循 [SAFETY.md](SAFETY.md)。
 
 ## 1. 目标与工程边界
 

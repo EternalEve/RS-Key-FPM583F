@@ -6,6 +6,8 @@
 use core::future::Future;
 use core::task::{Context, Poll, Waker};
 
+use embassy_rp::gpio::{Flex, Output, Pull};
+use embassy_rp::interrupt::InterruptExt;
 use embassy_rp::peripherals::{PIN_0, PIN_1, UART0};
 use embassy_rp::uart::{BufferedInterruptHandler, BufferedUart, Config};
 use embassy_rp::{Peri, bind_interrupts};
@@ -29,20 +31,97 @@ fn poll_once<F: Future>(future: F) -> Poll<F::Output> {
         .poll(&mut Context::from_waker(Waker::noop()))
 }
 
-pub struct Uart(BufferedUart);
+pub struct Uart {
+    active: Option<BufferedUart>,
+    uart: Peri<'static, UART0>,
+    tx: Peri<'static, PIN_0>,
+    rx: Peri<'static, PIN_1>,
+    tx_bytes: &'static mut [u8; TX_BYTES],
+    rx_bytes: &'static mut [u8; RX_BYTES],
+    power: Option<Output<'static>>,
+}
+
+impl Uart {
+    fn enable(&mut self) -> Result<(), Fault> {
+        rp_pac::RESETS.reset().modify(|w| w.set_uart0(false));
+        const RESET_POLLS: usize = 1_024;
+        for _ in 0..RESET_POLLS {
+            if rp_pac::RESETS.reset_done().read().uart0() {
+                let mut config = Config::default();
+                config.baudrate = BAUD;
+                self.active = Some(BufferedUart::new(
+                    self.uart.reborrow(),
+                    self.tx.reborrow(),
+                    self.rx.reborrow(),
+                    Irqs,
+                    &mut *self.tx_bytes,
+                    &mut *self.rx_bytes,
+                    config,
+                ));
+                return Ok(());
+            }
+            cortex_m::asm::nop();
+        }
+        Err(Fault::Communication)
+    }
+
+    fn disable(&mut self) {
+        cortex_m::interrupt::free(|_| {
+            embassy_rp::interrupt::UART0_IRQ.disable();
+            drop(self.active.take());
+            rp_pac::RESETS.reset().modify(|w| w.set_uart0(true));
+            embassy_rp::interrupt::UART0_IRQ.unpend();
+            let mut tx = Flex::new(self.tx.reborrow());
+            let mut rx = Flex::new(self.rx.reborrow());
+            tx.set_as_input();
+            rx.set_as_input();
+            tx.set_pull(Pull::None);
+            rx.set_pull(Pull::None);
+        });
+    }
+}
 
 impl Stream for Uart {
     fn read(&mut self, bytes: &mut [u8]) -> Poll<Result<usize, Fault>> {
-        poll_once(Read::read(&mut self.0, bytes)).map(|r| r.map_err(|_| Fault::Communication))
+        let Some(uart) = self.active.as_mut() else {
+            return Poll::Ready(Err(Fault::Communication));
+        };
+        poll_once(Read::read(uart, bytes)).map(|r| r.map_err(|_| Fault::Communication))
     }
     fn write(&mut self, bytes: &[u8]) -> Poll<Result<usize, Fault>> {
-        poll_once(Write::write(&mut self.0, bytes)).map(|r| r.map_err(|_| Fault::Communication))
+        let Some(uart) = self.active.as_mut() else {
+            return Poll::Ready(Err(Fault::Communication));
+        };
+        poll_once(Write::write(uart, bytes)).map(|r| r.map_err(|_| Fault::Communication))
     }
     fn flush(&mut self) -> Poll<Result<(), Fault>> {
-        poll_once(Write::flush(&mut self.0)).map(|r| r.map_err(|_| Fault::Communication))
+        let Some(uart) = self.active.as_mut() else {
+            return Poll::Ready(Err(Fault::Communication));
+        };
+        poll_once(Write::flush(uart)).map(|r| r.map_err(|_| Fault::Communication))
     }
     fn busy(&self) -> bool {
-        self.0.busy()
+        self.active.as_ref().is_some_and(BufferedUart::busy)
+    }
+    fn power_controlled(&self) -> bool {
+        self.power.is_some()
+    }
+    fn power_on(&mut self) -> Result<(), Fault> {
+        if self.active.is_some() {
+            return Err(Fault::Communication);
+        }
+        self.power.as_mut().ok_or(Fault::Communication)?.set_low();
+        self.enable()
+    }
+    fn power_off(&mut self) -> Result<(), Fault> {
+        if self.busy() {
+            return Err(Fault::Communication);
+        }
+        self.disable();
+        self.tx_bytes.fill(0);
+        self.rx_bytes.fill(0);
+        self.power.as_mut().ok_or(Fault::Communication)?.set_high();
+        Ok(())
     }
 }
 
@@ -75,21 +154,23 @@ pub fn bridge(
     uart: Peri<'static, UART0>,
     tx: Peri<'static, PIN_0>,
     rx: Peri<'static, PIN_1>,
+    power: Option<Output<'static>>,
 ) -> Bridge {
     static TX: StaticCell<[u8; TX_BYTES]> = StaticCell::new();
     static RX: StaticCell<[u8; RX_BYTES]> = StaticCell::new();
-    let mut config = Config::default();
-    config.baudrate = BAUD;
-    Driver::new(
-        Uart(BufferedUart::new(
-            uart,
-            tx,
-            rx,
-            Irqs,
-            TX.init([0; TX_BYTES]),
-            RX.init([0; RX_BYTES]),
-            config,
-        )),
-        Board,
-    )
+    let mut stream = Uart {
+        active: None,
+        uart,
+        tx,
+        rx,
+        tx_bytes: TX.init([0; TX_BYTES]),
+        rx_bytes: RX.init([0; RX_BYTES]),
+        power,
+    };
+    if stream.power.is_some() {
+        stream.disable();
+    } else {
+        stream.enable().expect("UART0 reset did not complete");
+    }
+    Driver::new(stream, Board)
 }

@@ -145,12 +145,23 @@ pub fn cred_mgmt<S: Storage, R: Rng>(
     out: &mut [u8],
 ) -> CtapResult {
     let req = parse(data)?;
-    crate::fingerprint::refresh_token(ctx)?;
 
     // The Next walkers reuse saved state and carry no pinUvAuthParam.
     match req.subcommand {
-        CM_ENUMERATE_RPS_NEXT => return enumerate_rps(ctx, false, out),
+        CM_ENUMERATE_RPS_NEXT => {
+            if !ctx.state.cm.may_walk_rps(ctx.state.channel) {
+                return Err(CtapError::NotAllowed);
+            }
+            crate::fingerprint::refresh_token(ctx)?;
+            ctx.state.expire_stale_sequences(ctx.now_ms);
+            return enumerate_rps(ctx, false, out);
+        }
         CM_ENUMERATE_CREDS_NEXT => {
+            if !ctx.state.cm.may_walk_creds(ctx.state.channel) {
+                return Err(CtapError::NotAllowed);
+            }
+            crate::fingerprint::refresh_token(ctx)?;
+            ctx.state.expire_stale_sequences(ctx.now_ms);
             let rp_id_hash = ctx.state.cm.rp_id_hash;
             return enumerate_creds(ctx, false, &rp_id_hash, out);
         }
@@ -204,6 +215,9 @@ pub fn cred_mgmt<S: Storage, R: Rng>(
             verify_cm_token(ctx.state, proto, payload, param)?;
             let found = find_resident(ctx.fs, cred_id);
             check_rp_binding(ctx.state, found.as_ref().map(|(_, h)| h))?;
+            crate::fingerprint::refresh_token(ctx)?;
+            verify_cm_token(ctx.state, proto, payload, param)?;
+            check_rp_binding(ctx.state, found.as_ref().map(|(_, h)| h))?;
             ctx.state.mark_token_used(ctx.now_ms);
             let (slot, rp_id_hash) = found.ok_or(CtapError::NoCredentials)?;
             delete_credential(ctx, slot, &rp_id_hash)
@@ -215,6 +229,9 @@ pub fn cred_mgmt<S: Storage, R: Rng>(
             let payload = payload_with_subpara(CM_UPDATE_USER_INFO, req.raw_subpara, &mut pbuf)?;
             verify_cm_token(ctx.state, proto, payload, param)?;
             let found = find_resident(ctx.fs, cred_id);
+            check_rp_binding(ctx.state, found.as_ref().map(|(_, h)| h))?;
+            crate::fingerprint::refresh_token(ctx)?;
+            verify_cm_token(ctx.state, proto, payload, param)?;
             check_rp_binding(ctx.state, found.as_ref().map(|(_, h)| h))?;
             ctx.state.mark_token_used(ctx.now_ms);
             let (slot, _) = found.ok_or(CtapError::NoCredentials)?;
@@ -241,6 +258,9 @@ fn authorize_cm<S: Storage, R: Rng>(
     if authorized_by_ppuat(ctx, proto, payload, param) {
         return Ok(());
     }
+    verify_cm_token(ctx.state, proto, payload, param)?;
+    check_rp_binding(ctx.state, rp_id_hash)?;
+    crate::fingerprint::refresh_token(ctx)?;
     verify_cm_token(ctx.state, proto, payload, param)?;
     check_rp_binding(ctx.state, rp_id_hash)?;
     ctx.state.mark_token_used(ctx.now_ms);

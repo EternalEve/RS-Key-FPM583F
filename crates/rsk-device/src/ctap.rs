@@ -172,7 +172,8 @@ impl<'a, S: Storage, R: rsk_sdk::Rng + 'static, VP: rsk_vendor::Platform>
 
     pub fn service_fingerprint(&mut self) {
         if let Some((sensor, _)) = self.fingerprint {
-            sensor.borrow_mut().service_idle();
+            let mut sensor = sensor.borrow_mut();
+            rsk_fido::service_fingerprint(&mut self.fido_state.borrow_mut(), &mut *sensor);
         }
     }
 

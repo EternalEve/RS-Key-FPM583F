@@ -63,11 +63,31 @@ flowchart TD
 | `PRESENCE_PIN` | `bootsel` | `bootsel` or `0..=29` | User-presence input source. Default `bootsel` keeps the BOOTSEL hardware-button path. Set a GPIO number for a dedicated button (active-low with an internal pull-up by default; flip with `PRESENCE_ACTIVE_HIGH`). Example: `PRESENCE_PIN=0` for a button to ground on GPIO0. |
 | `PRESENCE_ACTIVE_HIGH` | `0` | `0` / `1` | GPIO presence-button polarity, only meaningful with a GPIO `PRESENCE_PIN`. `0` (default) = active-low: button to ground, internal pull-up, a press reads **low**. `1` = active-high: internal pull-down, a press reads **high**, for a capacitive touch sensor or a button to VCC. Ignored for the BOOTSEL default. |
 | `WAKE_PIN` | `25` | `none` or `0..=29` | **`display` builds only.** The button that wakes the panel from display sleep. Default `25` is the Waveshare RP2350-Touch-LCD-2.8's **BAT_PWR** button. `none` makes wake touch-only (no button); any other GPIO selects a different button. A value in the LCD/touch range (`10..=18`) is rejected at compile time. The display-sleep timeout itself is set on-device (Settings → Display sleep). |
+| `FINGERPRINT_POWER_PIN` | `none` | `none` or `0..=29` | **`fingerprint` only.** Active-low external VCC switch; HIGH keeps the module off. Unset retains constant supply. V_TOUCH remains independently supplied. GP3 is the unvalidated RP2350-Zero-CM candidate. |
+| `FINGERPRINT_TOUCH_PIN` | `none` | `none` or `0..=29` | **`fingerprint` only.** Active-high TOUCHOUT pulse, without internal pulls; only fresh FIDO ceremony windows collect it. GP2 is the unvalidated candidate. BOOTSEL/`PRESENCE_PIN` remains the separate backup and other applets' presence input. |
 | `WAKE_ACTIVE_HIGH` | `0` | `0` / `1` | Wake-button polarity (`display` builds, with a GPIO `WAKE_PIN`). `0` (default) = active-low (internal pull-up, press reads **low**, e.g. BAT_PWR to ground); `1` = active-high (internal pull-down). |
 | `LED_KIND` | `ws2812` | `ws2812` / `gpio` / `pimoroni` / `none` | The LED driver backend, and the **boot default**. A non-`none` build compiles all three so the driver/pin/order are runtime-switchable via `rsk hw` / PicoForge (see below). `ws2812` = a single addressable RGB on `LED_PIN` (the Waveshare default). `gpio` = a plain on/off LED on `LED_PIN`. Hue/brightness collapse to lit/unlit, but the blink *pattern* still distinguishes statuses. `pimoroni` = a 3-pin PWM RGB (Pimoroni Tiny 2350: R=GPIO18, G=GPIO19, B=GPIO20, common-anode). `none` = no indicator (the status engine still runs; nothing renders it, and the phy LED fields are ignored). |
 | `LED_ORDER` | `rgb` | `rgb` / `grb` | WS2812 wire byte order (`ws2812` backend only). The Waveshare RP2350-One is unusually `rgb` (the default); standard WS2812B parts (e.g. the TenStar RP2350-USB) are `grb`. If a `ws2812` board comes up with red and green swapped (blue fine), flip this to `grb`. |
 | `MAX_LEDS` | `1` | `1`–`64` | PIO state-machine and frame-buffer ceiling for addressable LEDs. The **actual** connected count is set at runtime via `rsk hw --led-num` and must be ≤ `MAX_LEDS`. Default 1 is a single onboard LED; a board with a chain of N builds with `MAX_LEDS=N` (up to 64).|
 | `FAKE_MKEK` / `FAKE_DEVK` | unset | 64 hex chars | **Test builds only.** Bakes a fake OTP master key / device key into the image instead of reading the OTP fuses, so the whole OTP migration path can be exercised with zero fuse writes. The build prints a loud warning and the key is greppable in the binary. Flashing a FAKE build onto a provisioned device migrates its data under the fake key. Going back orphans that data (recovery = per-applet resets). Never flash one on a device you care about. |
+
+Both fingerprint pins reject UART0, each other, presence and LED assignments.
+`EF_PHY` cannot repoint an LED onto a reserved pin, including the fixed Pimoroni
+LED pins. These are build settings; no private command or runtime power toggle
+is added. The candidate screenless 2MB configuration is:
+
+```sh
+FLASH_SIZE=2097152 KVMAIN=896K FINGERPRINT_POWER_PIN=3 FINGERPRINT_TOUCH_PIN=2 \
+  cargo build --release -p firmware --features fingerprint
+```
+
+Build inside `nix develop`. Omit `FINGERPRINT_POWER_PIN` for the constant-supply
+comparison with the same touch input; omit both settings for button presence.
+The switched profile requires validated
+V_TOUCH/VCC wiring, external pulls powered from the correct rail and no UART
+backfeed. Continuous new TOUCHOUT events with VCC off, real startup/shutdown and
+stack usage remain board acceptance work; see the
+[FIDO guide](guides/fido2.md).
 
 The `LED_PIN` / `LED_KIND` / `LED_ORDER` / `MAX_LEDS` values are **boot defaults**
 only. A

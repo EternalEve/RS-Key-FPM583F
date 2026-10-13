@@ -28,6 +28,7 @@ pub enum Request {
     Slot(u16),
     Finger,
     Count,
+    Sleep,
 }
 
 impl Request {
@@ -45,12 +46,14 @@ impl Request {
             Self::Slot(_) => [1, 0x33],
             Self::Finger => [1, 0x35],
             Self::Count => [2, 3],
+            Self::Sleep => [2, 0x0c],
         }
     }
 
     pub fn encode(self, password: [u8; 4], out: &mut [u8]) -> Result<usize, Error> {
         let mut params = [0; 3];
         let n = match self {
+            Self::Sleep => 1,
             Self::Capture(n) if (1..=ENROLL_SAMPLES).contains(&n) => {
                 params[0] = n;
                 1

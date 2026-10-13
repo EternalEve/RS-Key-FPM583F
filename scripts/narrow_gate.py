@@ -12,7 +12,7 @@ found no reader, and deleting a whole bullet was exit 0 on `citation_gate.py`,
 `scope_gate.py`, `config_gen_gate.py` and `comutate.py --lint` alike.
 
 One kind of bullet did redden a row, and for the wrong property: deleting the
-one carrying `crates/rsk-device/src/presence.rs:206` fails `citation_gate.py`
+one carrying `crates/rsk-device/src/presence.rs:215` fails `citation_gate.py`
 because `formal/citations.lock` still locks that pair. That is the CITATION going
 stale, not the disposition going missing, and `--relock` clears it — so the
 abstraction could still be dropped, in two commands instead of one.

@@ -104,7 +104,7 @@ why = "the pending Reset gate is removed only after module absence, the FIDO swe
 
 [[site]]
 file = "crates/rsk-fido/src/config.rs"
-line = 355
+line = 359
 call = "ctx.fs.delete(EF_ALWAYS_UV).map_err(|_| CtapError::Other)?;"
 verb = "delete"
 answer = "read"
@@ -115,7 +115,7 @@ why = "the record IS the alwaysUv policy, and toggleAlwaysUv's whole effect is m
 
 [[site]]
 file = "crates/rsk-fido/src/config.rs"
-line = 388
+line = 392
 call = ".and_then(|()| ctx.fs.delete_key(EF_KEY_DEV))"
 verb = "delete_key"
 answer = "read"
@@ -126,7 +126,7 @@ why = "AUT_ENABLE wraps the seed and then drops the plain copy: a survivor means
 
 [[site]]
 file = "crates/rsk-fido/src/config.rs"
-line = 427
+line = 431
 call = ".delete_key(EF_KEY_DEV_ENC)"
 verb = "delete_key"
 answer = "read"
@@ -137,7 +137,7 @@ why = "AUT_DISABLE's mirror — a surviving wrapped copy keeps lock_engaged true
 
 [[site]]
 file = "crates/rsk-fido/src/config.rs"
-line = 440
+line = 444
 call = "ctx.fs.delete(EF_EA_RPIDS).map_err(|_| CtapError::Other)?;"
 verb = "delete"
 answer = "read"
@@ -148,7 +148,7 @@ why = "an empty rpId list means no RP qualifies for vendor-facilitated enterpris
 
 [[site]]
 file = "crates/rsk-fido/src/credmgmt.rs"
-line = 674
+line = 694
 call = ".delete(EF_CRED + slot)"
 verb = "delete"
 answer = "read"
@@ -159,7 +159,7 @@ why = "deleteCredential's only effect. A surviving EF_CRED is an assertable cred
 
 [[site]]
 file = "crates/rsk-fido/src/credmgmt.rs"
-line = 707
+line = 727
 call = "let _ = fs.delete(EF_RP + j);"
 verb = "delete"
 answer = "discarded"
@@ -170,7 +170,7 @@ why = "the RP index at count zero, and the credential it counted has already gon
 
 [[site]]
 file = "crates/rsk-fido/src/credmgmt.rs"
-line = 712
+line = 732
 call = "let _ = fs.delete(crate::consts::EF_RPNICK + j);"
 verb = "delete"
 answer = "discarded"

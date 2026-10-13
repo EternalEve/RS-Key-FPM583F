@@ -119,25 +119,41 @@ pub fn supported<S: Storage, R: Rng>(ctx: &Ctx<S, R>) -> bool {
 }
 
 pub fn refresh<S: Storage, R: Rng>(ctx: &mut Ctx<S, R>) -> Result<(), CtapError> {
+    refresh_until(ctx, ctx.now_ms.saturating_add(SESSION_TIMEOUT_MS))
+}
+
+pub(crate) fn expire_session(state: &mut crate::FidoState, now_ms: u64) {
+    state.expire_stale_token(now_ms);
+    if state.enrollment.is_some_and(|s| {
+        now_ms >= s.deadline_ms || sha256(&state.paut.token) != s.token_hash || !state.paut.in_use
+    }) {
+        state.enrollment = None;
+    }
+}
+
+pub(crate) fn refresh_until<S: Storage, R: Rng>(
+    ctx: &mut Ctx<S, R>,
+    deadline_ms: u64,
+) -> Result<(), CtapError> {
     if !supported(ctx) {
         return Ok(());
     }
-    if ctx.state.enrollment.is_some_and(|s| {
-        ctx.now_ms >= s.deadline_ms
-            || sha256(&ctx.state.paut.token) != s.token_hash
-            || !ctx.state.paut.in_use
-    }) {
-        ctx.state.enrollment = None;
-    }
+    expire_session(ctx.state, ctx.now_ms);
     let fp = ctx.fingerprint.as_mut().ok_or(CtapError::InvalidCommand)?;
-    fp.sensor.service_idle();
     if bio_directory::reset_pending(ctx.fs)? {
         return Ok(());
     }
-    if !fp.sensor.ready() {
+    let result = crate::bio_sensor::execute_until(
+        fp.sensor,
+        ctx.state.channel,
+        crate::bio_sensor::Command::Inventory,
+        deadline_ms,
+    );
+    ctx.now_ms = fp.sensor.now_ms();
+    expire_session(ctx.state, ctx.now_ms);
+    let crate::bio_sensor::Result::Inventory(inventory) = result? else {
         return Err(CtapError::Other);
-    }
-    let inventory = crate::bio_sensor::read_inventory(fp.sensor, ctx.state.channel)?;
+    };
     if bio_directory::reconcile(ctx.fs, inventory, ctx.state.enrollment.map(|s| s.slot))? {
         ctx.state.invalidate_fingerprint_authorization();
     }
@@ -253,6 +269,8 @@ pub fn bio_enrollment<S: Storage, R: Rng>(
     }
     authorize(ctx, &req, command)?;
     refresh(ctx)?;
+    ctx.state.expire_stale_token(ctx.now_ms);
+    authorize(ctx, &req, command)?;
     if bio_directory::reset_pending(ctx.fs)? {
         return Err(CtapError::NotAllowed);
     }

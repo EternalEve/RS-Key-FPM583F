@@ -16,8 +16,8 @@ _spec.loader.exec_module(_fixtures)
 binary = _fixtures.binary
 
 
-@pytest.fixture
-def wire_emulator(binary, tmp_path):
+@pytest.fixture(params=[False, True], ids=["constant", "demand"])
+def wire_emulator(binary, tmp_path, request):
     script = tmp_path / "module.events"
     script.write_text("good\n")
     with socket.socket() as reservation:
@@ -26,8 +26,9 @@ def wire_emulator(binary, tmp_path):
     emu = _fixtures.FingerprintEmulator(binary, tmp_path / "wire.store", [
         "--ccid-port", str(port), "--fingerprint-script", str(script),
         "--fingerprint-management", "--fingerprint-protocol",
-    ])
+    ] + (["--fingerprint-power"] if request.param else []))
     emu.script, emu.ccid_port = script, port
+    emu.controlled = request.param
     emu.inventory = script.with_suffix(".inventory")
     try:
         emu.start()

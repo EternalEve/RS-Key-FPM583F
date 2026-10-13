@@ -32,6 +32,22 @@ six successful samples, followed by confirmed save and directory authorization;
 failed samples can be retried. The module's percentage does not decide completion.
 Hardware delivery requires board and interoperability acceptance.
 
+An opt-in switched-supply build keeps module VCC off until fingerprint work or
+inventory needs it. GetInfo, PIN and UP-only requests continue normally while
+it is off. Standard enrollment holds power through all six captures; cancelling,
+timing out or sending a different CTAP business command ends that session; GetInfo preserves
+it so a second standard client can continue enrollment. Persistent
+pending records remain available for authorized cleanup. Failed startup or
+uncertain shutdown does not restart the sensor automatically; use PIN and the
+backup presence button while diagnosing it.
+
+The optional GP2 TOUCHOUT input confirms only a current FIDO presence prompt;
+idle touches are ignored and do not power GP3's candidate VCC switch. Existing
+high levels and old events cannot confirm a new prompt. BOOTSEL remains the
+backup input, and other applets retain their original button path. Repeated
+physical touches with VCC off and the external power circuit are not yet accepted
+on hardware; the configuration is described in [build.md](../build.md).
+
 Management uses a PIN token with `BIO_ENROLL` permission through standard client
 APIs. It supports up to 16 templates with stable IDs, empty or UTF-8 names up to
 64 bytes, cancellation and deletion. Names and ordinary template management keep

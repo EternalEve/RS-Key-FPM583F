@@ -980,7 +980,7 @@ def test_a_disposed_inverse_kill_is_admitted_and_counted_apart(tmp_path, disposi
     "key,old,new",
     [("gate_registry", "kani=4", "kani=99"),
      ("gate_registry", "cfgs=50", "cfgs=51"),
-     ("gate_ledger", "walk=4", "walk=5"),
+     ("gate_ledger", "walk=5", "walk=6"),
      ("gate_assumption", "FALSE=91", "FALSE=90"),
      ("gate_ghost", "24 route(s)", "25 route(s)"),
      ("gate_matrix", "1280 cells", "1281 cells")],

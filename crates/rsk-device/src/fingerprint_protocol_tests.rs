@@ -76,6 +76,34 @@ fn manual_vectors_are_independent_of_the_encoder() {
 }
 
 #[test]
+fn ordinary_sleep_uses_the_manual_mode_zero_and_strict_ack() {
+    let request = [
+        0xf1, 0x1f, 0xe2, 0x2e, 0xb6, 0x6b, 0xa8, 0x8a, 0, 8, 0x85, 0, 0, 0, 0, 2, 0x0c, 0, 0xf2,
+    ];
+    let response = [
+        0xf1, 0x1f, 0xe2, 0x2e, 0xb6, 0x6b, 0xa8, 0x8a, 0, 0x0b, 0x82, 0, 0, 0, 0, 2, 0x0c, 0, 0,
+        0, 0, 0xf2,
+    ];
+    let mut encoded = [0; MAX_FRAME];
+    let n = Request::Sleep.encode([0; 4], &mut encoded).unwrap();
+    assert_eq!(&encoded[..n], &request, "manual p34 ordinary sleep vector");
+    assert_eq!(
+        frame(&response).unwrap().decode(Request::Sleep, [0; 4]),
+        Ok(Reply {
+            completion: Completion::OK,
+            data: Data::None
+        })
+    );
+    assert_eq!(
+        frame(&response).unwrap().decode(Request::Cancel, [0; 4]),
+        Err(Error::Command)
+    );
+    let mut corrupt = response;
+    corrupt[21] ^= 1;
+    assert!(frame(&corrupt).is_err());
+}
+
+#[test]
 fn every_split_and_back_to_back_frames_preserve_boundaries() {
     for split in 0..=MATCH.len() {
         let mut decoder = Decoder::new();

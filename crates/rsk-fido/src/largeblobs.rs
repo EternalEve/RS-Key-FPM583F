@@ -200,9 +200,14 @@ fn write_fragment<S: Storage, R: Rng>(
         vd[32] = CTAP_LARGE_BLOBS;
         vd[34..38].copy_from_slice(&(offset as u32).to_le_bytes());
         vd[38..70].copy_from_slice(&sha256(set));
+        let denied = |state: &crate::FidoState| {
+            !state.verify_token(proto, &vd, param) || state.paut.permissions & PERM_LBW == 0
+        };
+        if denied(ctx.state) {
+            return Err(CtapError::PinAuthInvalid);
+        }
         crate::fingerprint::refresh_token(ctx)?;
-        if !ctx.state.verify_token(proto, &vd, param) || ctx.state.paut.permissions & PERM_LBW == 0
-        {
+        if denied(ctx.state) {
             return Err(CtapError::PinAuthInvalid);
         }
         ctx.state.mark_token_used(ctx.now_ms);

@@ -218,7 +218,7 @@ NO_OPINION_EXEMPTIONS = {
     ),
     "pseudo-command": (
         "a power cycle is not a CTAP command and has no response: `outcome_raw` is"
-        " the literal 0 that `tools/emu/src/device.rs:828-829` passes as the status,"
+        " the literal 0 that `tools/emu/src/device.rs:830-831` passes as the status,"
         " so agreeing with `delta_c` of it would be agreeing with a placeholder",
         1,
     ),
@@ -478,7 +478,7 @@ def infer(event: dict, ledger: dict) -> tuple[list[tuple[str, str]], tuple[str, 
         "always_uv_record_len", "always_uv_raw"
     }:
         # authenticatorConfig toggleAlwaysUv. The model's ConfigOp flips
-        # `gate.alwaysUv` and spends nothing (config.rs:249 marks the token
+        # `gate.alwaysUv` and spends nothing (config.rs:253 marks the token
         # used, which is not a raw field), so the record moving IS the signature.
         actions = [("ConfigOp", "ConfigOp")]
         ledger["always_uv"] = bool(after["always_uv_raw"])
@@ -605,7 +605,7 @@ def no_opinion_class(event: dict, action_names: set[str]) -> str | None:
     """
     if event["command_raw"] == POWER_CYCLE:
         # The class's whole reason is that `outcome_raw` here is the literal 0
-        # `tools/emu/src/device.rs:828-829` passes for a replug, not a response.
+        # `tools/emu/src/device.rs:830-831` passes for a replug, not a response.
         # Asserted rather than described: with this unchecked, a power cycle
         # carrying 0x31 was excused and the row stayed green at 15/18.
         if event["outcome_raw"] != 0x00:

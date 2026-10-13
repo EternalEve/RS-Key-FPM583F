@@ -240,10 +240,14 @@ pub fn authenticator_config<S: Storage, R: Rng>(
     let mut vp = [0u8; 32 + 2 + MAX_RAW_SUBPARA];
     let vp_len = puat_subcommand_msg(&mut vp, CTAP_CONFIG, req.subcommand as u8, req.raw_subpara);
 
+    let denied = |state: &crate::FidoState| {
+        !state.verify_token(proto, &vp[..vp_len], param) || state.paut.permissions & PERM_ACFG == 0
+    };
+    if denied(ctx.state) {
+        return Err(CtapError::PinAuthInvalid);
+    }
     crate::fingerprint::refresh_token(ctx)?;
-    if !ctx.state.verify_token(proto, &vp[..vp_len], param)
-        || ctx.state.paut.permissions & PERM_ACFG == 0
-    {
+    if denied(ctx.state) {
         return Err(CtapError::PinAuthInvalid);
     }
     ctx.state.mark_token_used(ctx.now_ms);
