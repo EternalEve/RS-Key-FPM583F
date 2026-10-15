@@ -60,19 +60,33 @@ fn fingerprint_management_aliases_never_acknowledge_or_request_presence() {
 #[cfg(not(feature = "strict-config"))]
 #[test]
 fn a_disabled_fingerprint_build_cannot_wipe_retained_isolation() {
-    let env = Env::new();
-    rsk_fido::bio_directory::begin_reset(&mut env.fs.borrow_mut()).unwrap();
-    let mut ccid = env.ccid();
-    assert!(!ccid.factory_wipe());
-    assert_eq!(
-        sw(ccid.handle_apdu(&select(rsk_mgmt::MANAGEMENT_AID), 0)),
-        rsk_sdk::Sw::OK
-    );
-    for ins in [0x1E, 0x1F] {
+    for fid in [
+        None,
+        Some(rsk_fido::consts::EF_BIO_DIRECTORY),
+        Some(rsk_fido::consts::EF_BIO_TEMPLATE),
+    ] {
+        let env = Env::new();
+        if let Some(fid) = fid {
+            env.fs.borrow_mut().put(fid, &[]).unwrap();
+        } else {
+            rsk_fido::bio_directory::begin_reset(&mut env.fs.borrow_mut()).unwrap();
+        }
+        let mut ccid = env.ccid();
+        assert!(!ccid.factory_wipe());
         assert_eq!(
-            sw(ccid.handle_apdu(&apdu(0, ins, 0, 0, &[]), 0)),
-            rsk_sdk::Sw::INS_NOT_SUPPORTED
+            sw(ccid.handle_apdu(&select(rsk_mgmt::MANAGEMENT_AID), 0)),
+            rsk_sdk::Sw::OK
         );
+        for ins in [0x1E, 0x1F] {
+            assert_eq!(
+                sw(ccid.handle_apdu(&apdu(0, ins, 0, 0, &[]), 0)),
+                rsk_sdk::Sw::INS_NOT_SUPPORTED
+            );
+        }
+        if let Some(fid) = fid {
+            assert_eq!(env.fs.borrow_mut().try_read(fid, &mut []), Ok(Some(0)));
+        } else {
+            assert!(rsk_fido::bio_directory::reset_pending(&mut env.fs.borrow_mut()).unwrap());
+        }
     }
-    assert!(rsk_fido::bio_directory::reset_pending(&mut env.fs.borrow_mut()).unwrap());
 }

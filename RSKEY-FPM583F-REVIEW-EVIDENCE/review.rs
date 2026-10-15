@@ -294,7 +294,7 @@ fn r3_movement_feedback_aborts_the_sample_instead_of_allowing_a_retry() {
 }
 
 #[test]
-fn r5_empty_directory_bypasses_the_disabled_build_reset_guard() {
+fn r5_empty_directory_preserves_the_disabled_build_reset_guard() {
     use rsk_fido::consts::{CTAP_RESET, EF_BIO_DIRECTORY};
     use rsk_fido::{AlwaysConfirm, CtapError, Ctx, FidoState, bio_directory, bio_sensor};
     use rsk_fs::{Fs, storage::ram::RamStorage};
@@ -335,13 +335,13 @@ fn r5_empty_directory_bypasses_the_disabled_build_reset_guard() {
     assert_eq!(ctx.fs.try_read(EF_BIO_DIRECTORY, &mut []), Ok(Some(0)));
     assert!(bio_directory::read(ctx.fs).is_err());
     let clean = bio_directory::configuration_clean(ctx.fs);
-    assert_eq!(clean, Ok(true));
-    assert!(ctx.load_keydev().is_some());
+    assert_eq!(clean, Err(CtapError::Other));
+    assert!(ctx.load_keydev().is_none());
     rsk_fido::process_cbor(&mut ctx, &[CTAP_RESET], &mut out);
     println!(
         "R5: empty directory yields configuration_clean={clean:?}, disabled-build Reset={:#04x}",
         out[0]
     );
-    assert_eq!(out[0], 0);
-    assert!(bio_directory::read(ctx.fs).unwrap().head.is_none());
+    assert_eq!(out[0], CtapError::Other.as_u8());
+    assert_eq!(ctx.fs.try_read(EF_BIO_DIRECTORY, &mut []), Ok(Some(0)));
 }

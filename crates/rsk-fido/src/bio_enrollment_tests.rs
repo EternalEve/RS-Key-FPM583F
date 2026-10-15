@@ -102,6 +102,9 @@ use rsk_fs::storage::{
 };
 use support::*;
 
+#[path = "bio_isolation_tests.rs"]
+mod isolation;
+
 #[test]
 fn final_authorization_requires_the_last_commit_at_every_cut_boundary() {
     for budget in 0..=2 {

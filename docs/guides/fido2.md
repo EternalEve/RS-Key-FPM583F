@@ -76,6 +76,13 @@ An incomplete reset retains isolation across boot and requires a new legal Reset
 startup does not automatically erase the module or regenerate the FIDO seed.
 A screen build also refuses its factory-wipe flow while biometric state remains.
 
+A stored directory, template or Reset record with zero bytes is damaged state.
+It blocks seed initialization and, in a build without fingerprint support,
+seed use and CTAP, Management or display resets. Missing configuration and a
+valid, non-isolated directory left by completed template deletion remain usable.
+Recover damaged state with a legal CTAP Reset in a fingerprint build, which
+clears and verifies the module before erasing the FIDO state.
+
 ## Presence for registration and login
 
 On the default touch build, registration and ordinary login ask for a fresh

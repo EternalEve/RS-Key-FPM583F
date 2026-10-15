@@ -242,15 +242,18 @@ pub fn configuration_clean<S: Storage>(fs: &mut Fs<S>) -> Result<bool, CtapError
     if reset_pending(fs)? {
         return Ok(false);
     }
-    if !fs
-        .try_has_data(EF_BIO_DIRECTORY)
+    // Empty records are malformed state, not evidence of an unconfigured module.
+    if fs
+        .try_read(EF_BIO_DIRECTORY, &mut [])
         .map_err(|_| CtapError::Other)?
+        .is_none()
     {
         let mut orphan = false;
         for slot in 0..MODULE_SLOTS {
             orphan |= fs
-                .try_has_data(EF_BIO_TEMPLATE + slot as u16)
-                .map_err(|_| CtapError::Other)?;
+                .try_read(EF_BIO_TEMPLATE + slot as u16, &mut [])
+                .map_err(|_| CtapError::Other)?
+                .is_some();
         }
         if !orphan {
             return Ok(true);

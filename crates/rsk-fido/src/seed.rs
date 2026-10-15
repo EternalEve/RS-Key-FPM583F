@@ -621,14 +621,9 @@ pub fn ensure_seed<S: Storage>(dev: &Device, fs: &mut Fs<S>, rng: &mut impl Rng)
     if crate::bio_directory::reset_pending(fs).map_err(|_| Error::ExecError)? {
         return Err(Error::ExecError);
     }
-    if fs.try_has_data(crate::consts::EF_BIO_DIRECTORY)? {
-        crate::bio_directory::read(fs).map_err(|_| Error::ExecError)?;
-        if !fs.try_has_key(EF_KEY_DEV)?
-            && !lock_state(fs)?
-            && !crate::bio_directory::configuration_clean(fs).map_err(|_| Error::ExecError)?
-        {
-            return Err(Error::ExecError);
-        }
+    let clean = crate::bio_directory::configuration_clean(fs).map_err(|_| Error::ExecError)?;
+    if !clean && !fs.try_has_key(EF_KEY_DEV)? && !lock_state(fs)? {
+        return Err(Error::ExecError);
     }
     ensure_seed_after_reset(dev, fs, rng)
 }

@@ -38,6 +38,14 @@ tag: the USB `bcdDevice` build counter (bumped on every behavior change), and
 
 ## [Unreleased]
 
+- **Biometric isolation:** treat present but empty directory, template and Reset
+  records as malformed. They refuse seed initialization and prevent a build
+  without fingerprint support from using the seed or clearing state through
+  CTAP Reset, Management or the display. Missing configuration and valid retired
+  records remain usable; a legal fingerprint Reset can clear damaged state after
+  verifying module cleanup. Existing record formats and PIN/passkey keys are
+  unchanged. **bcdDevice → 0x09E1.**
+
 - **Fingerprint cancellation:** retire the cancellation flag when the worker
   ends a dispatch, so a cancelled match or enrollment cannot cancel later
   requests. The current request keeps its cancellation through sensor completion;

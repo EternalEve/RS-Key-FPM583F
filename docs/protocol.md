@@ -736,6 +736,14 @@ fingerprint service is wired. The display factory-wipe flow also refuses retaine
 configuration switch. Ordinary HID/CCID session resets never clear the module. Disabling fingerprint while a binding, pending operation or isolation
 remains cannot load the FIDO seed; a clean retired directory may be retained.
 
+Record absence is distinct from a stored zero-length value: an empty directory,
+template or Reset record is malformed and is preserved on refusal. It cannot
+prove that no biometric configuration exists. Such records refuse seed
+initialization and, without a fingerprint service, seed use and CTAP Reset,
+Management resets and display wipes. A legal CTAP Reset with a fingerprint
+service may clear them after confirmed module cleanup. The v1 formats and valid
+retired-directory upgrade behavior are unchanged.
+
 ### 5.5 FPM583F UART profile (experimental)
 
 The selected profile follows the user-supplied FPM383C/583F V1.2.0 manual.

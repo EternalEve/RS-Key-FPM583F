@@ -568,24 +568,38 @@ fn the_pad_shuffle_does_not_repeat() {
 
 #[test]
 fn a_display_build_with_retained_biometric_isolation_cannot_factory_wipe() {
-    let env = Env::new();
-    env.fs
-        .borrow_mut()
-        .put(rsk_fido::consts::EF_CRED, &[0xC0; 32])
-        .unwrap();
-    rsk_fido::bio_directory::begin_reset(&mut env.fs.borrow_mut()).unwrap();
-    let mut samples = vec![None; 4];
-    samples.extend(vec![
-        Some(center(rsk_ui::DEL_HOLD_RECT));
-        (2 * HOLD_MS / TOUCH_POLL_MS) as usize
-    ]);
-    samples.extend([None, Some(crate::tests::nowhere()), None]);
-    let mut ui = env.ui(Pad::script(&samples));
-    assert!(
-        !ui.run_factory_reset(),
-        "retained biometric isolation must refuse even a confirmed display wipe"
-    );
-    assert!(rsk_fido::bio_directory::reset_pending(&mut env.fs.borrow_mut()).unwrap());
-    assert!(env.fs.borrow_mut().has_data(rsk_fido::consts::EF_CRED));
-    assert_eq!(ui.hooks.reboot, None);
+    for fid in [
+        None,
+        Some(rsk_fido::consts::EF_BIO_DIRECTORY),
+        Some(rsk_fido::consts::EF_BIO_TEMPLATE),
+    ] {
+        let env = Env::new();
+        env.fs
+            .borrow_mut()
+            .put(rsk_fido::consts::EF_CRED, &[0xC0; 32])
+            .unwrap();
+        if let Some(fid) = fid {
+            env.fs.borrow_mut().put(fid, &[]).unwrap();
+        } else {
+            rsk_fido::bio_directory::begin_reset(&mut env.fs.borrow_mut()).unwrap();
+        }
+        let mut samples = vec![None; 4];
+        samples.extend(vec![
+            Some(center(rsk_ui::DEL_HOLD_RECT));
+            (2 * HOLD_MS / TOUCH_POLL_MS) as usize
+        ]);
+        samples.extend([None, Some(crate::tests::nowhere()), None]);
+        let mut ui = env.ui(Pad::script(&samples));
+        assert!(
+            !ui.run_factory_reset(),
+            "retained biometric isolation must refuse even a confirmed display wipe"
+        );
+        if let Some(fid) = fid {
+            assert_eq!(env.fs.borrow_mut().try_read(fid, &mut []), Ok(Some(0)));
+        } else {
+            assert!(rsk_fido::bio_directory::reset_pending(&mut env.fs.borrow_mut()).unwrap());
+        }
+        assert!(env.fs.borrow_mut().has_data(rsk_fido::consts::EF_CRED));
+        assert_eq!(ui.hooks.reboot, None);
+    }
 }
