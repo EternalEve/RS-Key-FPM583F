@@ -42,3 +42,5 @@ nix develop --offline --no-update-lock-file -c env RSK_REPO_ROOT="$PWD" \
 必要观察：修复后的 R1 在确认排空且 ready、结束旧 dispatch 并开始新 dispatch 后为 `Ok(())`，新发出的取消仍返回 `Err(KeepAliveCancel)`；R2 连续九次正确 PIN 返回 `0x00`，PIN 次数保持 8，损坏的 UV 记录保持原样；R3 `0x0e/0x11/0x12` 均返回 `PoorQuality`、保留 1 个有效样本及剩余 5 次，继续采满后只保存一次；R5 有效隔离目录、非空坏记录及空坏记录均阻止无指纹 Reset 和种子使用，空坏记录返回 `Other` 并保持原样。四组均有合法正向控制。
 
 完整编译、客户端、复现和资源日志保存在本地忽略的 `target/fpm-review-evidence/`，不包含生产密钥或设备采集。命令重跑时日志耗时和临时路径会变化。
+
+E1 的信号跟踪、失败传播控制及再次采集方法见 [E1 排查记录](e1.md)。2026-10-16 按用户要求暂缓调查，保留未闭合状态及现有证据；历史两次退出 143 的发送方仍未确认，不能用本轮未复现替代归因。
