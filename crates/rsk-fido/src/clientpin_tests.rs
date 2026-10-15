@@ -3203,3 +3203,6 @@ fn a_faulted_grant_read_does_not_hand_out_a_new_pcmr_token() {
 // needs this module's fixture.
 #[path = "clientpin_perms_tests.rs"]
 mod perms;
+
+#[path = "clientpin_fingerprint_tests.rs"]
+mod fingerprint_pin;

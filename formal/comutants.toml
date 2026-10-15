@@ -490,19 +490,17 @@ note = "the wait confirms without a press at all."
 status = "patch"
 file = "crates/rsk-device/src/presence.rs"
 find = """
-    pub fn set_wait_scope(&self, scope: u8) {
         self.wait_scope.store(scope, Ordering::Release);
-    }
 """
 replace = """
-    pub fn set_wait_scope(&self, scope: u8) {
-        let scope = if scope == SCOPE_NONE { SCOPE_FIDO } else { scope };
-        self.wait_scope.store(scope, Ordering::Release);
-    }
+        self.wait_scope.store(
+            if scope == SCOPE_NONE { SCOPE_FIDO } else { scope },
+            Ordering::Release,
+        );
 """
 slice = ["cargo", "test", "-p", "rsk-device"]
 expect = "killed"
-note = "a host command claims the button over a live on-panel ceremony: SCOPE_NONE (the panel's) is overwritten with a host scope."
+note = "a host command claims the button over a live on-panel ceremony: SCOPE_NONE (the panel's) is overwritten with a host scope. Only the published scope changes; dispatch-end cancellation retirement still uses the original scope."
 
 [comutant.BugSoftLockLostOnWarmReset]
 status = "patch"

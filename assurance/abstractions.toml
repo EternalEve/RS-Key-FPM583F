@@ -83,10 +83,14 @@ body = '''
 - **The wait's scope is modelled as the owner of an open touch wait**, where the
   worker sets it around the whole dispatch (`Arbiter::set_wait_scope`). The
   review showed this is exactly as narrow as it sounds: the cancel is dropped at
-  **both** ends of a wait (`crates/rsk-device/src/presence.rs:215` *and*
-  `:254`), so removing either alone leaves the model green — a reviewer trusting
+  **both** ends of a wait (`crates/rsk-device/src/presence.rs:218` *and*
+  `:260`), so removing either alone leaves the model green — a reviewer trusting
   one citation would see nothing fall. The Kani harness has the same blind spot
   and says so; the unit test `w8_…` is what pins the drop at exit.
+  The model also retains stale cancels across dispatch end, while firmware's
+  `Arbiter::set_wait_scope(SCOPE_NONE)` now retires them. This is a conservative
+  over-approximation; the fingerprint host regressions cover later-request
+  recovery without extending the model's fingerprint claims.
 '''
 
 [[abstraction]]

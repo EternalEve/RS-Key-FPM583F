@@ -66,21 +66,21 @@ CONSTANTS
     BugNoConsumeAfterUp,          \* state.rs:591-609  GHSA-wqjm-653g-hgw3
     \* the three below cite crates/rsk-device/src/presence.rs -- the bare name
     \* also resolves to firmware/src/presence.rs since the arbitration was lifted
-    BugUnscopedCancel,            \* crates/rsk-device/src/presence.rs:129-133
-    BugTouchNotSpent,             \* crates/rsk-device/src/presence.rs:223-231,250
+    BugUnscopedCancel,            \* crates/rsk-device/src/presence.rs:132-136
+    BugTouchNotSpent,             \* crates/rsk-device/src/presence.rs:226-234,253
     BugSoftLockLostOnWarmReset,   \* ctap.rs:401-408   PinLock across sys_reset
     BugWarmResetReopensWindow,    \* reset.rs:270-271  in_reset_window
     BugCmWalkIgnoresChannel,      \* state.rs:169-180  may_walk_rps
     BugDeleteRpBeforeCred,        \* credmgmt.rs:686-694 deleteCredential order
     BugBackupSealedNotAGate,      \* reset.rs:226-263 is_fido_gate_fid (run-36)
     BugConsumeKeepsMcGa,          \* state.rs:604-609  a narrowed 6.5.5.7 triad
-    BugNoDropStaleCancelAtEntry,  \* crates/rsk-device/src/presence.rs:214-215
+    BugNoDropStaleCancelAtEntry,  \* crates/rsk-device/src/presence.rs:217-218
     BugWrongPinKeepsToken,        \* clientpin.rs:851  the pre-E38 tree
     BugSeedDoesNotLead,           \* reset.rs:116-128 / fs.rs `first`, pre-0x08BF
     BugNoTouchRequired,           \* the presence gate on mc / ga
     BugStateResetAfterWipe,       \* reset.rs:112-115 ctx.state.reset() ordering
     BugPanelCancelable,           \* the panel's half of request_cancel's scope test
-    BugUnscopedOtpCancel,         \* crates/rsk-device/src/presence.rs:138
+    BugUnscopedOtpCancel,         \* crates/rsk-device/src/presence.rs:141
     BugLocalPinKeepsToken,        \* crates/rsk-display/src/gates.rs:149
     BugSetPinOverExisting,        \* clientpin.rs:190-192 setPIN over a live PIN
     BugHostPreemptsLocalWait,     \* the button's owner, taken by a host command
@@ -317,7 +317,7 @@ KeepSurv(sn, reach) == IF reach THEN sn
 
 (***************************************************************************)
 (* Presence -- one physical button serves every applet, so the wait carries *)
-(* an owner. crates/rsk-device/src/presence.rs:25-188, 209-274.            *)
+(* an owner. crates/rsk-device/src/presence.rs:25-191, 212-277.            *)
 (***************************************************************************)
 
 Idle == op.kind = "none"
@@ -345,10 +345,10 @@ ButtonFreeGuard  == IF BugHostPreemptsLocalWait THEN TRUE
                                                 ELSE pres.scope = NoOwner
 ButtonFreePolicy == pres.scope = NoOwner
 
-\* ButtonWait::wait entry: crates/rsk-device/src/presence.rs:214-215 drops a
+\* ButtonWait::wait entry: crates/rsk-device/src/presence.rs:217-218 drops a
 \* cancel left over from an already-finished request, so each wait starts clean.
-\* It is the ONLY thing that eats a cancel latched by a dispatch that never
-\* waited -- see HostCancelLatched; the exit clear at :225-226 cannot help there.
+\* The model retains stale dispatch cancels (HostCancelLatched); firmware also
+\* retires them at dispatch end through Arbiter::set_wait_scope(SCOPE_NONE).
 OpenWaitFor(t) ==
     IF BugNoDropStaleCancelAtEntry
       THEN [pres EXCEPT !.scope = t, !.granted = "none"]
@@ -356,8 +356,8 @@ OpenWaitFor(t) ==
                         !.granted = "none"]
 
 \* The dispatch is over; set_wait_scope(SCOPE_NONE) so an on-panel ceremony is
-\* nobody's to cancel (crates/rsk-device/src/presence.rs:110-116), and
-\* :226 clears a cancel that raced in.
+\* nobody's to cancel (crates/rsk-device/src/presence.rs:110-119), and
+\* ButtonWait::wait also clears a cancel that raced in at its own exit.
 ClosedWait(p) ==
     IF BugWaitScopeNotCleared
       THEN [p EXCEPT !.cancelReq = FALSE, !.cancelBy = NoOwner,
@@ -366,7 +366,7 @@ ClosedWait(p) ==
                      !.cancelBy = NoOwner, !.granted = "none"]
 
 \* The user's finger. PressUp clears `spent` exactly as
-\* crates/rsk-device/src/presence.rs:230 does.
+\* crates/rsk-device/src/presence.rs:233 does.
 \* `usedBy` is a ghost naming the transport that has already been served by the
 \* CURRENT continuous hold, so it is cleared by every release: a second press
 \* is a second consent, and only an uninterrupted hold can be double-spent.
@@ -384,7 +384,7 @@ PressUp ==
                     upSpent, viol, ram >>
 
 \* CTAPHID_CANCEL for the channel being processed. rsk-usb ctaphid.rs:806-826
-\* raises it; crates/rsk-device/src/presence.rs:129-133 is the scope check that decides
+\* raises it; crates/rsk-device/src/presence.rs:132-136 is the scope check that decides
 \* whether it may end THIS wait. Only the CTAPHID transport can send one.
 \* E45's ruling in one line: request_cancel accepts ONLY while the wait it would
 \* end belongs to CTAPHID, so a host cancel is a no-op against a CCID ceremony,
@@ -401,11 +401,11 @@ HostCancel ==
     /\ UNCHANGED << pin, gate, store, lock, tok, plat, walk, sys, op, snap,
                     upSpent, viol, ram >>
 
-\* WAIT_SCOPE is set around the whole DISPATCH (worker.rs:465, :521), not around
+\* WAIT_SCOPE is set around the whole DISPATCH (worker.rs:465, :562), not around
 \* the touch wait, so Arbiter::request_cancel accepts a cancel during a FIDO
 \* command that never opens one -- getInfo, a denied CBOR, getAssertion up:false.
-\* Nothing clears `cancel_requested` when that dispatch ends, so the latch
-\* survives into the next transport's wait and only the wait-entry clear eats it.
+\* Conservatively retains the pre-R1 latch across dispatch end; firmware now
+\* clears it there. This action is wider than that implementation.
 \* Modelling the cancel as raisable ONLY inside an open wait made that defence
 \* look redundant. Wider than the firmware in one direction (a CCID dispatch
 \* holds SCOPE_CCID, which request_cancel refuses) -- sound for safety.
@@ -416,7 +416,7 @@ HostCancelLatched ==
     /\ UNCHANGED << pin, gate, store, lock, tok, plat, walk, sys, op, snap,
                     upSpent, viol, ram >>
 
-\* crates/rsk-device/src/presence.rs:223-228: a press the previous
+\* crates/rsk-device/src/presence.rs:226-231: a press the previous
 \* ceremony already consumed is not
 \* consent for this one. `stillHeld` is the debounce at :277-288 giving up with
 \* the finger down (TRUE) or the user releasing (FALSE); both are reachable.
@@ -438,7 +438,7 @@ TouchConfirm ==
     /\ UNCHANGED << pin, gate, store, lock, tok, plat, walk, sys, op, snap,
                     upSpent, ram >>
 
-\* crates/rsk-device/src/presence.rs:232-234. A cancel raised by
+\* crates/rsk-device/src/presence.rs:235-237. A cancel raised by
 \* transport A must never end a wait
 \* owned by transport B.
 TouchCancel ==
@@ -451,7 +451,7 @@ TouchCancel ==
     /\ UNCHANGED << pin, gate, store, lock, tok, plat, walk, sys, op, snap,
                     upSpent, ram >>
 
-\* crates/rsk-device/src/presence.rs:235-237. Modelled as always
+\* crates/rsk-device/src/presence.rs:238-240. Modelled as always
 \* enabled rather than tied to the
 \* clock: an over-approximation (more behaviours), sound for safety.
 TouchTimeout ==
@@ -500,7 +500,7 @@ LocalCeremonyEnds ==
     /\ UNCHANGED << pin, gate, store, lock, tok, plat, walk, sys, op, snap,
                     upSpent, viol, ram >>
 
-\* cancel_otp_wait (crates/rsk-device/src/presence.rs:137-148): the host's dummy
+\* cancel_otp_wait (crates/rsk-device/src/presence.rs:140-151): the host's dummy
 \* 0x8f write, or a frame that supersedes the wait, ends an OTP ceremony. It is a
 \* SECOND writer of the same `cancel_requested` AtomicBool the CTAPHID door
 \* writes, and the only thing keeping the two apart is its own scope test -- the
@@ -667,7 +667,7 @@ PinAttemptPolicy == pin.set /\ pin.retries > 0 /\ lock.policyMism < MismatchLimi
 TokenIssuanceGuard  == IF BugForceChangeIgnored THEN TRUE ELSE ~gate.forceChange
 TokenIssuancePolicy == ~gate.forceChange
 
-\* clientpin.rs:810-889. The lockout ladder: spend, read back, compare.
+\* clientpin.rs:810-886. The lockout ladder: spend, read back, compare.
 \* `policy` is the SECOND refusal, and it belongs to the issuing doors rather
 \* than to the ladder: the forced-change check runs after the verify, costs no
 \* retry, and the change door -- which is how the flag is cleared -- must not
@@ -678,7 +678,7 @@ PinAttempt(correct, policy) ==
     /\ viol' = IF PinAttemptPolicy /\ policy THEN viol
                                    ELSE viol \cup {"NoAuthorizationBypass"}
     /\ IF correct
-         THEN \* clientpin.rs:885-887 reset the budget and the mismatch batch.
+         THEN \* clientpin.rs:882-886 reset the budget and the mismatch batch.
               /\ pin' = [pin EXCEPT !.retries = MaxRetries]
               /\ lock' = [soft |-> FALSE, mism |-> 0, policyMism |-> 0]
          ELSE LET r == pin.retries - 1 IN
@@ -1660,7 +1660,7 @@ OpAdvances ==
     \/ ResetFinish \/ ResetAborts
 
 \* The presence wait times out on its own budget
-\* (crates/rsk-device/src/presence.rs:235-236),
+\* (crates/rsk-device/src/presence.rs:238-239),
 \* so it resolves with no finger and no cancel. This is the assumption that makes
 \* every ceremony terminate, and it is the one the firmware most clearly owes.
 \*

@@ -633,7 +633,10 @@ Matching reports PROCESSING; input waiting reports UPNEEDED. Same-CID INIT
 requests cancellation and replies after the old job has completed, suppressing
 that job's ordinary reply. Other initial commands receive CHANNEL_BUSY. The
 experimental sensor remains draining until its old responses are gone and it
-confirms idle; a 2 s drain timeout makes the sensor unavailable.
+confirms idle; a 2 s drain timeout makes the sensor unavailable. Sensor completion
+does not clear the fingerprint request's cancellation. The worker clears it when
+returning its scope to idle, so later requests do not inherit it. Clearing this
+flag does not bypass the sensor's drain.
 
 The optional fingerprint context accepts only a current authorized slot and
 binding generation from a fresh operation. Direct UV and clientPIN UV token
@@ -647,8 +650,12 @@ The internal `EF_UV_STATE` record (FID `0x1092`) is exactly three bytes:
 unknown-version or malformed state under an authorized binding refuses UV.
 Before starting the sensor, a retry is persisted and read back; failed commits
 refuse authorization. Only a known input timeout before matching refunds that
-retry. Successful fingerprint UV or a correct PIN restores the UV budget; a
-fingerprint success does not clear the PIN soft lock. Exhausting PIN disables
+retry. Successful fingerprint UV restores the UV budget. A correct PIN first
+restores its own persistent retry budget, then restores a valid UV retry record.
+Missing, malformed or unknown-version UV records remain unchanged and refuse UV;
+they do not block PIN token issuance or PIN changes. Actual UV storage errors
+still fail the request before a new token is issued. A fingerprint success does
+not clear the PIN soft lock. Exhausting PIN disables
 fingerprint UV. Reset deletes this ordinary deny-state record with other FIDO
 state. Existing builds without a fingerprint context never initialize it, and
 older provisioned PIN/passkey records retain their layouts and keys.

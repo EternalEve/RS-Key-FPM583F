@@ -2,8 +2,8 @@
 # page, cited file, span, and the first and last line as they read when
 # locked. Read the diff — a changed line here is a citation changing what
 # it points at, which is the thing this file exists to make visible.
-assurance/abstractions.toml	crates/rsk-device/src/presence.rs	215-215	arb.set_cancel_requested(false);	arb.set_cancel_requested(false);
-assurance/abstractions.toml	crates/rsk-device/src/presence.rs	254-254	arb.set_up_pending(false);	arb.set_up_pending(false);
+assurance/abstractions.toml	crates/rsk-device/src/presence.rs	218-218	arb.set_cancel_requested(false);	arb.set_cancel_requested(false);
+assurance/abstractions.toml	crates/rsk-device/src/presence.rs	260-260	arb.set_cancel_requested(false);	arb.set_cancel_requested(false);
 assurance/abstractions.toml	crates/rsk-fido/src/makecredential.rs	595-597	if pin_set && req.rk {	}
 assurance/abstractions.toml	crates/rsk-fido/src/makecredential.rs	829-830	if req.rk	&& let Err(err) = credential_store(
 assurance/abstractions.toml	crates/rsk-fido/src/reset.rs	38-38	if !ctx.presence.shows_confirm() && !in_reset_window(ctx) {	if !ctx.presence.shows_confirm() && !in_reset_window(ctx) {
@@ -12,7 +12,7 @@ assurance/abstractions.toml	crates/rsk-fido/src/state.rs	329-336	/// drops the c
 assurance/abstractions.toml	crates/rsk-fido/src/state.rs	559-559	if self.paut.in_use {	if self.paut.in_use {
 assurance/abstractions.toml	crates/rsk-oath/src/lib.rs	330-332	if !self.validated {	}
 assurance/assumptions.toml	crates/rsk-fido/src/clientpin.rs	382-388	if force_change_pending(ctx) {	}
-assurance/assumptions.toml	crates/rsk-fido/src/clientpin.rs	876-889	if migrated && rsk_fs::request_rescrub(ctx.fs).is_err() {	.map_err(|_| CtapError::Other)?;
+assurance/assumptions.toml	crates/rsk-fido/src/clientpin.rs	876-885	if migrated && rsk_fs::request_rescrub(ctx.fs).is_err() {	.map_err(|_| CtapError::Other)?;
 assurance/assumptions.toml	crates/rsk-fs/src/fs_tests.rs	392-392	fn a_reset_between_a_re_key_and_its_rescrub_leaves_the_marker_lying() {	fn a_reset_between_a_re_key_and_its_rescrub_leaves_the_marker_lying() {
 assurance/assumptions.toml	crates/rsk-fs/src/lib.rs	47-61	/// **Call it BEFORE the write, and make that write conditional on `Ok`.** Order is	pub fn request_rescrub<S: Storage>(fs: &mut Fs<S>) -> Result<()> {
 assurance/assumptions.toml	firmware/src/pin_lock.rs	36-37	const TAG: u32 = 0x5253_4B00;	const TAG_MASK: u32 = 0xFFFF_FF00;
@@ -57,13 +57,13 @@ assurance/bundle/SEC-FIDO-002.toml	crates/rsk-device/src/presence.rs	4-21	//! Pr
 assurance/bundle/SEC-FIDO-002.toml	crates/rsk-device/src/presence.rs	13-14	//! touch the key for somebody else's operation. CTAP 2.1 §11.2.9.1.4 scopes a	//! cancel to its own channel.
 assurance/bundle/SEC-FIDO-002.toml	crates/rsk-device/src/presence.rs	26-32	pub const SCOPE_NONE: u8 = 0;	pub const SCOPE_OTP: u8 = 3;
 assurance/bundle/SEC-FIDO-002.toml	crates/rsk-device/src/presence.rs	77-82	/// Cross-executor presence/cancellation state and the runtime touch-wait timeout.	pub struct Arbiter {
-assurance/bundle/SEC-FIDO-002.toml	crates/rsk-device/src/presence.rs	120-120	/// Refines `RSKeySecurityState!NoCrossTransportTouchConsumption` — SEC-FIDO-002.	/// Refines `RSKeySecurityState!NoCrossTransportTouchConsumption` — SEC-FIDO-002.
-assurance/bundle/SEC-FIDO-002.toml	crates/rsk-device/src/presence.rs	128-128	/// Refines `RSKeySecurityState!NoCrossTransportTouchConsumption` — SEC-FIDO-002.	/// Refines `RSKeySecurityState!NoCrossTransportTouchConsumption` — SEC-FIDO-002.
-assurance/bundle/SEC-FIDO-002.toml	crates/rsk-device/src/presence.rs	129-133	pub fn request_cancel(&self) {	}
-assurance/bundle/SEC-FIDO-002.toml	crates/rsk-device/src/presence.rs	131-131	self.cancel_requested.store(true, Ordering::Release);	self.cancel_requested.store(true, Ordering::Release);
-assurance/bundle/SEC-FIDO-002.toml	crates/rsk-device/src/presence.rs	139-139	/// Refines `RSKeySecurityState!NoCrossTransportTouchConsumption` — SEC-FIDO-002.	/// Refines `RSKeySecurityState!NoCrossTransportTouchConsumption` — SEC-FIDO-002.
-assurance/bundle/SEC-FIDO-002.toml	crates/rsk-device/src/presence.rs	254-257	arb.set_up_pending(false);	arb.set_cancel_requested(false);
-assurance/bundle/SEC-FIDO-002.toml	crates/rsk-device/src/presence.rs	284-284	#[cfg(kani)]	#[cfg(kani)]
+assurance/bundle/SEC-FIDO-002.toml	crates/rsk-device/src/presence.rs	123-123	/// Refines `RSKeySecurityState!NoCrossTransportTouchConsumption` — SEC-FIDO-002.	/// Refines `RSKeySecurityState!NoCrossTransportTouchConsumption` — SEC-FIDO-002.
+assurance/bundle/SEC-FIDO-002.toml	crates/rsk-device/src/presence.rs	131-131	/// Refines `RSKeySecurityState!NoCrossTransportTouchConsumption` — SEC-FIDO-002.	/// Refines `RSKeySecurityState!NoCrossTransportTouchConsumption` — SEC-FIDO-002.
+assurance/bundle/SEC-FIDO-002.toml	crates/rsk-device/src/presence.rs	132-136	pub fn request_cancel(&self) {	}
+assurance/bundle/SEC-FIDO-002.toml	crates/rsk-device/src/presence.rs	134-134	self.cancel_requested.store(true, Ordering::Release);	self.cancel_requested.store(true, Ordering::Release);
+assurance/bundle/SEC-FIDO-002.toml	crates/rsk-device/src/presence.rs	142-142	/// Refines `RSKeySecurityState!NoCrossTransportTouchConsumption` — SEC-FIDO-002.	/// Refines `RSKeySecurityState!NoCrossTransportTouchConsumption` — SEC-FIDO-002.
+assurance/bundle/SEC-FIDO-002.toml	crates/rsk-device/src/presence.rs	257-260	arb.set_up_pending(false);	arb.set_cancel_requested(false);
+assurance/bundle/SEC-FIDO-002.toml	crates/rsk-device/src/presence.rs	287-287	#[cfg(kani)]	#[cfg(kani)]
 assurance/bundle/SEC-FIDO-002.toml	crates/rsk-device/src/presence_kani.rs	20-25	const BUDGET_POLLS: u32 = 3;	const _: () = assert!(BUDGET_POLLS + 3 == 6);
 assurance/bundle/SEC-FIDO-002.toml	crates/rsk-device/src/presence_kani.rs	158-158	arb.set_cancel_requested(true);	arb.set_cancel_requested(true);
 assurance/bundle/SEC-FIDO-002.toml	crates/rsk-device/src/presence_tests.rs	222-222	fn a5_a6_request_cancel_only_bites_under_the_fido_scope() {	fn a5_a6_request_cancel_only_bites_under_the_fido_scope() {
@@ -426,10 +426,10 @@ assurance/platform.toml	crates/rsk-device/src/ccid.rs	326-326	pub fn factory_wip
 assurance/platform.toml	crates/rsk-device/src/ctap.rs	243-243	keydev_ram_raw: st.keydev_dec.is_some(),	keydev_ram_raw: st.keydev_dec.is_some(),
 assurance/platform.toml	crates/rsk-device/src/presence.rs	26-32	pub const SCOPE_NONE: u8 = 0;	pub const SCOPE_OTP: u8 = 3;
 assurance/platform.toml	crates/rsk-device/src/presence.rs	77-82	/// Cross-executor presence/cancellation state and the runtime touch-wait timeout.	pub struct Arbiter {
-assurance/platform.toml	crates/rsk-device/src/presence.rs	131-131	self.cancel_requested.store(true, Ordering::Release);	self.cancel_requested.store(true, Ordering::Release);
-assurance/platform.toml	crates/rsk-device/src/presence.rs	142-142	self.cancel_requested.store(true, Ordering::Relaxed);	self.cancel_requested.store(true, Ordering::Relaxed);
-assurance/platform.toml	crates/rsk-device/src/presence.rs	215-215	arb.set_cancel_requested(false);	arb.set_cancel_requested(false);
-assurance/platform.toml	crates/rsk-device/src/presence.rs	235-235	if board.now_us().wrapping_sub(start) >= timeout_us {	if board.now_us().wrapping_sub(start) >= timeout_us {
+assurance/platform.toml	crates/rsk-device/src/presence.rs	134-134	self.cancel_requested.store(true, Ordering::Release);	self.cancel_requested.store(true, Ordering::Release);
+assurance/platform.toml	crates/rsk-device/src/presence.rs	145-145	self.cancel_requested.store(true, Ordering::Relaxed);	self.cancel_requested.store(true, Ordering::Relaxed);
+assurance/platform.toml	crates/rsk-device/src/presence.rs	218-218	arb.set_cancel_requested(false);	arb.set_cancel_requested(false);
+assurance/platform.toml	crates/rsk-device/src/presence.rs	238-238	if board.now_us().wrapping_sub(start) >= timeout_us {	if board.now_us().wrapping_sub(start) >= timeout_us {
 assurance/platform.toml	crates/rsk-device/src/presence_kani.rs	158-158	arb.set_cancel_requested(true);	arb.set_cancel_requested(true);
 assurance/platform.toml	crates/rsk-display/src/backup.rs	47-47	can_reveal: st.has_seed && st.exportable && !st.sealed && !st.locked && device_pin_set,	can_reveal: st.has_seed && st.exportable && !st.sealed && !st.locked && device_pin_set,
 assurance/platform.toml	crates/rsk-display/src/gates.rs	11-11	/// shared; the backing record (`EF_DEVICE_PIN` vs `EF_PIN`) and the floor differ, and so	/// shared; the backing record (`EF_DEVICE_PIN` vs `EF_PIN`) and the floor differ, and so
@@ -640,12 +640,12 @@ formal/README.md	crates/rsk-device/src/ctap.rs	199-203	EF_PIN, EF_RP, MAX_RESIDE
 formal/README.md	crates/rsk-device/src/ctap.rs	256-263	.abstract_token(rsk_fido::TokenPersistentView {	/// the first conjunct of `crates/rsk-fido/src/clientpin.rs:655`. An INPUT to
 formal/README.md	crates/rsk-device/src/ctap_tests.rs	105-127	#[test]	}
 formal/README.md	crates/rsk-device/src/presence.rs	25-26	/// No host request in flight: an on-panel (local) flow owns the button.	pub const SCOPE_NONE: u8 = 0;
-formal/README.md	crates/rsk-device/src/presence.rs	129-133	pub fn request_cancel(&self) {	}
-formal/README.md	crates/rsk-device/src/presence.rs	137-148	/// the wait, and without that every later command reads "would block" until	}
-formal/README.md	crates/rsk-device/src/presence.rs	214-215	// this wait starts clean.	arb.set_cancel_requested(false);
-formal/README.md	crates/rsk-device/src/presence.rs	215-215	arb.set_cancel_requested(false);	arb.set_cancel_requested(false);
-formal/README.md	crates/rsk-device/src/presence.rs	235-236	if board.now_us().wrapping_sub(start) >= timeout_us {	break Outcome::Timeout;
-formal/README.md	crates/rsk-device/src/presence.rs	254-254	arb.set_up_pending(false);	arb.set_up_pending(false);
+formal/README.md	crates/rsk-device/src/presence.rs	132-136	pub fn request_cancel(&self) {	}
+formal/README.md	crates/rsk-device/src/presence.rs	140-151	/// the wait, and without that every later command reads "would block" until	}
+formal/README.md	crates/rsk-device/src/presence.rs	217-218	// this wait starts clean.	arb.set_cancel_requested(false);
+formal/README.md	crates/rsk-device/src/presence.rs	218-218	arb.set_cancel_requested(false);	arb.set_cancel_requested(false);
+formal/README.md	crates/rsk-device/src/presence.rs	238-239	if board.now_us().wrapping_sub(start) >= timeout_us {	break Outcome::Timeout;
+formal/README.md	crates/rsk-device/src/presence.rs	260-260	arb.set_cancel_requested(false);	arb.set_cancel_requested(false);
 formal/README.md	crates/rsk-display/src/gates.rs	117-203	pub(super) fn local_pin_gate(&mut self, scope: PinScope) -> bool {	}
 formal/README.md	crates/rsk-display/src/gates.rs	129-131	PinScope::Device => rsk_fido::passkeys::device_pin_retries_left(&mut fs),	};
 formal/README.md	crates/rsk-display/src/gates.rs	142-149	let mut pin = [0u8; 64];	let ends_host_token = scope == PinScope::Fido && retries.is_some_and(|left| left > 0);
@@ -666,7 +666,7 @@ formal/README.md	crates/rsk-fido/src/clientpin.rs	318-318	ctx.state.needs_power_
 formal/README.md	crates/rsk-fido/src/clientpin.rs	332-332	if req.permissions != 0 || req.rp_id.is_some() {	if req.permissions != 0 || req.rp_id.is_some() {
 formal/README.md	crates/rsk-fido/src/clientpin.rs	393-393	PERM_MC | PERM_GA	PERM_MC | PERM_GA
 formal/README.md	crates/rsk-fido/src/clientpin.rs	570-571	pub fn needs_confirm(self, shows_confirm: bool) -> bool {	!self.up_collected || shows_confirm
-formal/README.md	crates/rsk-fido/src/clientpin.rs	791-889	ctx: &mut Ctx<S, R>,	.map_err(|_| CtapError::Other)?;
+formal/README.md	crates/rsk-fido/src/clientpin.rs	791-886	ctx: &mut Ctx<S, R>,	ctx.state.new_pin_mismatches = 0;
 formal/README.md	crates/rsk-fido/src/clientpin.rs	829-829	if !matched && ctx.dev.otp_key.is_some() {	if !matched && ctx.dev.otp_key.is_some() {
 formal/README.md	crates/rsk-fido/src/clientpin.rs	851-851	if retries == 0 {	if retries == 0 {
 formal/README.md	crates/rsk-fido/src/clientpin.rs	900-904	/// here rather than in each caller: the `pcmr` grant is a flash record that no PIN	fn write_pin_verifier<S: Storage>(
@@ -817,7 +817,6 @@ formal/README.md	firmware/src/pin_lock.rs	18-21	//! a real power cycle clears it
 formal/README.md	firmware/src/presence.rs	104-111	/// User presence via BOOTSEL (default) or a dedicated GPIO button.	}
 formal/README.md	firmware/src/worker.rs	448-461	/// One transport (CTAPHID/CCID) request: run the synchronous dispatch and	let mut ex = EXCHANGE.lock().await;
 formal/README.md	firmware/src/worker.rs	465-465	crate::presence::set_wait_scope(match ex.kind {	crate::presence::set_wait_scope(match ex.kind {
-formal/README.md	firmware/src/worker.rs	555-555	ex.req[..rl].zeroize();	ex.req[..rl].zeroize();
 formal/README.md	firmware/src/worker.rs	560-562	// Nothing is in flight again: a wait started from here on is an on-panel	crate::presence::set_wait_scope(crate::presence::SCOPE_NONE);
 formal/README.md	firmware/src/worker.rs	562-562	crate::presence::set_wait_scope(crate::presence::SCOPE_NONE);	crate::presence::set_wait_scope(crate::presence::SCOPE_NONE);
 formal/README.md	firmware/src/worker.rs	695-697	// Scope any touch wait this command starts to the OTP transport, so a host	crate::presence::set_wait_scope(crate::presence::SCOPE_OTP);
@@ -884,7 +883,7 @@ formal/RSKeyAppletSeams.tla	crates/rsk-sdk/src/applet.rs	374-390	// answered to 
 formal/RSKeyAppletSeams.tla	crates/rsk-sdk/src/applet.rs	379-387	// A disabled applet is skipped, so its AID matches nothing	let reselect = self.current == Some(i);
 formal/RSKeyAppletSeams.tla	firmware/src/pin_lock.rs	12-21	//! [`rsk_fido::state::PinLock`] lives in RAM and is rebuilt clear on every boot,	//!
 formal/RSKeyBootHardening.tla	crates/rsk-fido/src/clientpin.rs	876-878	if migrated && rsk_fs::request_rescrub(ctx.fs).is_err() {	}
-formal/RSKeyBootHardening.tla	crates/rsk-fido/src/clientpin.rs	876-889	if migrated && rsk_fs::request_rescrub(ctx.fs).is_err() {	.map_err(|_| CtapError::Other)?;
+formal/RSKeyBootHardening.tla	crates/rsk-fido/src/clientpin.rs	876-885	if migrated && rsk_fs::request_rescrub(ctx.fs).is_err() {	.map_err(|_| CtapError::Other)?;
 formal/RSKeyBootHardening.tla	crates/rsk-fido/src/clientpin.rs	1278-1281	if migrated && rsk_fs::request_rescrub(fs).is_err() {	}
 formal/RSKeyBootHardening.tla	crates/rsk-fs/src/lib.rs	28-78	/// Set (`[1]`) once the post-OTP-provisioning at-rest hardening pass has run: the seal	}
 formal/RSKeyBootHardening.tla	crates/rsk-fs/src/lib.rs	62-62	let _ = fs.delete(EF_HARDENED);	let _ = fs.delete(EF_HARDENED);
@@ -911,24 +910,24 @@ formal/RSKeyRetryLattice.tla	crates/rsk-piv/src/lib.rs	1447-1447	puk: &[u8],	puk
 formal/RSKeySecurityState.tla	crates/rsk-device/src/ctap.rs	224-227	backup_sealed_record: fs.has_data(EF_BACKUP_SEALED),	credential_slots_raw: credentials.iter().filter(|present| **present).count() as u16,
 formal/RSKeySecurityState.tla	crates/rsk-device/src/ctap.rs	401-408	// Persist the clientPIN soft lock across a warm reboot. It is RAM-only, and a	.store_pin_lock(self.fido_state.borrow().pin_lock());
 formal/RSKeySecurityState.tla	crates/rsk-device/src/presence.rs	25-26	/// No host request in flight: an on-panel (local) flow owns the button.	pub const SCOPE_NONE: u8 = 0;
-formal/RSKeySecurityState.tla	crates/rsk-device/src/presence.rs	25-188	/// No host request in flight: an on-panel (local) flow owns the button.	}
+formal/RSKeySecurityState.tla	crates/rsk-device/src/presence.rs	25-191	/// No host request in flight: an on-panel (local) flow owns the button.	}
 formal/RSKeySecurityState.tla	crates/rsk-device/src/presence.rs	26-26	pub const SCOPE_NONE: u8 = 0;	pub const SCOPE_NONE: u8 = 0;
 formal/RSKeySecurityState.tla	crates/rsk-device/src/presence.rs	28-28	pub const SCOPE_FIDO: u8 = 1;	pub const SCOPE_FIDO: u8 = 1;
 formal/RSKeySecurityState.tla	crates/rsk-device/src/presence.rs	30-30	pub const SCOPE_CCID: u8 = 2;	pub const SCOPE_CCID: u8 = 2;
 formal/RSKeySecurityState.tla	crates/rsk-device/src/presence.rs	31-32	/// The keyboard interface's Yubico-OTP frame protocol.	pub const SCOPE_OTP: u8 = 3;
-formal/RSKeySecurityState.tla	crates/rsk-device/src/presence.rs	110-116	pub fn set_wait_scope(&self, scope: u8) {	}
-formal/RSKeySecurityState.tla	crates/rsk-device/src/presence.rs	129-133	pub fn request_cancel(&self) {	}
-formal/RSKeySecurityState.tla	crates/rsk-device/src/presence.rs	137-148	/// the wait, and without that every later command reads "would block" until	}
-formal/RSKeySecurityState.tla	crates/rsk-device/src/presence.rs	138-138	/// the wait times out.	/// the wait times out.
-formal/RSKeySecurityState.tla	crates/rsk-device/src/presence.rs	209-274	///	}
-formal/RSKeySecurityState.tla	crates/rsk-device/src/presence.rs	214-215	// this wait starts clean.	arb.set_cancel_requested(false);
-formal/RSKeySecurityState.tla	crates/rsk-device/src/presence.rs	223-228	if board.pressed() {	}
-formal/RSKeySecurityState.tla	crates/rsk-device/src/presence.rs	223-231	if board.pressed() {	}
-formal/RSKeySecurityState.tla	crates/rsk-device/src/presence.rs	230-230	self.spent = false;	self.spent = false;
-formal/RSKeySecurityState.tla	crates/rsk-device/src/presence.rs	232-234	if arb.cancel_requested() {	}
-formal/RSKeySecurityState.tla	crates/rsk-device/src/presence.rs	235-236	if board.now_us().wrapping_sub(start) >= timeout_us {	break Outcome::Timeout;
-formal/RSKeySecurityState.tla	crates/rsk-device/src/presence.rs	235-237	if board.now_us().wrapping_sub(start) >= timeout_us {	}
-formal/RSKeySecurityState.tla	crates/rsk-device/src/presence.rs	250-250	}	}
+formal/RSKeySecurityState.tla	crates/rsk-device/src/presence.rs	110-119	pub fn set_wait_scope(&self, scope: u8) {	}
+formal/RSKeySecurityState.tla	crates/rsk-device/src/presence.rs	132-136	pub fn request_cancel(&self) {	}
+formal/RSKeySecurityState.tla	crates/rsk-device/src/presence.rs	140-151	/// the wait, and without that every later command reads "would block" until	}
+formal/RSKeySecurityState.tla	crates/rsk-device/src/presence.rs	141-141	/// the wait times out.	/// the wait times out.
+formal/RSKeySecurityState.tla	crates/rsk-device/src/presence.rs	212-277	///	}
+formal/RSKeySecurityState.tla	crates/rsk-device/src/presence.rs	217-218	// this wait starts clean.	arb.set_cancel_requested(false);
+formal/RSKeySecurityState.tla	crates/rsk-device/src/presence.rs	226-231	if board.pressed() {	}
+formal/RSKeySecurityState.tla	crates/rsk-device/src/presence.rs	226-234	if board.pressed() {	}
+formal/RSKeySecurityState.tla	crates/rsk-device/src/presence.rs	233-233	self.spent = false;	self.spent = false;
+formal/RSKeySecurityState.tla	crates/rsk-device/src/presence.rs	235-237	if arb.cancel_requested() {	}
+formal/RSKeySecurityState.tla	crates/rsk-device/src/presence.rs	238-239	if board.now_us().wrapping_sub(start) >= timeout_us {	break Outcome::Timeout;
+formal/RSKeySecurityState.tla	crates/rsk-device/src/presence.rs	238-240	if board.now_us().wrapping_sub(start) >= timeout_us {	}
+formal/RSKeySecurityState.tla	crates/rsk-device/src/presence.rs	253-253	}	}
 formal/RSKeySecurityState.tla	crates/rsk-display/src/gates.rs	117-203	pub(super) fn local_pin_gate(&mut self, scope: PinScope) -> bool {	}
 formal/RSKeySecurityState.tla	crates/rsk-display/src/gates.rs	129-131	PinScope::Device => rsk_fido::passkeys::device_pin_retries_left(&mut fs),	};
 formal/RSKeySecurityState.tla	crates/rsk-display/src/gates.rs	142-149	let mut pin = [0u8; 64];	let ends_host_token = scope == PinScope::Fido && retries.is_some_and(|left| left > 0);
@@ -952,11 +951,11 @@ formal/RSKeySecurityState.tla	crates/rsk-fido/src/clientpin.rs	418-423	// persis
 formal/RSKeySecurityState.tla	crates/rsk-fido/src/clientpin.rs	424-440	ctx.state.reset_pin_uv_auth_token(ctx.rng);	ctx.state.paut.token
 formal/RSKeySecurityState.tla	crates/rsk-fido/src/clientpin.rs	500-502	if force_change_pending(ctx) {	}
 formal/RSKeySecurityState.tla	crates/rsk-fido/src/clientpin.rs	807-807	return Err(CtapError::PinBlocked);	return Err(CtapError::PinBlocked);
-formal/RSKeySecurityState.tla	crates/rsk-fido/src/clientpin.rs	810-889	ctx.fs	.map_err(|_| CtapError::Other)?;
+formal/RSKeySecurityState.tla	crates/rsk-fido/src/clientpin.rs	810-886	ctx.fs	ctx.state.new_pin_mismatches = 0;
 formal/RSKeySecurityState.tla	crates/rsk-fido/src/clientpin.rs	843-843	// A YubiKey 5.7.4 drops any outstanding pinUvAuthToken here too, through	// A YubiKey 5.7.4 drops any outstanding pinUvAuthToken here too, through
 formal/RSKeySecurityState.tla	crates/rsk-fido/src/clientpin.rs	851-851	if retries == 0 {	if retries == 0 {
 formal/RSKeySecurityState.tla	crates/rsk-fido/src/clientpin.rs	852-857	// The transition into the hard lockout (later attempts are turned	ctx.state.new_pin_mismatches += 1;
-formal/RSKeySecurityState.tla	crates/rsk-fido/src/clientpin.rs	885-887	pin_data[0] = MAX_PIN_RETRIES;	ctx.fs
+formal/RSKeySecurityState.tla	crates/rsk-fido/src/clientpin.rs	882-886	pin_data[0] = MAX_PIN_RETRIES;	ctx.state.new_pin_mismatches = 0;
 formal/RSKeySecurityState.tla	crates/rsk-fido/src/clientpin.rs	1018-1042	fn store_new_pin<S: Storage, R: Rng>(	ctx.state.needs_power_cycle = false;
 formal/RSKeySecurityState.tla	crates/rsk-fido/src/clientpin.rs	1191-1195	/// at zero is a hard block — but deliberately omits the CTAP-session side effects	/// opens no faster path to grind the PIN than USB already does. The caller
 formal/RSKeySecurityState.tla	crates/rsk-fido/src/clientpin.rs	1197-1203	pub fn spend_and_verify_local_pin<S: Storage>(	}
@@ -1169,7 +1168,7 @@ scripts/comutate.py	crates/rsk-fido/src/state.rs	476-479	pub fn restore_pin_lock
 scripts/ct_gate.py	crates/rsk-bench/src/lib.rs	12-12	//! bigger than the 16 KB XIP cache, so which lines collide and evict depends on	//! bigger than the 16 KB XIP cache, so which lines collide and evict depends on
 scripts/ct_gate.py	crates/rsk-crypto/src/mac.rs	55-55	if a.len() != b.len() {	if a.len() != b.len() {
 scripts/ct_gate.py	crates/rsk-otp/src/lib.rs	717-717	if apdu.p1 == P1_CHAL_HMAC_SLOT1 || apdu.p1 == P1_CHAL_HMAC_SLOT2 {	if apdu.p1 == P1_CHAL_HMAC_SLOT1 || apdu.p1 == P1_CHAL_HMAC_SLOT2 {
-scripts/narrow_gate.py	crates/rsk-device/src/presence.rs	215-215	arb.set_cancel_requested(false);	arb.set_cancel_requested(false);
+scripts/narrow_gate.py	crates/rsk-device/src/presence.rs	218-218	arb.set_cancel_requested(false);	arb.set_cancel_requested(false);
 scripts/security_trace.py	crates/rsk-fido/src/clientpin.rs	136-136	match req.subcommand {	match req.subcommand {
 scripts/security_trace.py	crates/rsk-fido/src/config.rs	253-253	ctx.state.mark_token_used(ctx.now_ms);	ctx.state.mark_token_used(ctx.now_ms);
 scripts/security_trace.py	crates/rsk-fido/src/consts.rs	415-415	pub const RESET_WINDOW_MS: u64 = 10_000;	pub const RESET_WINDOW_MS: u64 = 10_000;

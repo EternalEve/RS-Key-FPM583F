@@ -217,21 +217,35 @@ pub struct Context<'a, S: Storage> {
     pub bindings: &'a mut dyn Bindings<S>,
 }
 
-pub fn retries<S: Storage>(fs: &mut Fs<S>) -> Result<Option<u8>, CtapError> {
+enum RetryRecord {
+    Missing,
+    Valid(u8),
+    Invalid,
+}
+
+fn read_retry_record<S: Storage>(fs: &mut Fs<S>) -> Result<RetryRecord, CtapError> {
     let mut record = [0; STATE_LEN + 1];
     match fs
         .try_read(EF_UV_STATE, &mut record)
         .map_err(|_| CtapError::Other)?
     {
-        None => Ok(None),
+        None => Ok(RetryRecord::Missing),
         Some(STATE_LEN)
             if record[0] == STATE_VERSION
                 && record[1] <= MAX_UV_RETRIES
                 && record[2] == !record[1] =>
         {
-            Ok(Some(record[1]))
+            Ok(RetryRecord::Valid(record[1]))
         }
-        Some(_) => Err(CtapError::Other),
+        Some(_) => Ok(RetryRecord::Invalid),
+    }
+}
+
+pub fn retries<S: Storage>(fs: &mut Fs<S>) -> Result<Option<u8>, CtapError> {
+    match read_retry_record(fs)? {
+        RetryRecord::Missing => Ok(None),
+        RetryRecord::Valid(remaining) => Ok(Some(remaining)),
+        RetryRecord::Invalid => Err(CtapError::Other),
     }
 }
 
@@ -259,10 +273,11 @@ pub fn initialize_unconfigured<S: Storage>(
 }
 
 pub(crate) fn restore_after_pin<S: Storage>(fs: &mut Fs<S>) -> Result<(), CtapError> {
-    if retries(fs)?.is_some() {
-        store_retries(fs, MAX_UV_RETRIES)?;
+    match read_retry_record(fs)? {
+        RetryRecord::Valid(_) => store_retries(fs, MAX_UV_RETRIES),
+        // Untrusted biometric state stays unavailable without blocking a verified PIN.
+        RetryRecord::Missing | RetryRecord::Invalid => Ok(()),
     }
-    Ok(())
 }
 
 pub(crate) fn configured<S: Storage, R: Rng>(ctx: &mut Ctx<S, R>) -> Result<bool, CtapError> {

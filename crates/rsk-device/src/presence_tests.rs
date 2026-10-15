@@ -556,3 +556,36 @@ fn a_scope_change_mid_wait_moves_the_advertisement_and_the_cancel_right() {
     assert!(board.saw_pending[SCOPE_FIDO as usize]);
     assert!(board.saw_pending[SCOPE_CCID as usize]);
 }
+
+#[test]
+fn completed_dispatch_retires_its_cancel_before_any_next_transport() {
+    for owner in [SCOPE_FIDO, SCOPE_OTP] {
+        for next in SCOPES {
+            let arb = Arbiter::new();
+            arb.set_wait_scope(owner);
+            if owner == SCOPE_FIDO {
+                arb.request_cancel();
+            } else {
+                arb.cancel_otp_wait();
+            }
+            assert!(arb.cancel_requested());
+            arb.set_wait_scope(SCOPE_NONE);
+            assert!(
+                !arb.cancel_requested(),
+                "completed scope {owner} kept its cancel"
+            );
+            arb.request_cancel();
+            arb.cancel_otp_wait();
+            arb.set_wait_scope(next);
+            assert!(!arb.cancel_requested(), "idle cancel reached scope {next}");
+        }
+    }
+}
+
+#[test]
+fn an_active_dispatch_retains_its_cancel_when_its_scope_is_repeated() {
+    let arb = armed(SCOPE_FIDO, 2);
+    arb.request_cancel();
+    arb.set_wait_scope(SCOPE_FIDO);
+    assert!(arb.cancel_requested());
+}

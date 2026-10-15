@@ -73,7 +73,7 @@ CONSTANTS
     RekeyOrderModelled,
     \* Under that split, the record first and the re-arm after it -- the order
     \* the tree shipped until the re-arm was hoisted AHEAD of the write. The pair
-    \* this switch orders is crates/rsk-fido/src/clientpin.rs:876-889, and it
+    \* this switch orders is crates/rsk-fido/src/clientpin.rs:876-885, and it
     \* reads the FALSE arm there now: the `rsk_fs::request_rescrub` and then the
     \* `fs.put` below it. TRUE is the arm a cut could catch -- between the two the
     \* marker stands over a copy the write has already superseded, and a reset

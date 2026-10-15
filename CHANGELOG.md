@@ -38,6 +38,19 @@ tag: the USB `bcdDevice` build counter (bumped on every behavior change), and
 
 ## [Unreleased]
 
+- **Fingerprint cancellation:** retire the cancellation flag when the worker
+  ends a dispatch, so a cancelled match or enrollment cannot cancel later
+  requests. The current request keeps its cancellation through sensor completion;
+  old module replies still drain before new work starts. Persistent records and
+  the wire format are unchanged. **bcdDevice → 0x09E0.**
+
+- **Fingerprint PIN fallback:** a correct PIN restores its own retry budget
+  before biometric recovery. Missing, malformed or unknown-version UV retry
+  records remain unchanged and refuse fingerprint verification, while PIN token
+  requests and PIN changes stay usable. Actual biometric storage errors still
+  fail the request without issuing a new token. Record layouts and existing
+  PIN/passkey keys are unchanged. **bcdDevice → 0x09DF.**
+
 - **FPM583F power and touch:** add opt-in active-low supply control and a separate
   FIDO touch input. Module work waits for bounded startup; inventory, matching,
   enrollment sessions and durable management commits retain power. Released,

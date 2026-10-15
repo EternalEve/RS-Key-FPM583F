@@ -104,11 +104,14 @@ impl Arbiter {
         }
     }
 
-    /// Mark which transport the worker is dispatching for. Set around every
-    /// dispatch, `SCOPE_NONE` between them so an on-panel ceremony is nobody's
-    /// to cancel.
+    /// Mark which transport the worker is dispatching for. `SCOPE_NONE` retires
+    /// that dispatch's cancel after unpublishing its owner; sensor completion
+    /// alone must not clear a cancel that still belongs to the current request.
     pub fn set_wait_scope(&self, scope: u8) {
         self.wait_scope.store(scope, Ordering::Release);
+        if scope == SCOPE_NONE {
+            self.set_cancel_requested(false);
+        }
     }
 
     pub fn wait_scope(&self) -> u8 {

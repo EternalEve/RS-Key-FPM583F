@@ -735,3 +735,7 @@ mod tests;
 #[cfg(test)]
 #[path = "fingerprint_power_driver_tests.rs"]
 mod power_tests;
+
+#[cfg(test)]
+#[path = "fingerprint_presence_tests.rs"]
+mod presence_tests;

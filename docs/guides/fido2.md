@@ -32,6 +32,11 @@ six successful samples, followed by confirmed save and directory authorization;
 failed samples can be retried. The module's percentage does not decide completion.
 Hardware delivery requires board and interoperability acceptance.
 
+Cancelling fingerprint matching or capture ends that request. Once its dispatch
+finishes, a new request can proceed without a button wait or reboot; the sensor
+must still drain the cancelled operation before starting new work. A failed
+drain leaves the sensor unavailable rather than accepting a late result.
+
 An opt-in switched-supply build keeps module VCC off until fingerprint work or
 inventory needs it. GetInfo, PIN and UP-only requests continue normally while
 it is off. Standard enrollment holds power through all six captures; cancelling,
@@ -56,6 +61,13 @@ button presence available; only a successful standard CTAP Reset clears FIDO
 credentials. A template saved during a failed enrollment remains isolated and
 can be enumerated and removed with authorized standard management after restart.
 Unknown inventory or unsupported record versions require an explicit legal Reset.
+
+Missing or malformed biometric retry records keep fingerprint verification
+unavailable, but a correct PIN still restores its own retries and can obtain a
+PIN token or change the PIN. These requests preserve the damaged biometric
+record; use a legal CTAP Reset and enroll again to restore fingerprint use.
+Actual storage read/write failures still return an error rather than issuing a
+new token.
 
 Management `0x1E` and its `0x1F` factory-reset alias are unavailable in fingerprint
 configurations because they acknowledge before completing the deferred erase.

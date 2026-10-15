@@ -879,14 +879,14 @@ fn spend_and_verify_pin_hash<S: Storage, R: Rng>(
     // Correct PIN: migrate a legacy PIN-wrapped seed to the plain format (the
     // only moment its outer layer is open), then reset the counter.
     migrate_keydev_pin(&ctx.dev, ctx.fs, pin_hash).map_err(|_| CtapError::Other)?;
-    if ctx.fingerprint.is_some() {
-        crate::fingerprint::restore_after_pin(ctx.fs)?;
-    }
     pin_data[0] = MAX_PIN_RETRIES;
-    ctx.state.new_pin_mismatches = 0;
     ctx.fs
         .put(EF_PIN, &pin_data)
         .map_err(|_| CtapError::Other)?;
+    ctx.state.new_pin_mismatches = 0;
+    if ctx.fingerprint.is_some() {
+        crate::fingerprint::restore_after_pin(ctx.fs)?;
+    }
     Ok(())
 }
 
