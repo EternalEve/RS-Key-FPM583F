@@ -29,7 +29,9 @@ The experimental `fingerprint` build includes standard BioEnrollment, PIN/BE
 management, persistent template bindings and reset isolation. Its FPM583F UART
 driver is shared with the isolated byte-level module fixture. Enrollment uses
 six successful samples, followed by confirmed save and directory authorization;
-failed samples can be retried. The module's percentage does not decide completion.
+failed samples can be retried. Moving the finger too far or too little reports
+poor-quality feedback and keeps prior good samples; retry the current sample.
+The module's percentage does not decide completion.
 Hardware delivery requires board and interoperability acceptance.
 
 Cancelling fingerprint matching or capture ends that request. Once its dispatch

@@ -763,6 +763,13 @@ the sensor. The module and bus remain trusted.
 | Cancellation | Complete any outstanding exchange, use `01 15` for capture/matching, then require a current original-result completion or forced-interruption result before reuse |
 | Ordinary sleep | `02 0C` with one-byte MODE=0; require an exact empty-payload success reply, both checksums and the echoed command before disabling UART and VCC. Deep sleep MODE=1 is not used |
 
+Capture-result (`01 12`) completion codes `0x11` (movement range too large)
+and `0x12` (too small) return standard `FP_POOR_QUALITY=7` feedback. They retain
+the current enrollment and prior good samples without reducing the remaining
+count or saving. The client may retry the same sample; final save and directory
+authorization still require all six good samples. Other unrecognized completion
+codes and invalid frames remain errors.
+
 With an opt-in VCC control pin, normal power-off means the service can start on
 demand, and does not change GetInfo's configured UV or management capabilities.
 Only actual module work wakes it: inventory, verification, authorized management

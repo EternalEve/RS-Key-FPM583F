@@ -243,7 +243,7 @@ fn r2_corrupt_uv_state_preserves_correct_pin_and_its_budget() {
 }
 
 #[test]
-fn r3_movement_feedback_aborts_the_sample_instead_of_allowing_a_retry() {
+fn r3_movement_feedback_preserves_samples_and_allows_retry() {
     use rsk_fido::bio_sensor::{self, Command, Feedback};
     for code in [0x0e, 0x11, 0x12] {
         let (mut driver, module, _) = fixture::driver();
@@ -266,30 +266,32 @@ fn r3_movement_feedback_aborts_the_sample_instead_of_allowing_a_retry() {
         module.borrow_mut().quality.push_back(code);
         let result = bio_sensor::execute(&mut driver, 1, capture(false, 5), 30_000);
         println!("R3: capture completion 0x{code:02x} returns {result:?}");
-        if code == 0x0e {
+        assert_eq!(
+            result,
+            Ok(bio_sensor::Result::Sample {
+                feedback: Feedback::PoorQuality,
+                remaining: 5,
+                saved: false
+            })
+        );
+        assert_eq!(module.borrow().good_samples, 1);
+        assert!(driver.ready());
+        assert_eq!(module.borrow().calls(0x0113), 0);
+        for remaining in (1..=5).rev() {
             assert_eq!(
-                result,
+                bio_sensor::execute(&mut driver, 1, capture(false, remaining), 30_000),
                 Ok(bio_sensor::Result::Sample {
-                    feedback: Feedback::PoorQuality,
-                    remaining: 5,
-                    saved: false
+                    feedback: Feedback::Good,
+                    remaining: remaining - 1,
+                    saved: remaining == 1,
                 })
             );
-            assert!(bio_sensor::execute(&mut driver, 1, capture(false, 5), 30_000).is_ok());
-        } else {
-            assert_eq!(result, Err(rsk_fido::CtapError::Other));
-            assert_eq!(module.borrow().good_samples, 1);
-            assert!(driver.ready(), "transport and hardware are still healthy");
-            assert_eq!(
-                bio_sensor::execute(&mut driver, 1, capture(false, 5), 30_000),
-                Err(rsk_fido::CtapError::Other)
-            );
-            assert_eq!(
-                module.borrow().calls(0x0111),
-                2,
-                "the continuation fails before a new capture is sent"
-            );
         }
+        assert_eq!(module.borrow().good_samples, 6);
+        assert!(module.borrow().slots[7]);
+        assert_eq!(module.borrow().calls(0x0111), 7);
+        assert_eq!(module.borrow().calls(0x0113), 1);
+        assert_eq!(module.borrow().calls(0x0114), 1);
     }
 }
 

@@ -25,6 +25,8 @@ const HEADER: [u8; 8] = [0xf1, 0x1f, 0xe2, 0x2e, 0xb6, 0x6b, 0xa8, 0x8a];
 enum Mode {
     Good,
     Poor,
+    MovementLarge,
+    MovementSmall,
     NoMatch,
     NoFinger,
     Wait,
@@ -44,6 +46,8 @@ impl Mode {
         match text.trim() {
             "good" => Ok(Self::Good),
             "poor" => Ok(Self::Poor),
+            "movement-large" => Ok(Self::MovementLarge),
+            "movement-small" => Ok(Self::MovementSmall),
             "nomatch" => Ok(Self::NoMatch),
             "nofinger" => Ok(Self::NoFinger),
             "wait" => Ok(Self::Wait),
@@ -184,6 +188,8 @@ impl Wire {
                     let result = *self.sample_result.get_or_insert_with(|| {
                         let code = match mode {
                             Mode::Poor => 0x0e,
+                            Mode::MovementLarge => 0x11,
+                            Mode::MovementSmall => 0x12,
                             Mode::NoFinger => 8,
                             _ => 0,
                         };

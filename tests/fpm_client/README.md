@@ -25,7 +25,9 @@ the host-tested event window covers old/duplicate pulses and high-at-arm rejecti
 
 Six successful manual captures initiate a single save. The fixture's sixth
 capture reports `PROC=60`, deliberately separating the approved sample-count
-policy from percentage. Failed samples retain the remaining count. Save/delete
+policy from percentage. Failed samples retain the remaining count. Quality,
+no-finger and excessive/insufficient movement feedback preserve prior good
+samples through a retry, final save and directory authorization. Save/delete
 response loss preserves the production pending/deleting recovery boundaries;
 the fixture never writes main-controller authorization records.
 

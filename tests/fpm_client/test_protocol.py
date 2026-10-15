@@ -81,22 +81,33 @@ def test_standard_six_sample_management_and_three_authorization_paths(wire_emula
     assert emu.store.stat().st_size == 1_048_592
 
 
-@pytest.mark.parametrize("mode,feedback", [("poor", 7), ("nofinger", 13)])
-def test_invalid_samples_leave_the_real_count_unchanged(wire_emulator, mode, feedback):
+@pytest.mark.parametrize("mode,feedback", [
+    ("poor", 7), ("nofinger", 13), ("movement-large", 7), ("movement-small", 7),
+])
+@pytest.mark.parametrize("good", [0, 1], ids=["initial", "continuation"])
+def test_invalid_samples_leave_the_real_count_unchanged(wire_emulator, mode, feedback, good):
     emu = wire_emulator
     api = bio(emu, set_pin(emu))
     context = api.enroll()
+    for _ in range(good):
+        context.capture()
+    template = context.template_id
     emu.script.write_text(mode + "\n")
     with pytest.raises(CaptureError) as caught:
         context.capture()
-    assert caught.value.code == feedback and context.remaining == 6
+    assert caught.value.code == feedback and context.remaining == 6 - good
+    assert template is None or context.template_id == template
+    template = context.template_id
     assert calls(emu, 0x0113) == 0
     emu.script.write_text("good\n")
-    for remaining in range(5, -1, -1):
+    for remaining in range(5 - good, -1, -1):
         context.capture()
         assert context.remaining == remaining
     assert calls(emu, 0x0111) == 7
     assert calls(emu, 0x0113) == 1
+    assert calls(emu, 0x0114) == 1
+    assert api.enumerate_enrollments() == {template: ""}
+    assert emu.ctap.get_info().options["uv"] is True
 
 
 def test_up_only_without_templates_never_sends_capture_or_match(wire_emulator):

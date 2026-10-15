@@ -87,6 +87,52 @@ fn failed_quality_and_busy_queries_do_not_count_as_samples() {
 }
 
 #[test]
+fn movement_feedback_preserves_samples_until_confirmed_save() {
+    for code in [0x11, 0x12] {
+        for good in [0, 1, 5] {
+            let (mut driver, module, _) = driver();
+            boot(&mut driver);
+            for sample in 0..good {
+                management(&mut driver, capture(sample == 0, 6 - sample)).unwrap();
+            }
+            let remaining = 6 - good;
+            for retry in 0..2 {
+                module.borrow_mut().quality.push_back(code);
+                assert_eq!(
+                    management(&mut driver, capture(good == 0 && retry == 0, remaining)),
+                    Ok(bio_sensor::Result::Sample {
+                        feedback: Feedback::PoorQuality,
+                        remaining,
+                        saved: false,
+                    }),
+                    "completion {code:#04x} after {good} good samples, retry {retry}"
+                );
+                assert!(driver.ready());
+                assert_eq!(module.borrow().good_samples, good);
+                assert_eq!(module.borrow().calls(0x0113), 0);
+                assert!(!module.borrow().slots[7]);
+            }
+            for remaining in (1..=remaining).rev() {
+                assert_eq!(
+                    management(&mut driver, capture(false, remaining)),
+                    Ok(bio_sensor::Result::Sample {
+                        feedback: Feedback::Good,
+                        remaining: remaining - 1,
+                        saved: remaining == 1,
+                    })
+                );
+                assert_eq!(module.borrow().calls(0x0113), usize::from(remaining == 1));
+            }
+            let module = module.borrow();
+            assert_eq!(module.good_samples, 6);
+            assert!(module.slots[7]);
+            assert_eq!(module.calls(0x0111), 8);
+            assert_eq!(module.calls(0x0114), 1);
+        }
+    }
+}
+
+#[test]
 fn continuation_requires_the_same_slot_generation_and_remaining_count() {
     let (mut driver, module, _) = driver();
     boot(&mut driver);

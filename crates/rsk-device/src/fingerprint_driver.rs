@@ -434,7 +434,7 @@ impl<U: Stream, C: Runtime> Driver<U, C> {
         if matches!(self.step, Step::CaptureResult) {
             let feedback = match completion.0 {
                 8 => Some(Feedback::NoActivity),
-                9 | 0x0e | 0x14 => Some(Feedback::PoorQuality),
+                9 | 0x0e | 0x11 | 0x12 | 0x14 => Some(Feedback::PoorQuality),
                 0x0f => Some(Feedback::Exists),
                 0x10 => Some(Feedback::TooShort),
                 _ => None,

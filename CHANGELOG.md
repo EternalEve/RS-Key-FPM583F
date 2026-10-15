@@ -38,6 +38,12 @@ tag: the USB `bcdDevice` build counter (bumped on every behavior change), and
 
 ## [Unreleased]
 
+- **FPM583F enrollment:** treat movement-range feedback (`0x11`/`0x12`) as
+  retryable poor-quality samples. Keep the enrollment session and prior good
+  samples without reducing the remaining count; saving still requires six good
+  samples and confirmed module save before directory authorization. Persistent
+  formats and PIN/passkey keys are unchanged. **bcdDevice → 0x09E2.**
+
 - **Biometric isolation:** treat present but empty directory, template and Reset
   records as malformed. They refuse seed initialization and prevent a build
   without fingerprint support from using the seed or clearing state through
