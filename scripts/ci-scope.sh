@@ -29,7 +29,7 @@ FIRMWARE='^(firmware/|crates/|Cargo\.(toml|lock)$|rust-toolchain|nix/(firmware|d
 
 # What the emulator runs, and what it runs against. `crates/` is in because the
 # emulator IS those crates; `tests/` and `third_party/` are the suites themselves.
-EMULATOR='^(tools/emu/|tests/|third_party/|crates/|firmware/|formal/|scripts/(emu-suites|usbip-suites|usbip-guest|security_trace|check)\.(sh|py)$|nix/|flake\.(nix|lock)$|Cargo\.(toml|lock)$|\.github/workflows/emulator\.yml$)'
+EMULATOR='^(tools/emu/|tests/|third_party/|crates/|firmware/|formal/|scripts/(emu-suites|standard-client|fingerprint-client|bio-client|ci-scope|usbip-suites|usbip-guest|security_trace|check)\.(sh|py)$|nix/|flake\.(nix|lock)$|Cargo\.(toml|lock)$|\.github/workflows/emulator\.yml$)'
 
 # What the Kani proofs are about: the crate libraries they run over, the manifests
 # that decide what is compiled into them, and the tier script itself. Not
@@ -109,7 +109,10 @@ crates/rsk-fido/src/getinfo.rs"                              "firmware=true emul
   check "nix/firmware.nix"     "nix/firmware.nix"            "firmware=true"
   check "nix/ccid.nix"         "nix/ccid.nix"                "firmware=false emulator=true"
   check "nix/host-tools.nix"   "nix/host-tools.nix"          "firmware=false"
-  check "this file"            "scripts/ci-scope.sh"         "firmware=false emulator=false docs_only=false"
+  check "this file"            "scripts/ci-scope.sh"         "firmware=false emulator=true docs_only=false"
+  check "standard client"      "scripts/standard-client.sh"  "emulator=true docs_only=false"
+  check "fingerprint client"   "scripts/fingerprint-client.sh" "emulator=true docs_only=false"
+  check "biometric client"     "scripts/bio-client.sh"       "emulator=true docs_only=false"
   check "nothing known"        ""                            "firmware=true emulator=true docs_only=false"
   # A path nobody has classified must not read as documentation.
   check "a new top-level dir"  "somewhere-new/thing.rs"      "docs_only=false"

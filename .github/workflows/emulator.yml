@@ -12,8 +12,9 @@
 # in the change that staled it. Gated on `scripts/ci-scope.sh` so an edit that
 # cannot reach the emulator does not boot one.
 #
-# Two halves, because the transport splits them:
-#   sockets — everything the emulator can serve over TCP, on the runner directly.
+# Separate jobs keep the long biometric matrix clear of the shorter TCP suites:
+#   sockets — TCP suites and the standard PIN/passkey + fingerprint clients.
+#   biometrics — full BioEnrollment and byte-module matrix, with diagnostic logs.
 #   usb     — `02`, `61`, `65`, `73`, `77` and the pico-fido conformance suite,
 #             which read USB descriptors or go through python-fido2's and
 #             pyscard's own transports. Those need a kernel that enumerated the
@@ -99,6 +100,16 @@ jobs:
         env:
           HOST_TARGET: x86_64-unknown-linux-gnu
 
+      - name: standard PIN and passkey client
+        run: nix develop -c ./scripts/standard-client.sh
+        env:
+          HOST_TARGET: x86_64-unknown-linux-gnu
+
+      - name: fingerprint authorization client
+        run: nix develop -c ./scripts/fingerprint-client.sh
+        env:
+          HOST_TARGET: x86_64-unknown-linux-gnu
+
       - name: emulator logs
         if: failure()
         run: |
@@ -106,6 +117,75 @@ jobs:
           # is usually the device saying why, not the suite.
           find /tmp -name '*.log' -newermt '-45 minutes' -path '*/tmp.*' \
             -exec sh -c 'echo "--- $1"; tail -40 "$1"' _ {} \; 2>/dev/null || true
+
+  biometrics:
+    needs: changes
+    if: needs.changes.outputs.emulator == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
+
+      - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.2
+        with:
+          primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.lock') }}
+          restore-prefixes-first-match: nix-${{ runner.os }}-
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            tools/emu/target
+          key: emu-biometrics-${{ runner.os }}-${{ hashFiles('tools/emu/Cargo.lock', 'flake.lock') }}
+          restore-keys: emu-biometrics-${{ runner.os }}-
+
+      - name: full biometric client matrix
+        # Leave time for diagnostics to upload after the matrix times out.
+        timeout-minutes: 50
+        env:
+          HOST_TARGET: x86_64-unknown-linux-gnu
+        run: |
+          log_dir=target/bio-client-ci
+          mkdir -p "$log_dir"
+          trap '
+            status=$?
+            trap - EXIT
+            {
+              printf "outer_status=%s\n" "$status"
+              date -u "+finished=%FT%TZ"
+              ps -eo pid,ppid,pgid,sid,etime,comm
+            } >> "$log_dir/status.txt" 2>&1 || true
+            exit "$status"
+          ' EXIT
+          trap 'printf "outer_signal=HUP\n" >> "$log_dir/status.txt"; exit 129' HUP
+          trap 'printf "outer_signal=INT\n" >> "$log_dir/status.txt"; exit 130' INT
+          trap 'printf "outer_signal=TERM\n" >> "$log_dir/status.txt"; exit 143' TERM
+          {
+            date -u '+started=%FT%TZ'
+            ps -eo pid,ppid,pgid,sid,etime,comm
+          } > "$log_dir/status.txt"
+          set +e
+          nix develop -c ./scripts/bio-client.sh 2>&1 | tee "$log_dir/runner.log"
+          pipeline_status=("${PIPESTATUS[@]}")
+          set -e
+          printf 'runner_status=%s\ntee_status=%s\n' "${pipeline_status[@]}" >> "$log_dir/status.txt"
+          if [ "${pipeline_status[0]}" -ne 0 ]; then
+            exit "${pipeline_status[0]}"
+          fi
+          exit "${pipeline_status[1]}"
+
+      - name: biometric runner diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: bio-client-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/bio-client-ci/
+          retention-days: 14
 
   usb:
     needs: changes

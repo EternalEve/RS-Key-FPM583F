@@ -37,6 +37,12 @@ below the 2560K code region), `cargo-audit`, `cargo-deny`, `cargo-vet` and
 `gitleaks`.
 Green check.sh is the bar for every commit.
 
+The experimental fingerprint candidate is also linted and release-linked with
+`--features fingerprint`, `FLASH_SIZE=2M`, `KVMAIN=896K`, GP2 touch and GP3 power
+control. Host Clippy and tests cover both emulator fixtures
+(`fingerprint-fixture` and `bio-fixture-2mb`). The final firmware build remains
+the no-touch test image; none of these checks operates a board.
+
 Two of those rows hold the crate tiers of
 [architecture.md](architecture.md#crates) rather than a dependency's licence or
 CVEs. `cargo-deny`'s `[bans]` stanza is the enforcing one: an applet that names
@@ -50,7 +56,8 @@ committed drawing has drifted from them; its mutation table is
 
 ## Host tests
 
-The standard-client emulator integration runs independently of the gate:
+The standard-client emulator integration runs separately from `check.sh`, and
+in the emulator CI's `sockets` job alongside `scripts/fingerprint-client.sh`:
 
 ```sh
 nix develop -c bash scripts/standard-client.sh
@@ -1062,7 +1069,14 @@ the trusted-display UI state machines, whose complexity is a separate concern.
 
 `nix develop -c ./scripts/bio-client.sh` exercises standard BioEnrollment against
 an isolated, independently persistent module fixture using python-fido2 2.2.1.
-The `emu` reproduction phase also runs it. The production directory and shared
+The emulator CI's independent `biometrics` job runs the complete biometric and
+byte-module matrix on pull requests, main pushes and the daily schedule; the
+`emu` reproduction phase also runs it. The CI job retains output, process
+snapshots, runner/pipeline exit codes and observed termination signals as a
+`bio-client-*` artifact for 14 days, including failures. Failures and timeouts
+remain failures. These diagnostics do not resolve the historical outer SIGTERM
+tracked as E1 in the [review](../RSKEY-FPM583F-REVIEW-2026-10-15.md).
+The production directory and shared
 FIDO policy are used over both HID and CCID; the fixture supplies module facts,
 not UV authorization. See [client acceptance](../tests/bio_client/README.md).
 Host tests in `bio_enrollment_tests.rs` cut actual Fs mutations and reopen the

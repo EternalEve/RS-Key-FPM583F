@@ -38,6 +38,12 @@ tag: the USB `bcdDevice` build counter (bumped on every behavior change), and
 
 ## [Unreleased]
 
+- **Fingerprint CI:** lint and release-link the 2 MB / GP2 touch / GP3 power
+  candidate in the merge gate, and test both emulator fixture configurations.
+  Run standard and fingerprint clients in emulator CI, with the full biometric
+  matrix in its own job retaining diagnostics on failure. Historical E1 signal
+  attribution remains unresolved; firmware behavior and versions are unchanged.
+
 - **FPM583F enrollment:** treat movement-range feedback (`0x11`/`0x12`) as
   retryable poor-quality samples. Keep the enrollment session and prior good
   samples without reducing the remaining count; saving still requires six good

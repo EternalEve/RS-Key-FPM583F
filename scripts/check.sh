@@ -9,6 +9,11 @@ cd "$(dirname "$0")/.."
 
 HOST="${HOST_TARGET:-aarch64-apple-darwin}"
 
+# The screenless 2 MB candidate exercises UART0, GP2 touch and GP3 power control.
+FINGERPRINT_BUILD_ENV=(
+  FLASH_SIZE=2M KVMAIN=896K FINGERPRINT_TOUCH_PIN=2 FINGERPRINT_POWER_PIN=3
+)
+
 # Five rows below allocate a temp, and this was the one script in scripts/ with
 # no cleanup: ~10 GB of build trees per run, until a full volume took the machine
 # down mid-gate. Bash keeps exactly ONE EXIT trap, so the neighbours' per-site
@@ -444,6 +449,8 @@ run_tests "test (tui)"               cargo test --manifest-path tools/tui/Cargo.
 run "fmt (emu)"                cargo fmt --manifest-path tools/emu/Cargo.toml --check
 run "clippy (emu)"             cargo clippy --manifest-path tools/emu/Cargo.toml --target "$HOST" --all-targets -- -D warnings
 run "clippy (emu conformance)" cargo clippy --manifest-path tools/emu/Cargo.toml --target "$HOST" --all-targets --features fido-conformance -- -D warnings
+run "clippy (emu fingerprint-fixture)" cargo clippy --manifest-path tools/emu/Cargo.toml --target "$HOST" --all-targets --features fingerprint-fixture -- -D warnings
+run "clippy (emu bio-fixture-2mb)" cargo clippy --manifest-path tools/emu/Cargo.toml --target "$HOST" --all-targets --features bio-fixture-2mb -- -D warnings
 # fuzz/ is also its own (nightly) workspace. rustfmt needs no toolchain, so the
 # stable gate can format-check it here. Format fuzz/ with this same stable
 # rustfmt — not the .#fuzz nightly one, which lays imports out differently.
@@ -559,6 +566,7 @@ run_tests "test (bench)"             cargo test -p rsk-fido --features bench --t
 # Same reason for core1's counter read (INS 0x12): gated out of every build above,
 # so nothing would notice `core1::stats` rotting against the atomics it packs.
 run "clippy (core1-stats fw)"  cargo clippy -p firmware --features core1-stats -- -D warnings
+run "clippy (fingerprint firmware)" env "${FINGERPRINT_BUILD_ENV[@]}" cargo clippy --release -p firmware --target thumbv8m.main-none-eabihf --features fingerprint -- -D warnings
 # The display path (panel driver + touch) is `LED_KIND=none`-only, so the default
 # embedded clippy above never lints it — gate it explicitly, like the fips firmware.
 run "clippy (display firmware)" env LED_KIND=none cargo clippy -p firmware --features display -- -D warnings
@@ -607,6 +615,8 @@ run "registered owners in the shipped image" python scripts/owner_binding_gate.p
 # makes (display, 16mb) and the 4 MB gate above never exercised.
 run "build firmware (16M)"     env FLASH_SIZE=16M cargo build --release -p firmware
 run "partition table fences the store (16M)" partition_table_fences_the_store
+# Keep this before the no-touch build, which remains the gate's final firmware.
+run "build firmware (fingerprint)" env "${FINGERPRINT_BUILD_ENV[@]}" cargo build --release -p firmware --target thumbv8m.main-none-eabihf --features fingerprint
 # The trusted-display flavor must keep building from the same tree. Built
 # `LED_KIND=none` (the panel replaces the addressable LED and its backlight uses
 # GPIO16 — the compile_error guard in main.rs enforces this), and before the
@@ -687,6 +697,8 @@ run "cargo-audit (tui SCA)"    cargo audit --file tools/tui/Cargo.lock
 run_tests "test (emu)"               cargo test --manifest-path tools/emu/Cargo.toml --target "$HOST"
 run_tests "test (emu security trace)" cargo test --manifest-path tools/emu/Cargo.toml --target "$HOST" --features security-trace
 run_tests "test (emu conformance)"   cargo test --manifest-path tools/emu/Cargo.toml --target "$HOST" --features fido-conformance
+run_tests "test (emu fingerprint-fixture)" cargo test --manifest-path tools/emu/Cargo.toml --target "$HOST" --features fingerprint-fixture
+run_tests "test (emu bio-fixture-2mb)" cargo test --manifest-path tools/emu/Cargo.toml --target "$HOST" --features bio-fixture-2mb
 run "cargo-audit (emu SCA)"    cargo audit --file tools/emu/Cargo.lock
 # Also the crate-tier rule (deny.toml `[bans] deny`): an applet may not name
 # another applet, and a crypto backend may only be named by the facade.
