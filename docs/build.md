@@ -15,6 +15,43 @@ The middle step embeds the [partition table](#the-partition-table); skip it and
 the key ships with its storage exposed to the bootloader. `nix build .#firmware`
 folds all three together.
 
+## Build artifact identity
+
+`check.sh` builds each configuration in a separate target directory. The paths
+below end in `thumbv8m.main-none-eabihf/release/firmware`:
+
+| Configuration | Target directory |
+| --- | --- |
+| Default touch | `target/` |
+| 16 MB touch | `target/16mb/` |
+| Fingerprint candidate | `target/fingerprint/` |
+| Display | `target/display/` |
+| No-touch test | `target/no-touch/` |
+
+The default ELF remains touch-enabled after the full gate. All images carry a
+24-byte loadable `.rsk_build` marker generated from the actual Cargo features:
+`RSKBUILD`, then little-endian u32 format version (1), feature flags (bit 0
+no-touch, bit 1 fingerprint, bit 2 display), Flash bytes and KVMAIN bytes.
+The marker survives debug stripping, partition-table insertion and UF2 export.
+It prevents accidental mix-ups; it is not a signature or proof of provenance.
+
+`scripts/pt.sh` checks this marker before producing a packaged ELF. Normal
+packaging refuses no-touch images, including renamed ones, and missing,
+malformed or unknown markers. Older unmarked ELFs must be rebuilt from source.
+The Nix release packages and CI use the same checked entry point. The explicit
+test-only path requires an image that actually has no-touch enabled:
+
+```sh
+nix develop -c cargo build --release -p firmware --features no-touch --target-dir target/no-touch
+nix develop -c scripts/pt.sh --test-no-touch target/no-touch/thumbv8m.main-none-eabihf/release/firmware firmware-no-touch.elf
+nix develop -c picotool uf2 convert firmware-no-touch.elf -t elf firmware-no-touch.uf2
+```
+
+The `firmware-no-touch*` Nix packages select this test-only policy explicitly.
+Custom `mkFirmware` builds using no-touch must set `testNoTouch = true` too.
+Release publication retains its no-touch filename check and checks the packaged
+ELF's marker before copying its UF2 into the release assets.
+
 ```mermaid
 flowchart TD
     knobs["env knobs + cargo features"] --> build["cargo build (or nix build)"]
@@ -78,7 +115,7 @@ is added. The candidate screenless 2MB configuration is:
 
 ```sh
 FLASH_SIZE=2097152 KVMAIN=896K FINGERPRINT_POWER_PIN=3 FINGERPRINT_TOUCH_PIN=2 \
-  cargo build --release -p firmware --features fingerprint
+  cargo build --release -p firmware --features fingerprint --target-dir target/fingerprint
 ```
 
 Build inside `nix develop`. Omit `FINGERPRINT_POWER_PIN` for the constant-supply
@@ -188,7 +225,7 @@ cargo build --release -p firmware
 env VIDPID=Yubikey5 cargo build --release -p firmware
 
 # no-touch test build (for the automated suites)
-cargo build --release -p firmware --features no-touch
+cargo build --release -p firmware --features no-touch --target-dir target/no-touch
 
 # Nitrokey FIDO2 identity with its own version number
 env VIDPID=NitroFIDO2 FW_VERSION=1.4.0 cargo build --release -p firmware
@@ -308,7 +345,7 @@ packages (`nix build .#rsk-tui`).
 (signs) an unsigned image, reboots the device into BOOTSEL, loads it, then
 reboots. With no argument it seals the reproducible default firmware
 (`.#firmware`); pass a path to seal a flavor you built yourself
-(`nix run .#flash -- firmware-no-touch.uf2`). It reads the signing key from the
+(`nix run .#flash -- firmware-strict-config.uf2`). It reads the signing key from the
 host (`~/.rs-key-secrets/{secure_boot_key.pem,otp_secureboot.json}` by default,
 override the directory with `RS_KEY_SECRETS`) and stamps `--rollback 1` into the
 seal (set `RSK_ROLLBACK` to change). It prompts before flashing (`-y` skips). The
@@ -346,6 +383,6 @@ flowchart TD
   identity-independent and work on either build.
 - `bcdDevice` (USB device release) is an internal build counter, not the
   firmware version.
-- The two UF2 flavors on a release build of this repo:
-  `firmware.uf2` (touch) and `firmware-test.uf2` (no-touch). `scripts/check.sh`
-  builds both.
+- `scripts/check.sh` keeps separate touch and no-touch ELFs. Nix packages export
+  clearly named `.elf` and `.uf2` files; `firmware-no-touch*` packages are test
+  artifacts and are excluded from releases.

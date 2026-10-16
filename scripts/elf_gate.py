@@ -30,10 +30,9 @@ Three facts this measured that the tree's prose does not carry:
   held the whole set while this file had no producer code at all, so a THIRD
   compiler arriving through a dependency was invisible to both.
 
-The scope is the DEFAULT image and it says so: `check.sh` rebuilds this path
-three more times below this row (16 MB, display, no-touch), so a row placed with
-the other Python gates would audit the no-touch binary. The other profiles are a
-named gap in `assurance/image.toml`, not a silent one.
+The scope is the DEFAULT image and it says so: `check.sh` keeps the 16 MB,
+fingerprint, display and no-touch images in separate target directories. The
+other profiles are a named gap in `assurance/image.toml`, not a silent one.
 """
 
 from __future__ import annotations
@@ -140,11 +139,9 @@ def regions(root: pathlib.Path, text: str | None = None) -> dict[str, tuple[int,
 def read(root: pathlib.Path, elf: pathlib.Path) -> dict[str, str]:
     """The four reads of the binary, in ONE place so a case can hand them in.
 
-    That injection point is what stops the mutation table needing a linked image
-    and a cross toolchain — and with them, the wrong image: at the `pytest (gate
-    scripts)` row `target/` holds the NO-TOUCH build (measured: 0 `bootsel`
-    symbols against the default image's 2), while the row this file is the rule
-    for reads the default one, ~250 rows earlier.
+    The mutation table can hand in recorded tool output without depending on a
+    linked image or cross toolchain. The live row still reads the default ELF;
+    the other gate builds now use separate target directories.
 
     `--dwarf-depth=1` keeps the producer read to the compile-unit DIEs, and it
     narrows nothing: `DW_AT_producer` is a compile-unit attribute, and both reads

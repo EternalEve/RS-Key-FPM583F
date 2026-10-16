@@ -16,8 +16,8 @@ skips — the three corrections an audit drove, each of them measured:
   display and no-touch rebuilds have overwritten that one path. Measured on the
   tree `check.sh` left: the image standing at the pytest row defines **0**
   `bootsel` symbols, the default image **2**.
-  [`test_the_row_reads_the_default_image_because_of_where_it_sits`] holds that
-  window by content rather than by a line number that would rot. Measured while
+  [`test_the_row_reads_the_isolated_default_image`] now holds the isolated
+  default path. Measured while
   fixing it, and worth not over-claiming: today the no-touch image satisfies this
   registry too — same 5 LOAD segments, same W+X, same 165 compile units — so the
   defect was that the cases certified a DIFFERENT binary than the row, not that
@@ -350,14 +350,8 @@ def test_the_declaration_pattern_is_anchored_to_the_attribute():
     assert not elf_gate.GLOBAL_ALLOCATOR.search("let global_allocator = 1;")
 
 
-def test_the_row_reads_the_default_image_because_of_where_it_sits():
-    """The registry says DEFAULT profile; nothing but the row's POSITION makes
-    that true. `target/…/release/firmware` is one path that four `-p firmware`
-    rows write in turn, so the row moved down to the other Python gates would
-    audit the no-touch binary against a registry describing the shipped one —
-    silently, since both are ELFs the parsers read. Measured on the tree
-    `check.sh` leaves: 0 `bootsel` symbols in that image against the default
-    image's 2."""
+def test_the_row_reads_the_isolated_default_image():
+    """The registry and gate must agree on the preserved default ELF."""
     default = row('run "build firmware (release)"')
     audits = row("python scripts/elf_gate.py")
     rebuilds = [
@@ -368,6 +362,11 @@ def test_the_row_reads_the_default_image_because_of_where_it_sits():
     pytest_row = row("python -m pytest scripts -q")
     assert default < audits < min(rebuilds), (default, audits, rebuilds)
     assert max(rebuilds) < pytest_row, (rebuilds, pytest_row)
+    source = (ROOT / "scripts/check.sh").read_text()
+    assert '--target-dir target\n' in source
+    for directory in ("16mb", "fingerprint", "display", "no-touch"):
+        assert f"--target-dir target/{directory}\n" in source
+    assert str(elf_gate.ELF) == "target/thumbv8m.main-none-eabihf/release/firmware"
 
 
 def test_the_table_can_go_red():

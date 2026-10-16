@@ -136,6 +136,7 @@ jobs:
           for pkg in firmware firmware-pqc firmware-fips firmware-fips-pqc firmware-strong-pin firmware-strong-pin-pqc firmware-always-uv firmware-always-uv-pqc firmware-strict-up firmware-strict-up-pqc firmware-display firmware-2mb firmware-16mb firmware-strict-config; do
             echo "::group::nix build .#$pkg"
             out="$(nix build ".#$pkg" --no-link --print-out-paths)"
+            nix develop -c python scripts/firmware_identity.py "$out/$pkg.elf"
             label="${pkg#firmware}"; label="${label#-}"
             [ -z "$label" ] && label="default"
             cp "$out/$pkg.uf2" "dist/rs-key-${tag}-${label}.uf2"

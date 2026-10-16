@@ -38,6 +38,12 @@ tag: the USB `bcdDevice` build counter (bumped on every behavior change), and
 
 ## [Unreleased]
 
+- **Build artifact safety:** keep the default, 16 MB, fingerprint, display and
+  no-touch gate images in separate target directories. Packaging checks a
+  loadable build marker and refuses no-touch or unidentified images unless the
+  explicit test-only path is selected. Protocols and persistent records are
+  unchanged; the new image metadata advances **bcdDevice → 0x09E3**.
+
 - **Fingerprint CI:** lint and release-link the 2 MB / GP2 touch / GP3 power
   candidate in the merge gate, and test both emulator fixture configurations.
   Run standard and fingerprint clients in emulator CI, with the full biometric

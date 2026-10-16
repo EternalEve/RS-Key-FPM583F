@@ -154,7 +154,7 @@ checksums, provenance, signing, notes, publication — are language-agnostic.
 
 ## What it costs the gate
 
-`scripts/check.sh` runs 130 rows: 61 invoke `cargo`, 48 are Python, 21 are
+`scripts/check.sh` runs 135 rows: 61 invoke `cargo`, 53 are Python, 21 are
 neither. A kernel outside Rust is invisible to a measured nine of them, and
 would need a twin for many more.
 

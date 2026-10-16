@@ -90,6 +90,7 @@ def test_candidate_rows_compile_the_real_fingerprint_configuration(tmp_path, ver
             if line.startswith("arg=")]
     assert args == [verb, "--release", "-p", "firmware", "--target",
                     "thumbv8m.main-none-eabihf", "--features", "fingerprint",
+                    *(["--target-dir", "target/fingerprint"] if verb == "build" else []),
                     *(["--", "-D", "warnings"] if verb == "clippy" else [])]
     for setting in ("FLASH_SIZE=2M", "KVMAIN=896K", "FINGERPRINT_TOUCH_PIN=2",
                     "FINGERPRINT_POWER_PIN=3"):

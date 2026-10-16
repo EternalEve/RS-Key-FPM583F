@@ -33,13 +33,13 @@ The last cell is DERIVED, not declared: the per-crate cargo-feature closure this
 | # | Configuration | Kind | Published | Cargo features | Knobs | Compiles unlike the default build |
 |---|---|---|---|---|---|---|
 | 01 | `firmware` | package | yes | — | — | — |
-| 02 | `firmware-no-touch` | package | no | `no-touch` | — | `firmware` +`no-touch` |
+| 02 | `firmware-no-touch` | package | no | `no-touch` | `testNoTouch=true` | `firmware` +`no-touch` |
 | 03 | `firmware-fips` | package | yes | `fips-profile` | — | `firmware` +`fips-profile`, `rsk-fido` +`fips-profile`, `rsk-piv` +`fips-profile` |
 | 04 | `firmware-pqc` | package | yes | `advertise-pqc` | — | `firmware` +`advertise-pqc`, `rsk-fido` +`advertise-pqc` |
 | 05 | `firmware-fips-pqc` | package | yes | `advertise-pqc`, `fips-profile` | — | `firmware` +`advertise-pqc` +`fips-profile`, `rsk-fido` +`advertise-pqc` +`fips-profile`, `rsk-piv` +`fips-profile` |
-| 06 | `firmware-no-touch-pqc` | package | no | `advertise-pqc`, `no-touch` | — | `firmware` +`advertise-pqc` +`no-touch`, `rsk-fido` +`advertise-pqc` |
-| 07 | `firmware-no-touch-fips` | package | no | `fips-profile`, `no-touch` | — | `firmware` +`fips-profile` +`no-touch`, `rsk-fido` +`fips-profile`, `rsk-piv` +`fips-profile` |
-| 08 | `firmware-no-touch-fips-pqc` | package | no | `advertise-pqc`, `fips-profile`, `no-touch` | — | `firmware` +`advertise-pqc` +`fips-profile` +`no-touch`, `rsk-fido` +`advertise-pqc` +`fips-profile`, `rsk-piv` +`fips-profile` |
+| 06 | `firmware-no-touch-pqc` | package | no | `advertise-pqc`, `no-touch` | `testNoTouch=true` | `firmware` +`advertise-pqc` +`no-touch`, `rsk-fido` +`advertise-pqc` |
+| 07 | `firmware-no-touch-fips` | package | no | `fips-profile`, `no-touch` | `testNoTouch=true` | `firmware` +`fips-profile` +`no-touch`, `rsk-fido` +`fips-profile`, `rsk-piv` +`fips-profile` |
+| 08 | `firmware-no-touch-fips-pqc` | package | no | `advertise-pqc`, `fips-profile`, `no-touch` | `testNoTouch=true` | `firmware` +`advertise-pqc` +`fips-profile` +`no-touch`, `rsk-fido` +`advertise-pqc` +`fips-profile`, `rsk-piv` +`fips-profile` |
 | 09 | `firmware-strong-pin` | package | yes | `strong-pin` | — | `firmware` +`strong-pin`, `rsk-fido` +`strong-pin` |
 | 10 | `firmware-strong-pin-pqc` | package | yes | `advertise-pqc`, `strong-pin` | — | `firmware` +`advertise-pqc` +`strong-pin`, `rsk-fido` +`advertise-pqc` +`strong-pin` |
 | 11 | `firmware-always-uv` | package | yes | `always-uv` | — | `firmware` +`always-uv`, `rsk-fido` +`always-uv` |

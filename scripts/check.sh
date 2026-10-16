@@ -135,11 +135,11 @@ embassy_revs_match() {
 # (one extra EC curve is ~150 KiB) — or any surprise growth trips it, while
 # ordinary build noise does not. Ratchet discipline: when the image shrinks,
 # lower this to lock the win in; when a real feature grows it, raise this in the
-# same commit. Measured on the default (shipping) build before the display/
-# no-touch rebuilds overwrite the ELF; arm-none-eabi-size ships in the dev shell.
+# same commit. Measured on the default (shipping) ELF; the other configurations
+# have separate target directories. arm-none-eabi-size ships in the dev shell.
 FIRMWARE_FLASH_BUDGET_KIB=918
 firmware_size_budget() {
-  local elf="target/thumbv8m.main-none-eabihf/release/firmware"
+  local elf=$1
   local bytes kib
   bytes=$(arm-none-eabi-size "$elf" | awk 'NR==2 { print $1 + $2 }')
   kib=$(( (bytes + 1023) / 1024 ))
@@ -159,7 +159,7 @@ firmware_size_budget() {
 # assume which is on top.
 FIRMWARE_STACK_FLOOR_KIB=168
 firmware_stack_floor() {
-  local elf="target/thumbv8m.main-none-eabihf/release/firmware"
+  local elf=$1
   local top bot kib
   top=$(arm-none-eabi-nm "$elf" | awk '$3 == "_stack_start" { print $1 }')
   bot=$(arm-none-eabi-nm "$elf" | awk '$3 == "_stack_end" { print $1 }')
@@ -184,7 +184,7 @@ firmware_stack_floor() {
 # way while the peak grows. A shared row would have reported an improvement.
 DISPLAY_STACK_FLOOR_KIB=168
 display_stack_floor() {
-  local elf="target/thumbv8m.main-none-eabihf/release/firmware"
+  local elf=$1
   local top bot kib
   top=$(arm-none-eabi-nm "$elf" | awk '$3 == "_stack_start" { print $1 }')
   bot=$(arm-none-eabi-nm "$elf" | awk '$3 == "_stack_end" { print $1 }')
@@ -265,7 +265,7 @@ assurance_trace_is_image_neutral() {
 # → all three names present, row red; `strip --strip-debug` → the control fires.
 DEBUG_VENDOR_METHODS=(core1_stats keygen_bench latency_bench)
 debug_vendor_commands_absent() {
-  local elf="target/thumbv8m.main-none-eabihf/release/firmware" m
+  local elf=$1 m
   if [ ! -f "$elf" ]; then
     echo "FAIL: $elf was not built, so there is nothing to check." >&2
     exit 1
@@ -298,7 +298,7 @@ debug_vendor_commands_absent() {
 # writes to its own flash. So assert the emitted table against the ELF's own
 # symbols — not against pt.sh's arithmetic, which is the thing under test.
 partition_table_fences_the_store() {
-  local elf="target/thumbv8m.main-none-eabihf/release/firmware"
+  local elf=$1
   local dir out line want got
   dir=$(mktemp -d)
   GATE_TMP+=("$dir")
@@ -336,7 +336,7 @@ partition_table_fences_the_store() {
 # real one never enters the gate.
 release_image_retires_its_unsigned_image_def() {
   local elf dir key first
-  elf="target/thumbv8m.main-none-eabihf/release/firmware"
+  elf=$1
   dir=$(mktemp -d)
   GATE_TMP+=("$dir")
   key="$dir/throwaway.pem"
@@ -580,48 +580,36 @@ run "clippy (display strong-pin)" env LED_KIND=none cargo clippy -p firmware --f
 # no gate at all until audit run-36, so it does not go back to having no test.
 run_tests "test (display wiring)"    cargo test -p rsk-device --features display --target "$HOST"
 run "clippy (display wiring)"  cargo clippy -p rsk-device --features display --target "$HOST" --all-targets -- -D warnings
-run "build firmware (release)" cargo build --release -p firmware
+run "build firmware (release)" cargo build --release -p firmware --target-dir target
+run "firmware identity (release)" python scripts/firmware_identity.py --expect default target/thumbv8m.main-none-eabihf/release/firmware
 run "assurance-trace image identity" assurance_trace_is_image_neutral
-run "firmware size budget"     firmware_size_budget
-run "firmware stack floor"     firmware_stack_floor
-run "no debug vendor command in the image" debug_vendor_commands_absent
-run "partition table fences the store" partition_table_fences_the_store
-run "sealed image retires its unsigned IMAGE_DEF" release_image_retires_its_unsigned_image_def
-# Reads the image the row above just sealed, and it has to be HERE: the 16 MB,
-# display and no-touch builds below overwrite this path, so the same row run with
-# the Python gates would audit the no-touch binary and say nothing about the one
-# that ships.
+run "firmware size budget"     firmware_size_budget target/thumbv8m.main-none-eabihf/release/firmware
+run "firmware stack floor"     firmware_stack_floor target/thumbv8m.main-none-eabihf/release/firmware
+run "no debug vendor command in the image" debug_vendor_commands_absent target/thumbv8m.main-none-eabihf/release/firmware
+run "partition table fences the store" partition_table_fences_the_store target/thumbv8m.main-none-eabihf/release/firmware
+run "sealed image retires its unsigned IMAGE_DEF" release_image_retires_its_unsigned_image_def target/thumbv8m.main-none-eabihf/release/firmware
+# These readers name the default ELF explicitly in their registries. Other
+# configurations no longer overwrite it before the Python mutation tables run.
 run "constant-time sites in the image" python scripts/ct_gate.py
-# Same window and the same reason: segments, the memory map, the vector table
-# and the allocator surface of the DEFAULT image, before the three builds below
-# overwrite it with another profile's.
+# Segments, memory map, vector table and allocator of the same default image.
 run "image segments and allocator" python scripts/elf_gate.py
-# Third reader of the same window: 22 of the 47 owners assurance/token_refinement.toml
-# names have NO symbol — they survive only as an inlined call site in this image's
-# DWARF — and three MUST be absent from it. Which profile it reads is the DISPLAY
-# build below, not the no-touch one: measured over both binaries, the no-touch
-# image (sha cb1830ac…) gives all 47 dispositions and call-site counts of the
-# default image (08dad541…) unchanged, so the earlier claim here that "both
-# answers are profile-specific" was false in the direction it was written for.
-# The display build at line ~600 is what moves them — 17 symbol / 21 inlined /
-# 6 absent — and there this row FALSE-ALARMS: rsk-display links, its two
-# clientpin.rs doors bind, and their `unlinked-crate` rows read as stale
-# exemptions. Recorded rather than handled: the row's window is above that build,
-# and those two absences are absences OF THE DEFAULT IMAGE.
+# Owner dispositions also describe the default image. The display build links
+# owners registered as absent here and needs its own bindings before this audit
+# can cover it; separate paths do not extend the evidence to another profile.
 run "registered owners in the shipped image" python scripts/owner_binding_gate.py
 # The 16 MB geometry is the one that broke: the store used to end at the top of
 # the XIP window, where the bootrom's RP2350-E10 absolute block lives, and
 # `picotool partition create` refuses a table claiming it — a build the release
 # makes (display, 16mb) and the 4 MB gate above never exercised.
-run "build firmware (16M)"     env FLASH_SIZE=16M cargo build --release -p firmware
-run "partition table fences the store (16M)" partition_table_fences_the_store
-# Keep this before the no-touch build, which remains the gate's final firmware.
-run "build firmware (fingerprint)" env "${FINGERPRINT_BUILD_ENV[@]}" cargo build --release -p firmware --target thumbv8m.main-none-eabihf --features fingerprint
+run "build firmware (16M)"     env FLASH_SIZE=16M cargo build --release -p firmware --target-dir target/16mb
+run "firmware identity (16M)" python scripts/firmware_identity.py --expect default target/16mb/thumbv8m.main-none-eabihf/release/firmware
+run "partition table fences the store (16M)" partition_table_fences_the_store target/16mb/thumbv8m.main-none-eabihf/release/firmware
+run "build firmware (fingerprint)" env "${FINGERPRINT_BUILD_ENV[@]}" cargo build --release -p firmware --target thumbv8m.main-none-eabihf --features fingerprint --target-dir target/fingerprint
+run "firmware identity (fingerprint)" python scripts/firmware_identity.py --expect fingerprint target/fingerprint/thumbv8m.main-none-eabihf/release/firmware
 # The trusted-display flavor must keep building from the same tree. Built
 # `LED_KIND=none` (the panel replaces the addressable LED and its backlight uses
 # GPIO16 — the compile_error guard in main.rs enforces this), and before the
-# no-touch build below, which stays the last `-p firmware` build so target/ keeps
-# the no-touch test image (see docs/build.md).
+# no-touch build below. Both keep their artifacts separate from the default ELF.
 #
 # `FLASH_SIZE=16M` because that is what the SHIPPED flavor is: `nix/firmware.nix`
 # gives `firmware-display` `flashSize = "16M"` and `ledKind = "none"` together,
@@ -630,8 +618,9 @@ run "build firmware (fingerprint)" env "${FINGERPRINT_BUILD_ENV[@]}" cargo build
 # column says so in as many words. It does not make the `SEC-DISP-*` rows
 # `covered`: this compiles the shipped image, and their EVIDENCE is still
 # produced at 4 MB.
-run "build firmware (display)" env LED_KIND=none FLASH_SIZE=16M cargo build --release -p firmware --features display
-run "firmware stack floor (display)" display_stack_floor
+run "build firmware (display)" env LED_KIND=none FLASH_SIZE=16M cargo build --release -p firmware --features display --target-dir target/display
+run "firmware identity (display)" python scripts/firmware_identity.py --expect display target/display/thumbv8m.main-none-eabihf/release/firmware
+run "firmware stack floor (display)" display_stack_floor target/display/thumbv8m.main-none-eabihf/release/firmware
 # Machine-checked "no size cost for keys without a screen": the display UI crate
 # and its driver stack must be absent from the DEFAULT firmware dependency tree, so
 # a standard key can not pull any of the screen code in.
@@ -641,7 +630,8 @@ run "display code absent from default image" sh -c '
     echo "FAIL: display code (rsk-ui/rsk-bip39/rsk-slip39/mipidsi) leaked into the default (no-display) firmware image"; exit 1
   fi'
 # The test build: no BOOTSEL presence, so the automated suites don't hang on a touch.
-run "build firmware (test, --features no-touch)" cargo build --release -p firmware --features no-touch
+run "build firmware (test, --features no-touch)" cargo build --release -p firmware --features no-touch --target-dir target/no-touch
+run "firmware identity (no-touch)" python scripts/firmware_identity.py --test-no-touch --expect no-touch target/no-touch/thumbv8m.main-none-eabihf/release/firmware
 # rsk-wipe bakes its erase length AND its LED wiring in at build time, and it is
 # the signed recovery hatch: build it for every board, so a change that stops
 # `BOARD` reaching it (which once left a 16 MB board's whole KV store intact behind

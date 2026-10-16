@@ -973,12 +973,8 @@ def test_a_trait_body_is_found_by_brace_counting_and_not_by_a_pattern():
 # ---- the wiring --------------------------------------------------------------
 
 
-def test_the_row_reads_the_default_image_because_of_where_it_sits():
-    """The claim says the DEFAULT profile and nothing but the row's POSITION
-    makes that true: `target/…/release/firmware` is one path four `-p firmware`
-    rows write in turn, so this row moved down to the other Python gates would
-    audit the no-touch binary. Measured: 0 `bootsel` symbols in that image
-    against the default image's 2."""
+def test_the_row_reads_the_isolated_default_image():
+    """Owner bindings retain their default ELF after all profile builds."""
     default = row('run "build firmware (release)"')
     audits = row("python scripts/owner_binding_gate.py")
     rebuilds = [
@@ -988,6 +984,9 @@ def test_the_row_reads_the_default_image_because_of_where_it_sits():
     ]
     assert default < audits < min(rebuilds), (default, audits, rebuilds)
     assert max(rebuilds) < row("python -m pytest scripts -q"), rebuilds
+    source = (ROOT / "scripts/check.sh").read_text()
+    for directory in ("16mb", "fingerprint", "display", "no-touch"):
+        assert f"--target-dir target/{directory}\n" in source
 
 
 def test_main_returns_one_and_writes_its_findings_to_stderr(monkeypatch, capsys):

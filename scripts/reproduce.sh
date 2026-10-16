@@ -128,7 +128,7 @@ CLAIM_RUNNERS=(
   "scripts/fuzz-coverage.sh|-|measures the weekly job's accumulated corpus cache, which no checkout carries"
   "scripts/usbip-suites.sh|-|needs a Linux host with vhci_hcd and KVM to boot the guest that owns the USB stack"
   "scripts/usbip-guest.sh|-|the in-guest half of the same suite, invoked by it and never directly"
-  "scripts/pt.sh|-|applies a partition table to an ELF; a build step the gate's image rows invoke, not evidence of its own"
+  "scripts/pt.sh|gate|"
   "scripts/metrics.sh|-|advisory refactor reconnaissance, explicitly not a gate and nothing depends on its numbers"
   "scripts/pages/build-site.sh|-|renders the published docs site for GitHub Pages; the docs phase builds and link-checks the same book"
   "scripts/reproduce.sh|-|this file: the runner the phases above are run by, and the one shape that cannot be a phase of itself — its own drift check is --self-test"
@@ -186,6 +186,12 @@ CLAIM_ROWS=(
   "^gitleaks |gate|"
   "^node --test |gate|"
   "^sh -c |gate|"
+  "^firmware_size_budget target/|gate|"
+  "^firmware_stack_floor target/|gate|"
+  "^display_stack_floor target/|gate|"
+  "^debug_vendor_commands_absent target/|gate|"
+  "^partition_table_fences_the_store target/|gate|"
+  "^release_image_retires_its_unsigned_image_def target/|gate|"
   "^[a-z_][a-z_0-9]*\$|gate|"
 )
 

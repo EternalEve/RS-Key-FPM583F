@@ -52,10 +52,8 @@ refused before anything else is judged — and `ct_gate.demangle` for the legacy
 and not a mangling. The roster and its production/test split come from
 `token_refinement_gate`, which derives both from the tree.
 
-Scope is the DEFAULT image and the row's POSITION is what makes that true:
-`check.sh` rebuilds `target/…/release/firmware` three more times below this row,
-so the same row moved down to the other Python gates would audit the no-touch
-binary. `assurance/image.toml` names the same path, and this gate holds its own
+Scope is the DEFAULT image; the other gate configurations use separate target
+directories. `assurance/image.toml` names the same path, and this gate holds its own
 artifact against that field so the two cannot drift onto different binaries.
 """
 
@@ -248,10 +246,8 @@ def read(root: pathlib.Path, artifact: pathlib.Path) -> dict[str, str]:
     """The three reads of the binary plus its digest, in ONE place.
 
     Injected as a whole, so the mutation table needs neither a linked image nor a
-    cross toolchain — and, more to the point, does not silently read the WRONG
-    image: at the `pytest (gate scripts)` row `target/` holds the no-touch build,
-    while the row this file is the rule for reads the default one ~250 rows
-    earlier.
+    cross toolchain. The live row reads the preserved default ELF; the other
+    configurations use separate target directories.
 
     The digest is [`digest`]'s and never stored: this image's DWARF carries an
     absolute `DW_AT_comp_dir`, so its sha256 is a fact about one checkout.

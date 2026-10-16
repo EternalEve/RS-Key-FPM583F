@@ -252,6 +252,7 @@ class Tree:
         self.write(PAGE, SUPPLY_CHAIN)
         self.write("docs/releases.md", RELEASES)
         self.write("scripts/pt.sh", PT_SH)
+        self.write("scripts/firmware_identity.py", "# loadable build marker check\n")
         self.git("init", "-q")
         # A real commit: the commit-stability rule asks git whether a hex string
         # names one, and a repository with no history answers "no" to everything,

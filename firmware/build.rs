@@ -12,8 +12,8 @@ use std::io::Write;
 use std::path::PathBuf;
 
 /// The Waveshare RP2350-One's flash, and the layout the checked-in `memory.x`
-/// encodes. A `FLASH_SIZE` equal to this (with the default `KVMAIN`) writes that
-/// file byte-for-byte.
+/// encodes. A `FLASH_SIZE` equal to this (with the default `KVMAIN`) retains that
+/// memory map; the loadable build marker is appended for every configuration.
 const DEFAULT_FLASH_SIZE: u32 = 4 * 1024 * 1024;
 
 /// Default KVMAIN — the rsk-fs main partition (creds/keys/DOs) the checked-in
@@ -314,11 +314,26 @@ fn main() {
     let kvmain_len = resolve_kvmain_len();
     assert_layout_fits(flash_size, kvmain_len);
     let template = std::fs::read_to_string("memory.x").expect("read memory.x");
-    let memory_x = if flash_size == DEFAULT_FLASH_SIZE && kvmain_len == DEFAULT_KVMAIN {
+    let mut memory_x = if flash_size == DEFAULT_FLASH_SIZE && kvmain_len == DEFAULT_KVMAIN {
         template
     } else {
         splice_memory_block(&template, flash_size, kvmain_len)
     };
+    // The marker is loadable flash data, so stripping debug names or renaming the
+    // ELF cannot hide a test build from the packaging entry point.
+    let features = ["NO_TOUCH", "FINGERPRINT", "DISPLAY"];
+    let flags = features
+        .iter()
+        .enumerate()
+        .fold(0u32, |flags, (bit, name)| {
+            flags | (u32::from(env::var_os(format!("CARGO_FEATURE_{name}")).is_some()) << bit)
+        });
+    memory_x.push_str(&format!(
+        "\nSECTIONS {{\n  .rsk_build : ALIGN(4) {{\n\
+         LONG(0x424b5352); LONG(0x444c4955); LONG(1);\n\
+         LONG({flags}); LONG({flash_size}); LONG({kvmain_len});\n\
+         }} > FLASH\n}} INSERT AFTER .bi_entries;\n"
+    ));
     File::create(out.join("memory.x"))
         .unwrap()
         .write_all(memory_x.as_bytes())

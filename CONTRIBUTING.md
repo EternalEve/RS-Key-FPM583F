@@ -59,14 +59,13 @@ The default host target is `aarch64-apple-darwin` because that's where
 development happens; on Linux run `HOST_TARGET=x86_64-unknown-linux-gnu
 ./scripts/check.sh`.
 
-One trap worth knowing: check.sh builds the firmware twice into the *same
-path* — the real (touch-enabled) image first, then the no-touch test image
-that the automated suites need. After a check.sh run,
-`target/.../release/firmware` holds the **no-touch** build. Rebuild with
-`cargo build --release -p firmware` before flashing anything you intend to
-use. Yes, this has bitten us; the touch and no-touch images are otherwise
-indistinguishable until a credential gets minted without anyone touching the
-button.
+`check.sh` preserves the default touch-enabled ELF at
+`target/.../release/firmware`. The 16 MB, fingerprint, display and no-touch
+configurations use `target/{16mb,fingerprint,display,no-touch}/...`, so the
+test build cannot overwrite it. `scripts/pt.sh` checks the loadable build
+marker before applying a partition table and refuses no-touch or unidentified
+images. Test packaging requires `--test-no-touch`; see
+[docs/build.md](docs/build.md#build-artifact-identity).
 
 ## Code
 

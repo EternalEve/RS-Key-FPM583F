@@ -86,6 +86,8 @@ NAMED = {
     # `_gate.py`, so their tables could have been deleted with this file green.
     "security_trace.py": ("test_security_trace.py", "check.sh"),
     "trace_map.py": ("test_trace_map.py", "check.sh"),
+    "firmware_identity.py": ("test_firmware_artifacts.py", "check.sh"),
+    "pt.sh": ("test_firmware_artifacts.py", "check.sh"),
     # The four that sat in `UNROSTERED` below under the plainest reason there is
     # — "a `run` row with no mutation table" — until each got one. Two of them
     # are `.sh`, which the `_gate.py` glob cannot see even when the name ends in
@@ -149,7 +151,7 @@ TABLE_FLOOR = 5
 #: What it still does not cover: a case gutted rather than deleted. `assert True`
 #: counts here exactly as the case it replaced did, and nothing in this file reads
 #: a case's body.
-SUITE_CASES = 2662
+SUITE_CASES = 2672
 
 
 def check_sh():
@@ -317,12 +319,9 @@ def test_every_gate_reports_a_summary_when_it_is_happy():
 #:
 #: Which is what happened to the four that used to sit here under the plainest
 #: reason of all — "a `run` row with no mutation table" — and are on [`NAMED`]
-#: now. What is left is the two shapes a table here is not the answer to: a
-#: script that is not a guard, and a guard whose table is INSIDE it, driven by
-#: the row itself. Three rows, and `pt.sh` is the only one that is not a guard.
+#: now. The remaining guards keep their tables inside the script, driven by
+#: the row itself. `pt.sh` now checks image identity and is on NAMED too.
 UNROSTERED = {
-    "pt.sh": "not a guard and not a `run` row: the elf and store rows invoke it"
-             " to apply a partition table, and it asserts nothing",
     "ci-scope.sh": "a `run` row, and the one shape that does not need a table"
                    " here — `check.sh` runs its `--self-test`, so the table is"
                    " inside the script and the row IS the drive",

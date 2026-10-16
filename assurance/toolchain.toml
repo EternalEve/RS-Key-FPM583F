@@ -125,14 +125,14 @@ name = "picotool"
 role = "packager"
 provenance = "flake.lock:nixpkgs"
 pin = "331800de5053fcebacf6813adb5db9c9dca22a0c"
-statement = "Writes the partition table into the ELF (scripts/pt.sh:107) and converts it to the published UF2 (nix/firmware.nix:159). Both are shipped bytes, so it is a producer and not a viewer."
+statement = "Writes the partition table into the ELF (scripts/pt.sh:113) and converts it to the published UF2 (nix/firmware.nix:172). Both are shipped bytes, so it is a producer and not a viewer."
 
 [[tool]]
 name = "arm-none-eabi-nm"
 role = "packager"
 provenance = "flake.lock:nixpkgs"
 pin = "331800de5053fcebacf6813adb5db9c9dca22a0c"
-statement = "Reads the symbols the KV fence's start and end addresses are computed from (scripts/pt.sh:27-31). It is FIRST of three candidates there; llvm-nm and a host nm are fallbacks the flake does not pin, which is why this row names the one the dev shell guarantees."
+statement = "Reads the symbols the KV fence's start and end addresses are computed from (scripts/pt.sh:33-37). It is FIRST of three candidates there; llvm-nm and a host nm are fallbacks the flake does not pin, which is why this row names the one the dev shell guarantees."
 
 # ---- The verification TCB -----------------------------------------------------
 # Outside the criterion's six categories and in the TCB of every result this
@@ -219,7 +219,7 @@ statement = "Not a function: a symbol whose ADDRESS is the datum. cortex-m-rt's 
 [[boundary]]
 id = "import:firmware/src/main.rs:__kvmain_start"
 provider = "rust-lld"
-statement = "firmware/memory.x:30, an assignment the linker evaluates. The KV store's flash offset; scripts/pt.sh:43 reads the same symbol back out of the ELF, which is the other half of this boundary being checked."
+statement = "firmware/memory.x:30, an assignment the linker evaluates. The KV store's flash offset; scripts/pt.sh:49 reads the same symbol back out of the ELF, which is the other half of this boundary being checked."
 
 [[boundary]]
 id = "import:firmware/src/main.rs:__kvmain_end"

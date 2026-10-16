@@ -321,11 +321,11 @@ CLAIM_FLOOR = 6
 
 #: Pages the corpus must still hold, for the same reason one layer out: if the
 #: listing ever answers short, every rule here passes over nothing. Under the
-#: measured 66 hand-written of 69 tracked markdown — and the number is the one
+#: measured 103 hand-written of 107 tracked markdown — and the number is the one
 #: the floor is COMPARED against, which the first version got wrong: it said
 #: "under the measured 323" and 323 was the pre-exemption count of a different
 #: corpus entirely.
-CORPUS_FLOOR = 50
+CORPUS_FLOOR = 51
 
 #: The sentence the Definition of done requires the project to keep saying, and
 #: the ONE spelling this rule reads. Four pages say it today in FOUR spellings —

@@ -79,6 +79,7 @@ let
     {
       name,
       cargoFlags ? [ ],
+      testNoTouch ? false, # explicit test-only packaging; the image must agree
       vidpid ? envOr "VIDPID" null, # VIDPID preset (Yubikey5, Pico, Nitro3, …)
       usbVid ? envOr "USB_VID" null, # 0xHHHH raw VID override
       usbPid ? envOr "USB_PID" null, # 0xHHHH raw PID override
@@ -135,6 +136,7 @@ let
           toolchain
           pkgs.gcc-arm-embedded # arm-none-eabi-gcc for rsk-rsa's C+asm
           pkgs.picotool # ELF -> UF2
+          pkgs.python3 # loadable firmware identity check before packaging
           pkgs.flip-link # .cargo/config.toml's linker (stack guard)
         ];
         buildPhase = ''
@@ -166,7 +168,7 @@ let
           # handed. Signing after this covers the table (a byte flipped in it
           # fails hash *and* signature), which is what turns the fence from
           # friction into something an attacker can not reflash around.
-          bash scripts/pt.sh "target/${target}/release/firmware" "$out/${name}.elf"
+          bash scripts/pt.sh ${lib.optionalString testNoTouch "--test-no-touch"} "target/${target}/release/firmware" "$out/${name}.elf"
           picotool uf2 convert "$out/${name}.elf" -t elf "$out/${name}.uf2"
           runHook postInstall
         '';
@@ -190,6 +192,7 @@ in
     firmware = mkFirmware { name = "firmware"; };
     firmware-no-touch = mkFirmware {
       name = "firmware-no-touch";
+      testNoTouch = true;
       cargoFlags = [
         "--features"
         "no-touch"
@@ -221,6 +224,7 @@ in
     };
     firmware-no-touch-pqc = mkFirmware {
       name = "firmware-no-touch-pqc";
+      testNoTouch = true;
       cargoFlags = [
         "--features"
         "no-touch,advertise-pqc"
@@ -228,6 +232,7 @@ in
     };
     firmware-no-touch-fips = mkFirmware {
       name = "firmware-no-touch-fips";
+      testNoTouch = true;
       cargoFlags = [
         "--features"
         "no-touch,fips-profile"
@@ -235,6 +240,7 @@ in
     };
     firmware-no-touch-fips-pqc = mkFirmware {
       name = "firmware-no-touch-fips-pqc";
+      testNoTouch = true;
       cargoFlags = [
         "--features"
         "no-touch,fips-profile,advertise-pqc"

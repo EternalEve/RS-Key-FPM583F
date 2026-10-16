@@ -9,8 +9,8 @@
 # the image actually links are DERIVED and printed, never stored.
 #
 # Scope, said here rather than discovered later: the DEFAULT profile only.
-# `scripts/check.sh` rebuilds this path three more times below the row — 16 MB,
-# display, no-touch — so a second profile needs its own build and its own row,
+# `scripts/check.sh` keeps the other profiles in separate target directories;
+# a second profile still needs its own registry and its own audit row,
 # and the four `no-touch` images are the ones that remove the physical consent
 # gate the P0-launch authorization properties are about. That is a named gap.
 

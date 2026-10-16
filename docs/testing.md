@@ -40,8 +40,11 @@ Green check.sh is the bar for every commit.
 The experimental fingerprint candidate is also linted and release-linked with
 `--features fingerprint`, `FLASH_SIZE=2M`, `KVMAIN=896K`, GP2 touch and GP3 power
 control. Host Clippy and tests cover both emulator fixtures
-(`fingerprint-fixture` and `bio-fixture-2mb`). The final firmware build remains
-the no-touch test image; none of these checks operates a board.
+(`fingerprint-fixture` and `bio-fixture-2mb`). The no-touch test image lives under
+`target/no-touch/`; the default touch ELF stays in `target/`. Each profile's
+loadable build marker is checked. Packaging tests run the actual `pt.sh` entry
+point and the release identity gate row against renamed no-touch and missing
+markers. None of these checks operates a board.
 
 Two of those rows hold the crate tiers of
 [architecture.md](architecture.md#crates) rather than a dependency's licence or
@@ -934,7 +937,7 @@ host-side.
 
 ```sh
 # build + flash a bench image (it is a --features bench build, so never ship it)
-cargo build --release -p firmware --features bench,no-touch
+cargo build --release -p firmware --features bench,no-touch --target-dir target/bench-no-touch
 # then, from the dev shell or the venv that has pyscard:
 rsk bench ecdh                 # variable-base P-256 ECDH (the layout-sensitive one)
 rsk bench sign                 # P-256 comb sign (the getAssertion hot path)
