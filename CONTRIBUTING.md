@@ -69,8 +69,13 @@ images. Test packaging requires `--test-no-touch`; see
 
 ## Code
 
-The firmware crates are `no_std`, no alloc. If a change needs a heap, the
-change is wrong.
+The firmware crates are `no_std`; new code must avoid dynamic allocation by
+default. The existing exceptions are RSA and the boxed FIDO ML-DSA expanded
+keys, sharing one 128 KiB heap. New allocation uses or an increased budget need
+a stated reason and evidence for resource use, lifetime and failure paths.
+The [memory model](docs/architecture.md#memory-model) records the call chains,
+initialization contract and verification limits; an existing allocator is not
+permission to add another use.
 
 Clippy runs with `-D warnings` on both profiles. Don't silence a lint without
 saying why on the `#[allow]` line — and silence it at the smallest scope that

@@ -78,12 +78,16 @@ executor and embassy keeps the trait object `!Send`.
 unsafe { HEAP.init(core::ptr::addr_of_mut!(HEAP_MEM) as usize, HEAP_SIZE) }
 ```
 
-A 128 KiB heap exists solely for `rsk-rsa`'s big integers (`num-bigint-dig`,
-the only allocating dependency). `init`'s contract (call once, with exclusive access
-to the region) is met: it runs once at the top of `main`, on a dedicated
-static buffer used by nothing else.
+A single 128 KiB heap serves RSA arithmetic and boxed FIDO ML-DSA expanded
+keys ([memory model](architecture.md#memory-model)). `init` has one call in
+`main`, on a dedicated static buffer used by nothing else, after
+`embassy_rp::init` and before storage/applet setup and core1 launch. Its
+contract also requires that no earlier code allocates; the dependency
+initializers on that path remain unverified under `PLAT-UNSAFE-003`.
 *Safe alternative:* none; every embedded allocator initializes this way.
-*Containment:* one call, before any allocation can happen.
+*Containment:* one call and an exclusive static buffer. This source-level
+ownership check does not discharge the pending pre-initialization path or
+establish a runtime resource bound.
 
 ### 5–14. GPIO pin type-erasure (presence button, LED power rail, USR-LED-off, display wake + control pins, fingerprint VCC/TOUCHOUT, ×10) — `PLAT-UNSAFE-004`
 

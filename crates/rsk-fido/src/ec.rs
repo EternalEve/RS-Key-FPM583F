@@ -127,13 +127,9 @@ pub enum CredKey {
     P521(p521::NonZeroScalar),
     K256(k256::NonZeroScalar),
     Ed25519(ed25519_dalek::SigningKey),
-    // ML-DSA-44's ~13 KB expanded key (the in-tree `rsk-mldsa`, which streams the
-    // matrix A so signing fits the RP2350 stack). HEAP-BOXED, not inline: signing
-    // (`getAssertion`) nearly fills the RP2350's ~222 KiB worker stack on its own,
-    // so the key inline on that frame tipped it into overflow → a hard wedge
-    // (panic-halt, FIDO dark until replug). The heap is idle during a FIDO request
-    // (applet keys are reconstructed per-op); `rsk-mldsa` zeroizes on drop and the
-    // `Box` adds no `Drop` of its own.
+    // Boxing keeps the expanded key off the stack-heavy signing frame.
+    // The shared heap can still serve a prior RSA search's core1 tail.
+    // `rsk-mldsa` wipes the key on drop; see docs/architecture.md's memory model.
     MlDsa44(Box<rsk_crypto::MlDsa44>),
     // ML-DSA-65's ~23 KB expanded key, same crate and boxing rationale as -44.
     MlDsa65(Box<rsk_crypto::MlDsa65>),

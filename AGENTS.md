@@ -30,9 +30,11 @@ project — see [README.md](README.md) and
   (CLI, docs, CI) do **not** bump it. (Background, plus the separate
   anti-rollback epoch it must not be confused with: CONTRIBUTING.md →
   "Firmware changes bump bcdDevice".)
-- **`no_std`, no alloc.** If a firmware change needs a heap, it's the wrong
-  change. Clippy runs `-D warnings`; justify any `#[allow]` inline at the
-  smallest scope.
+- **`no_std`; no new allocation by default.** The existing 128 KiB heap serves
+  RSA and boxed FIDO ML-DSA keys; see [the memory model](docs/architecture.md#memory-model).
+  New allocation uses or a larger budget need a stated reason and resource,
+  lifetime and failure-path evidence. Clippy runs `-D warnings`; justify any
+  `#[allow]` inline at the smallest scope.
 - **`unsafe` and new dependencies are not free.** A new `unsafe` site needs an
   entry in [docs/unsafe.md](docs/unsafe.md); a new dependency needs a stated
   reason — it's joining an authenticator's trust base.
@@ -123,8 +125,8 @@ not stamped with a different house style. Then:
   typed state to text at the edge, never branch on a display string, and keep
   each domain's status→label/colour mapping in one place.
 
-The rest — `no_std`/no-alloc, `-D warnings`, `unsafe`, new dependencies, the
-Python conventions for `tools/rsk` — is in the Golden rules above and
+The rest — `no_std`/allocation policy, `-D warnings`, `unsafe`, new dependencies,
+the Python conventions for `tools/rsk` — is in the Golden rules above and
 CONTRIBUTING.md → "Code".
 
 ## Build & test

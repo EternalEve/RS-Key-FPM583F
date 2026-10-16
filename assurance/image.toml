@@ -25,14 +25,9 @@ elf = "target/thumbv8m.main-none-eabihf/release/firmware"
 # "none": a second W+X segment is a page whoever can write RAM can also run.
 writable_executable = [".data"]
 
-# The image HAS a heap. `firmware/src/main.rs` declares
-# `#[global_allocator] static HEAP: embedded_alloc::LlffHeap` over 128 KiB and
-# docs/unsafe.md site 4 is its initialisation. AGENTS.md's "no_std, no alloc" is
-# a rule about new code, not a description of the tree, and until this row
-# nothing held the surface: a second allocator or a `malloc` arriving through a
-# dependency was invisible. `__rust_dealloc` is deliberately absent from the
-# list because the image does not define it — the allocations this heap serves
-# are never freed, and a `__rust_dealloc` appearing is a change worth reading.
+# RSA and boxed FIDO ML-DSA keys share the heap; see docs/architecture.md.
+# These are observed symbols, not a caller, lifetime or capacity proof.
+# Absence of `__rust_dealloc` does not establish that allocations are never freed.
 allocator = ["__rust_alloc", "__rust_realloc", "__rust_alloc_error_handler"]
 
 vector_section = ".vector_table"

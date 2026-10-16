@@ -74,9 +74,9 @@ cortex-m = "0.7"
 panic-halt = "1"
 smart-leds = "0.4"
 
-# Heap for the OpenPGP RSA path: `rsk-rsa`'s big-integer arithmetic (num-bigint-dig,
-# the only allocating dependency left) needs an allocator. FIDO and the rest of the
-# device stay no-alloc — only RSA touches it.
+# Shared heap for RSA arithmetic and boxed FIDO ML-DSA expanded keys.
+# The fixed budget and resource-validation limits are in
+# docs/architecture.md's memory model; other paths must avoid new allocation.
 embedded-alloc = "0.6"
 
 # Flash key/value backend for rsk-fs::Storage. sequential-storage is async-first;

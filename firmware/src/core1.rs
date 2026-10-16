@@ -353,11 +353,9 @@ fn search(job: &Job) {
 
 // --------------------------------------------------------------- core0 side --
 
-/// Run the RSA prime search on both cores and assemble the key. Blocks the
-/// worker exactly like the old single-core loop did (the interrupt executor
-/// keeps USB + keepalives flowing); core1 is parked again by the time this
-/// returns. `None` is the old `RsaStep::Failed`: an unusable size / failed
-/// modexp self-test, or key assembly failure.
+/// Search on both cores while USB stays alive; core1 may finish a candidate
+/// after return. `None` is `RsaStep::Failed`: an unusable size, failed modexp
+/// self-test or key assembly failure.
 pub fn run_rsa_search(nbits: usize, rng: &mut dyn rsk_sdk::Rng) -> Option<Box<RsaKey>> {
     run_rsa_search_progress(nbits, rng, &mut || {})
 }

@@ -7,10 +7,10 @@
 //! host-testable: the device seed, serial, RNG and flash come from the caller
 //! ([`Ctx`]), never from globals; `firmware` wires in the RP2350 TRNG and flash.
 
-// The ML-DSA credential keys are heap-boxed (their ~13–23 KB `rsk-mldsa` expanded
-// keys would otherwise sit on the worker stack right below the stack-heavy sign;
-// see `ec::CredKey`). The firmware provides the heap; everything else stays
-// no-alloc.
+// Expanded ML-DSA keys are boxed to keep them off the signing frame.
+// They share the firmware heap with RSA; see docs/architecture.md's memory model.
+// This exception does not authorize new allocation uses in other FIDO paths.
+
 extern crate alloc;
 
 pub mod bio_directory;

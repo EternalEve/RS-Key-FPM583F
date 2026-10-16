@@ -152,6 +152,10 @@ raw ELF、memory.x、完整日志与上述镜像保存在忽略的第一阶段�
 | 既有堆 | 128KiB，BSS 的 HEAP_MEM | 已包含在上述静态 RAM，服务既有 RSA bigint | 不另扣、不扩大，不为指纹新建堆；上游 no-alloc 规则约束新增代码，已有例外见 docs/unsafe.md 的 heap init |
 | Core1 栈 | 16KiB；所在 StaticCell 符号 16416B | 已包含在 BSS | 当前 RSA 使用；运行时未测 |
 
+2026-10-17 M5 复核补注：上表堆容量和布局测量不变，但“服务既有 RSA bigint”
+未列全用途；FIDO 的 ML-DSA 展开密钥也通过 `Box` 使用该堆。分配例外与待验证
+边界现统一记录在[内存模型](docs/architecture.md#memory-model)，本补注没有新增实测。
+
 代码高水位包含向量表/IMAGE_DEF（316B）、`.text`（757512B）、只读 LOAD（50260B，含对齐）、初始化 `.data` 的 Flash 副本（7872B）及 PT（140B）。debug section 不加载到设备，ELF 文件约 17MB 不能当作 Flash 占用。UF2 文件 1632256B、3188 个 512B 块，每块有效载荷 256B。
 
 逐块验证 magic、`flags=0x2000`、family `0xe48bff59`（RP2350 ARM Secure）、声明数量、唯一连续索引/地址；范围 `0x10000000..0x100c7400` 全在代码分区。UF2 与每个 ELF Flash LOAD 逐字节相同，末尾仅 28B 零填充；没有额外 KV/RAM/OTP 或 absolute-address 写块。family 解释来自 [Pico SDK 2.2.0 官方 UF2 定义](https://github.com/raspberrypi/pico-sdk/blob/2.2.0/src/common/boot_uf2_headers/include/boot/uf2.h)。

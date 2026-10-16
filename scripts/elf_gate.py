@@ -14,10 +14,10 @@ Three facts this measured that the tree's prose does not carry:
 * **The image has a heap.** `firmware/src/main.rs` declares
   `#[global_allocator] static HEAP: embedded_alloc::LlffHeap` over 128 KiB, and
   the linked image defines `__rust_alloc`, `__rust_realloc` and
-  `__rust_alloc_error_handler`. AGENTS.md's "no_std, no alloc" is a rule about
-  new code, not a description of the tree — `docs/unsafe.md` site 4 is the heap
-  init and says so. Nothing held that surface, so a SECOND allocator, or a
-  `malloc` arriving through a dependency, was invisible.
+  `__rust_alloc_error_handler`. The memory model in `docs/architecture.md`
+  records RSA and boxed FIDO ML-DSA keys as allocation exceptions. This row
+  holds the allocator surface; it does not prove caller restrictions or runtime
+  resource bounds. A SECOND allocator or a `malloc` is a different surface.
 * **One segment is writable AND executable, and that is deliberate.** `.data`
   carries the routines that must not run from XIP flash — the RSA assembly and
   the keygen sieve step, whose absence from `.data` was measured as a 1.36x

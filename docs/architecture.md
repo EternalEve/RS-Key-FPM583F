@@ -32,8 +32,9 @@ flowchart TD
 executor, in a single *worker* task that owns the flash and the TRNG outright.
 Long synchronous work (on-card RSA generation, flash compaction, a touch
 wait) blocks only the worker, while the interrupt executor keeps the bus
-enumerated, streams CCID/CTAPHID keepalives, and animates the LED. No
-mutexes: ownership does the synchronization.
+enumerated, streams CCID/CTAPHID keepalives, and animates the LED. Ownership
+keeps flash and TRNG access on the worker; the shared allocator and cross-core
+mailbox use critical sections.
 
 **Why (mostly) one core.** The async executor provides the *concurrency* that
 the upstream design used a second core and hand-rolled queues for. Core 1 is
@@ -80,6 +81,64 @@ recognised until several replugs" report that motivated attaching to the bus
 only after everything else is ready.
 
 ![Boot sequence — bootrom secure-boot verify, then a provision-and-recover phase (OTP keys, KV mount, phy record, TRNG seed, seal migrations, at-rest scrub) that completes before the USB pull-up, then attach-and-serve (build, spawn usb_task, transports live, worker dispatches applets)](images/boot-flow.svg)
+
+## Memory model
+
+The firmware is `no_std`, with dynamic allocation restricted to the existing
+uses below. `no_std` does not imply an absent allocator. New allocation uses or
+a larger budget require a stated reason and evidence for resource use,
+lifetimes and failure paths. The repository's `CONTRIBUTING.md` records the
+contribution policy.
+
+`firmware/src/main.rs` declares one global `embedded_alloc::LlffHeap`.
+`HEAP_SIZE` reserves 128 KiB in the static `HEAP_MEM` buffer, already included
+in the image's static RAM usage. It is reserved even when a request does not
+allocate; it is neither Flash storage nor a per-core budget. Growing it reduces
+the RAM left for the worker stack.
+
+| Existing use | Allocation and ownership |
+| --- | --- |
+| RSA in OpenPGP and PIV | `rsk-rsa` uses `num-bigint-dig` for key assembly, prime testing and private-operation arithmetic, `Vec` for byte conversions, and `Box<RsaKey>` for generated results. The applets, `rsk-device`, firmware and display hooks pass these results through the same call chain. |
+| FIDO ML-DSA-44, -65 and -87 | `rsk-fido::ec::CredKey` owns boxed expanded keys so they do not remain inline on the signing frame. `rsk-mldsa` itself uses fixed-size arrays and does not allocate; its FIDO caller does. `advertise-pqc` changes advertisement, not the availability of these allocation paths. |
+
+RSA allocations on both cores share this allocator, whose operations are
+critical-section-guarded. Applet dispatch is serial on the worker, but core1
+may finish its last RSA candidate after the search returns. The next RSA
+search waits for that tail before reusing its mailbox; a following FIDO request
+does not establish the same boundary. A memory budget must therefore include
+possible overlap between the tail and the next request, rather than assume the
+heap is idle whenever FIDO runs. This is a scenario to validate, not a newly
+reproduced exhaustion defect.
+
+The dedicated heap buffer has one initialization call in `main`, after
+`embassy_rp::init` and before storage/applet setup and core1 launch. Its contract
+requires initialization before the first allocation. The once-only call and
+buffer ownership are visible locally; the full reset-to-initialization path,
+including dependency initializers, remains `PLAT-UNSAFE-003 [pending]`
+([unsafe audit](unsafe.md#4-heap-initialization--plat-unsafe-003),
+[platform assumptions](platform-assumptions.md)).
+
+Request-owned keys are dropped after use. `RsaKey` wipes its secret fields and
+the expanded ML-DSA keys derive zeroization on drop. This does not promise that
+all library-internal temporaries are wiped; the accepted residuals remain in
+the [threat model](threat-model.md#zeroization). Panic does not unwind these
+owners. The existing ordinary `Box` and bignum allocation calls do not convert
+exhaustion into an APDU/CTAP error. The firmware uses `panic-halt`; current
+exhaustion, USB responsiveness and recovery behaviour have not been validated
+for every build and must not be described as graceful recovery.
+
+The gate checks the default ELF's registered allocator symbols and single
+first-party allocator declaration, and checks stack-region floors for the
+default and display images. These checks do not establish which callers
+allocate, a runtime heap/stack peak, fragmentation bounds, leak freedom or
+recoverable allocation failure. Host tests use the host allocator and cannot
+prove that the device's fixed heap is sufficient.
+
+Resource validation remains separate: cover supported RSA sizes and operations,
+all three ML-DSA sets, RSA-tail overlap, and repeated success/error/cancel paths.
+Measure heap and stack peaks together, check reclamation after core1 is idle,
+and record exhaustion and recovery against a specific board, build and image.
+Hardware measurements and fault injection require separate device authorization.
 
 ## Crates
 

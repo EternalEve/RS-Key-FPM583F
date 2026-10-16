@@ -411,13 +411,9 @@ fn p256_credkey_matches_p256key() {
 
 #[test]
 fn credkey_stays_compact_so_mldsa_key_is_off_the_stack() {
-    // The ML-DSA-44 keypair is ~13 KB of `rsk-mldsa` expanded-key state. Held
-    // inline in `CredKey` it rode the worker stack into `sign`, which already
-    // nearly fills the RP2350's ~222 KiB stack — the 13 KB tipped getAssertion
-    // into overflow → a hard device wedge. It MUST stay `Box`-ed (heap, idle
-    // during a FIDO request). This guard fails loudly if the key regresses back
-    // inline: the boxed enum is a few hundred bytes (largest inline variant is
-    // Ed25519's expanded `SigningKey`), an inline keypair would be ~13 KB.
+    // An inline expanded ML-DSA key previously overflowed the signing stack.
+    // This checks the enum layout; it does not measure heap or stack peaks.
+    // The heap may also serve a prior RSA search's core1 tail.
     let size = core::mem::size_of::<CredKey>();
     assert!(
         size <= 512,
