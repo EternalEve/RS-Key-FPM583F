@@ -59,6 +59,26 @@ tools/emu/target/"$HOST"/debug/rsk-emu \
 The `fido-conformance` feature forwards to `rsk-fido/fido-conformance`, which
 uses the authenticator profile intended for the upstream FIDO corpus.
 
+For the strict management-write profile, build with `--features strict-config`:
+
+```bash
+cargo run --manifest-path tools/emu/Cargo.toml --target "$HOST" \
+  --features strict-config -- --touch --store ./strict-config.store
+```
+
+CCID Management writes require approval; FIDO vendor `CONFIG_WRITE` also
+requires a configuration-authorized PIN token when a clientPIN is set. Raw
+CTAPHID `0x43` writes are unsupported, and OTP `0x15` writes leave both the
+record and programming sequence unchanged. Reads remain available. The feature
+also enables the display dependency's wipe-gate code because this emulator
+always compiles the display flow; `--display` still controls whether it opens.
+The gate tests both default and strict profiles, including persisted readback
+after an emulated power cycle. This does not validate physical presence or USB.
+Both profiles enforce the enabled-applications mask on HID FIDO2 and U2F, as
+firmware does. Regression tests disable each application, verify refusal after
+replug, and restore it through CCID Management. With FIDO2 disabled, its vendor
+configuration command is unavailable too.
+
 ## Running the on-device suites against it
 
 ```bash

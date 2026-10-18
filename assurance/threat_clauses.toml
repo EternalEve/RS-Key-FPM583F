@@ -211,7 +211,7 @@ has already typed this power cycle"""]
 [[clause]]
 id = "TM-HOST-CONFIG-UNGATED"
 kind = "defence"
-where = "- **Device config is UNGATED on the default build.** The shipped default is the"
+where = "- **Device config is UNGATED on the compatibility build.** Bare Cargo, legacy"
 
 [[clause]]
 id = "TM-HOST-TWO-TRANSPORTS"

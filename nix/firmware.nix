@@ -90,6 +90,8 @@ let
       ledPin ? envOr "LED_PIN" null, # WS2812 data GPIO 0..=29 (default 16)
       ledKind ? envOr "LED_KIND" null, # ws2812 | gpio | pimoroni | none (default ws2812)
       presencePin ? envOr "PRESENCE_PIN" null, # BOOTSEL or GPIO 0..=29
+      fingerprintTouchPin ? envOr "FINGERPRINT_TOUCH_PIN" null,
+      fingerprintPowerPin ? envOr "FINGERPRINT_POWER_PIN" null,
       fakeMkek ? envOr "FAKE_MKEK" null, # 64 hex — TEST builds only
       fakeDevk ? envOr "FAKE_DEVK" null, # 64 hex — TEST builds only
     }:
@@ -107,6 +109,8 @@ let
         LED_PIN = if ledPin == null then null else toString ledPin;
         LED_KIND = ledKind;
         PRESENCE_PIN = if presencePin == null then null else toString presencePin;
+        FINGERPRINT_TOUCH_PIN = if fingerprintTouchPin == null then null else toString fingerprintTouchPin;
+        FINGERPRINT_POWER_PIN = if fingerprintPowerPin == null then null else toString fingerprintPowerPin;
         FAKE_MKEK = fakeMkek;
         FAKE_DEVK = fakeDevk;
       };
@@ -168,7 +172,14 @@ let
           # handed. Signing after this covers the table (a byte flipped in it
           # fails hash *and* signature), which is what turns the fence from
           # friction into something an attacker can not reflash around.
-          bash scripts/pt.sh ${lib.optionalString testNoTouch "--test-no-touch"} "target/${target}/release/firmware" "$out/${name}.elf"
+          bash scripts/pt.sh ${lib.optionalString testNoTouch "--test-no-touch"} \
+            --config-policy ${
+              if lib.any (flag: builtins.elem "strict-config" (lib.splitString "," flag)) cargoFlags then
+                "strict"
+              else
+                "compat"
+            } \
+            "target/${target}/release/firmware" "$out/${name}.elf"
           picotool uf2 convert "$out/${name}.elf" -t elf "$out/${name}.uf2"
           runHook postInstall
         '';
@@ -185,10 +196,24 @@ in
   # Reused by nix/checks.nix (host cargo tests share the src + vendored deps).
   inherit firmwareSrc cargoDeps;
 
-  # `nix build` → default touch image; `.#firmware-no-touch` etc. mirror the CI
+  # `nix build` → strict-config daily image; `.#firmware-no-touch` etc. mirror the CI
   # flavor matrix. All UNSIGNED — `picotool seal --sign` after.
   packages = {
-    default = mkFirmware { name = "firmware"; };
+    default = mkFirmware {
+      name = "firmware-daily";
+      cargoFlags = [
+        "--features"
+        "strict-config"
+      ];
+    };
+    firmware-daily = mkFirmware {
+      name = "firmware-daily";
+      cargoFlags = [
+        "--features"
+        "strict-config"
+      ];
+    };
+    firmware-compat = mkFirmware { name = "firmware-compat"; };
     firmware = mkFirmware { name = "firmware"; };
     firmware-no-touch = mkFirmware {
       name = "firmware-no-touch";
@@ -202,24 +227,22 @@ in
       name = "firmware-fips";
       cargoFlags = [
         "--features"
-        "fips-profile"
+        "fips-profile,strict-config"
       ];
     };
     firmware-pqc = mkFirmware {
       name = "firmware-pqc";
       cargoFlags = [
         "--features"
-        "advertise-pqc"
+        "advertise-pqc,strict-config"
       ];
     };
-    # The remaining feature combinations, so all 8 release flavors
-    # (no-touch x advertise-pqc x fips-profile) build reproducibly via nix —
-    # the same matrix the CI `flavors` job covers.
+    # Touch flavors use daily policy; no-touch combinations remain test-only.
     firmware-fips-pqc = mkFirmware {
       name = "firmware-fips-pqc";
       cargoFlags = [
         "--features"
-        "fips-profile,advertise-pqc"
+        "fips-profile,advertise-pqc,strict-config"
       ];
     };
     firmware-no-touch-pqc = mkFirmware {
@@ -253,14 +276,14 @@ in
       name = "firmware-strong-pin";
       cargoFlags = [
         "--features"
-        "strong-pin"
+        "strong-pin,strict-config"
       ];
     };
     firmware-strong-pin-pqc = mkFirmware {
       name = "firmware-strong-pin-pqc";
       cargoFlags = [
         "--features"
-        "strong-pin,advertise-pqc"
+        "strong-pin,advertise-pqc,strict-config"
       ];
     };
     # Behavior-preference flavors, shipped standalone (each with a pqc pair), NOT
@@ -272,28 +295,28 @@ in
       name = "firmware-always-uv";
       cargoFlags = [
         "--features"
-        "always-uv"
+        "always-uv,strict-config"
       ];
     };
     firmware-always-uv-pqc = mkFirmware {
       name = "firmware-always-uv-pqc";
       cargoFlags = [
         "--features"
-        "always-uv,advertise-pqc"
+        "always-uv,advertise-pqc,strict-config"
       ];
     };
     firmware-strict-up = mkFirmware {
       name = "firmware-strict-up";
       cargoFlags = [
         "--features"
-        "strict-up"
+        "strict-up,strict-config"
       ];
     };
     firmware-strict-up-pqc = mkFirmware {
       name = "firmware-strict-up-pqc";
       cargoFlags = [
         "--features"
-        "strict-up,advertise-pqc"
+        "strict-up,advertise-pqc,strict-config"
       ];
     };
     # Worked example of a declarative identity preset — copy this and tweak the
@@ -312,11 +335,10 @@ in
       ledKind = "none";
       cargoFlags = [
         "--features"
-        "display"
+        "display,strict-config"
       ];
     };
-    # Default (feature-less, RS-Key identity) images for boards whose physical
-    # flash is not the 4 MB default — the geometry siblings of `firmware`. The
+    # Daily images for boards whose physical flash is not the 4 MB default.
     # FLASH_SIZE must match the chip (it is the embassy Flash const generic). A
     # 2 MB board needs a shrunk KVMAIN so ≥1 MiB is left for code (build.rs
     # assert_layout_fits); 16 MB keeps the default KVMAIN and only enlarges the
@@ -325,20 +347,36 @@ in
       name = "firmware-2mb";
       flashSize = "2M";
       kvmain = "896K";
+      cargoFlags = [
+        "--features"
+        "strict-config"
+      ];
     };
     firmware-16mb = mkFirmware {
       name = "firmware-16mb";
       flashSize = "16M";
+      cargoFlags = [
+        "--features"
+        "strict-config"
+      ];
     };
-    # The strict admin-write posture as its own shipped flavor. The default
-    # `firmware` is now the permissive, full-ykman-compatible admin surface;
-    # `firmware-strict-config` restores the historical presence/PIN-gated config
-    # writes and refuses the ungated transport writes (docs/threat-model.md).
+    # Retain the historical strict-config flavor with the daily policy.
     firmware-strict-config = mkFirmware {
       name = "firmware-strict-config";
       cargoFlags = [
         "--features"
         "strict-config"
+      ];
+    };
+    firmware-fingerprint-2mb = mkFirmware {
+      name = "firmware-fingerprint-2mb";
+      flashSize = "2M";
+      kvmain = "896K";
+      fingerprintTouchPin = 2;
+      fingerprintPowerPin = 3;
+      cargoFlags = [
+        "--features"
+        "fingerprint,strict-config"
       ];
     };
   };

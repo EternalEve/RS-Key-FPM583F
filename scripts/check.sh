@@ -605,6 +605,8 @@ run "build firmware (16M)"     env FLASH_SIZE=16M cargo build --release -p firmw
 run "firmware identity (16M)" python scripts/firmware_identity.py --expect default target/16mb/thumbv8m.main-none-eabihf/release/firmware
 run "partition table fences the store (16M)" partition_table_fences_the_store target/16mb/thumbv8m.main-none-eabihf/release/firmware
 run "build firmware (fingerprint)" env "${FINGERPRINT_BUILD_ENV[@]}" cargo build --release -p firmware --target thumbv8m.main-none-eabihf --features fingerprint --target-dir target/fingerprint
+run "build firmware (fingerprint strict-config)" env "${FINGERPRINT_BUILD_ENV[@]}" cargo build --release -p firmware --target thumbv8m.main-none-eabihf --features fingerprint,strict-config --target-dir target/strict-fingerprint
+run "firmware identity (fingerprint strict-config)" python scripts/firmware_identity.py --config-policy strict target/strict-fingerprint/thumbv8m.main-none-eabihf/release/firmware
 run "firmware identity (fingerprint)" python scripts/firmware_identity.py --expect fingerprint target/fingerprint/thumbv8m.main-none-eabihf/release/firmware
 # The trusted-display flavor must keep building from the same tree. Built
 # `LED_KIND=none` (the panel replaces the addressable LED and its backlight uses
@@ -685,6 +687,7 @@ run "cargo-audit (tui SCA)"    cargo audit --file tools/tui/Cargo.lock
 # the Linux kernel's and whose framing rule decides how many bytes come off the
 # socket next; both fail silently on the wire rather than loudly.
 run_tests "test (emu)"               cargo test --manifest-path tools/emu/Cargo.toml --target "$HOST"
+run_tests "test (emu strict-config)" cargo test --manifest-path tools/emu/Cargo.toml --target "$HOST" --features strict-config
 run_tests "test (emu security trace)" cargo test --manifest-path tools/emu/Cargo.toml --target "$HOST" --features security-trace
 run_tests "test (emu conformance)"   cargo test --manifest-path tools/emu/Cargo.toml --target "$HOST" --features fido-conformance
 run_tests "test (emu fingerprint-fixture)" cargo test --manifest-path tools/emu/Cargo.toml --target "$HOST" --features fingerprint-fixture

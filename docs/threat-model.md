@@ -217,7 +217,8 @@ bulk stream, ISO-7816 APDUs, CTAP2 CBOR. Defenses:
   session halves its own, and the other slot can then type a position that id has
   already typed this power cycle — which a plain `ykman otp swap` reaches
   unauthenticated, an unprotected slot's stored access code being all-zero.
-- **Device config is UNGATED on the default build.** The shipped default is the
+- **Device config is UNGATED on the compatibility build.** Bare Cargo, legacy
+  `.#firmware` and explicit `.#firmware-compat` retain the
   full-ykman/YubiKey-compatible admin surface: a hostile USB host can silently
   rewrite the DeviceInfo / enabled-applications / USB identity — over CCID
   Management `WRITE CONFIG`, the FIDO vendor `CONFIG_WRITE`, and the CTAPHID
@@ -229,9 +230,10 @@ bulk stream, ISO-7816 APDUs, CTAP2 CBOR. Defenses:
   FIDO2/U2F over **both** CTAPHID and CCID, the OTP keyboard), so a hostile host
   can turn one off.
   That is a **reversible denial-of-service**, not a confidentiality or integrity
-  break — the Management applet, the FIDO vendor command, and the OTP-HID
-  identify/config slots are never gated, so any single transport can re-enable it,
-  and no secret is exposed. **Reversible describes the mask, not the flash it is
+  break — CCID Management remains available to re-enable it, and the compatibility
+  profile also retains raw CTAPHID and OTP-HID config writes. A disabled FIDO2
+  app cannot serve its own vendor configuration command. Keep a usable CCID
+  interface for recovery with strict-config. **Reversible describes the mask, not the flash it is
   written to.** The same ungated commands persist their records, and a host that
   replays one indefinitely spends erase cycles that nothing gives back: measured
   on the device's own store geometry, a `SET LED` replay at a nearly full ring
@@ -239,10 +241,13 @@ bulk stream, ISO-7816 APDUs, CTAP2 CBOR. Defenses:
   the rate a host can drive it puts the array's endurance budget in weeks of
   continuous hammering. Idempotent writes are now dropped before they reach flash
   on both the vendor and FIDO paths, which removes the cheap version of that;
-  what remains is bounded by how fast a host can produce *distinct* records. If you need config writes gated on the operator,
-  build/flash **`firmware-strict-config`**, which restores the presence/PIN gates
-  and refuses the ungated transport writes ([build.md](build.md)). It is not the
-  runtime flash flag `EF_HARDENED`.
+  what remains is bounded by how fast a host can produce *distinct* records.
+  Daily release packages and bare `nix build` now enable **`strict-config`**:
+  CCID Management requires presence, FIDO vendor writes require presence and
+  an acfg PIN token when clientPIN is set, raw CTAPHID writes are unsupported,
+  and OTP config writes are no-ops. See the [authorization table](guides/cli.md)
+  for the complete routes. This does not rate-limit every persistent write or
+  change OTP slot access-code policy, and is separate from `EF_HARDENED`.
 - **The FIDO applet answers on two transports, and the second one is easier to
   reach.** CTAP2 and U2F are served over CCID as well as CTAPHID
   ([protocol.md §5.2](protocol.md#52-ctap-over-ccid)), so any process that can talk
@@ -340,8 +345,8 @@ bulk stream, ISO-7816 APDUs, CTAP2 CBOR. Defenses:
   authenticity signal: a phy write that sets the Yubico VID makes a stock key
   present a full Yubico identity, and the manufacturer/product strings are also
   settable outright (phy tags `0x0F` / `0x09`), so any VID can carry any vendor
-  name. On the **default build these config writes are ungated** (no touch, no
-  PIN — see §1); `firmware-strict-config` re-gates them. Treat the identity as
+  name. On the **compatibility build these config writes are ungated** (no touch, no
+  PIN — see §1); daily builds enable `strict-config` to gate them. Treat the identity as
   cosmetic, never as proof a device is genuine — attestation (device-key / org
   cert) is the authenticity mechanism, and it is unaffected by any config write.
 

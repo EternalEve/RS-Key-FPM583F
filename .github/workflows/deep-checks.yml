@@ -19,7 +19,7 @@
 #   fuzz-coverage — per-target libFuzzer region/line coverage over that
 #          accumulated corpus (scripts/fuzz-coverage.sh): a summary table on the
 #          step page and the per-target HTML uploaded. Advisory, not a gate.
-#   repro — `nix build .#firmware` twice (`--rebuild` diffs every output
+#   repro — `nix build .#firmware-daily` twice (`--rebuild` diffs every output
 #          byte): proves the hermetic image is bit-reproducible and publishes
 #          the canonical sha256 for this flake.lock (docs/build.md).
 #   coverage — `cargo llvm-cov` line coverage over the host crates, floored:
@@ -297,17 +297,17 @@ jobs:
           restore-prefixes-first-match: nix-${{ runner.os }}-
 
       - name: build the firmware image
-        run: nix build .#firmware -o result-repro
+        run: nix build .#firmware-daily -o result-repro
 
       - name: rebuild and require bit-identical outputs
-        run: nix build .#firmware --rebuild
+        run: nix build .#firmware-daily --rebuild
 
       - name: publish the reproducible hashes
         run: |
           {
             echo "### Reproducible firmware (this flake.lock, x86_64-linux)"
             echo '```'
-            (cd result-repro && sha256sum firmware.uf2 firmware.elf)
+            (cd result-repro && sha256sum firmware-daily.uf2 firmware-daily.elf)
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 

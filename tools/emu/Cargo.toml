@@ -13,6 +13,9 @@ name = "rsk-emu"
 path = "src/main.rs"
 
 [features]
+# The emulator always builds the display flow, whose factory reset needs the
+# display-side wipe gate even when the window is disabled at runtime.
+strict-config = ["rsk-device/strict-config", "rsk-device/display", "rsk-display/strict-config"]
 # Synthetic module events and bindings, only for isolated phase-3 tests.
 fingerprint-fixture = []
 # Acceptance uses the 2 MB board's 896 KiB main / 128 KiB counter geometry.

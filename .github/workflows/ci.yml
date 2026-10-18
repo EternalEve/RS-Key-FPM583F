@@ -207,25 +207,25 @@ jobs:
       matrix:
         include:
           - name: default
-            args: ""
+            args: "--features strict-config"
           - name: pqc
-            args: "--features advertise-pqc"
+            args: "--features advertise-pqc,strict-config"
           - name: fips
-            args: "--features fips-profile"
+            args: "--features fips-profile,strict-config"
           - name: fips-pqc
-            args: "--features fips-profile,advertise-pqc"
+            args: "--features fips-profile,advertise-pqc,strict-config"
           - name: strong-pin
-            args: "--features strong-pin"
+            args: "--features strong-pin,strict-config"
           - name: strong-pin-pqc
-            args: "--features strong-pin,advertise-pqc"
+            args: "--features strong-pin,advertise-pqc,strict-config"
           - name: always-uv
-            args: "--features always-uv"
+            args: "--features always-uv,strict-config"
           - name: always-uv-pqc
-            args: "--features always-uv,advertise-pqc"
+            args: "--features always-uv,advertise-pqc,strict-config"
           - name: strict-up
-            args: "--features strict-up"
+            args: "--features strict-up,strict-config"
           - name: strict-up-pqc
-            args: "--features strict-up,advertise-pqc"
+            args: "--features strict-up,advertise-pqc,strict-config"
           - name: no-touch
             args: "--features no-touch"
           - name: no-touch-pqc
@@ -239,17 +239,17 @@ jobs:
           # larger flash (docs/guides/display.md). `env` is empty for every other
           # row, so only this one carries the extra knobs.
           - name: display
-            args: "--features display"
+            args: "--features display,strict-config"
             env: "LED_KIND=none FLASH_SIZE=16M"
           # Flash-geometry siblings of the default image (default features, RS-Key
           # identity). 2mb shrinks KVMAIN so the image still fits ≥1 MiB of code;
           # smoke-building it here catches a link/fit regression in PR CI rather
           # than at tag time.
           - name: 2mb
-            args: ""
+            args: "--features strict-config"
             env: "FLASH_SIZE=2M KVMAIN=896K"
           - name: 16mb
-            args: ""
+            args: "--features strict-config"
             env: "FLASH_SIZE=16M"
           # One row per shipped board file. Nothing else in the tree builds a
           # `BOARD=`, so without these a wrong pin or flash size in a TOML — the
@@ -277,6 +277,11 @@ jobs:
           # strict-gated code keeps compiling.
           - name: strict-config
             args: "--features strict-config"
+          - name: compat
+            args: ""
+          - name: fingerprint-2mb
+            args: "--features fingerprint,strict-config"
+            env: "FLASH_SIZE=2M KVMAIN=896K FINGERPRINT_TOUCH_PIN=2 FINGERPRINT_POWER_PIN=3"
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -311,6 +316,10 @@ jobs:
         run: |
           pt_args=()
           case "${{ matrix.name }}" in no-touch*) pt_args+=(--test-no-touch);; esac
+          case "${{ matrix.args }}" in
+            *strict-config*) pt_args+=(--config-policy strict);;
+            *) pt_args+=(--config-policy compat);;
+          esac
           nix develop -c ./scripts/pt.sh "${pt_args[@]}" \
             target/${{ matrix.name }}/thumbv8m.main-none-eabihf/release/firmware \
             firmware-${{ matrix.name }}.elf

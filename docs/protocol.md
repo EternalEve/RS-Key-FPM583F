@@ -9,6 +9,13 @@ manage RS-Key devices without reverse-engineering the firmware. The canonical,
 runnable reference client is the `rsk` Python CLI. Every command
 below is implemented there; file/line pointers are given throughout.
 
+Administrative-write policy depends on the build. Daily Nix/release packages
+enable `strict-config`; bare Cargo, legacy `.#firmware` and explicit `compat`
+retain permissive writes. References below to management writes being ungated
+"by default" describe that Cargo/compatibility policy. See the
+[authorization table](guides/cli.md#configuration-write-authorization) for each
+route's requirements; USB identity defaults are independent of this choice.
+
 > **Audience & scope.** This is a wire spec, not a tutorial. It documents the
 > commands a host sends and the bytes it gets back. It does **not** cover the
 > on-device storage format, the crypto internals, or the build system. Those live
@@ -37,13 +44,14 @@ RS-Key is a USB composite device exposing two host-reachable transports:
 | **CTAPHID** (FIDO HID, usage page `0xF1D0`) | CTAP1/U2F, CTAP2, and the `authenticatorVendor 0x41` vendor command | `hidapi` |
 | **CCID** (PC/SC smart-card) | All ISO-7816 applets, selected by AID | `pyscard` / PC/SC |
 
-A keyboard (HID) interface also exists for Yubico OTP. On the default build it
+A keyboard (HID) interface also exists for Yubico OTP. On the compatibility build it
 also carries the ykman OTP-HID admin writes (SET_DEVICE_INFO `0x15`,
 DEVICE_CONFIG `0x11`, SCAN_MAP `0x12`, NDEF `0x08`/`0x09`) — ungated, like a stock
-YubiKey; `strict-config` refuses them. SET_DEVICE_INFO shares the same
+YubiKey. Under `strict-config` these writes are no-ops and do not advance the
+program sequence; SCAN_MAP is not applied to output either. SET_DEVICE_INFO shares the same
 `EF_DEV_CONF` DeviceInfo store as the CCID WRITE CONFIG (§6); the rest are inert
 on this USB-only board except SCAN_MAP (it remaps typed OTP output). Each admin
-write **advances the status frame's program-sequence byte** — that increment is
+write on the compatibility build **advances the status frame's program-sequence byte** — that increment is
 how ykman/yubikit confirm it (a write that left the sequence unchanged reports
 `CommandRejectedError: No data`, which is what blocked `ykman config usb` over
 this transport before). The frame codec itself is otherwise out of scope here.
@@ -884,11 +892,14 @@ FIDO2+U2F → inner blob `03 02 02 02`, full APDU
 application's applet stop answering — PIV/OpenPGP/OATH/OTP return `6A82` on
 CCID SELECT, FIDO2 (CBOR) and U2F (MSG) are refused over CTAPHID, and the OTP
 keyboard goes inert. The change is live (next command; no replug). Its ceiling
-is `USB_SUPPORTED`, so a wider host-written mask is clamped. The re-enable path
-is never gated — the Management applet (§6), the FIDO vendor `CONFIG_WRITE`
-(§9) and the OTP-HID identify/config slots stay reachable — so a disable is
-always reversible. The *mask* is; the flash it lives in is not, and a replay of
-these ungated writes spends erase cycles nothing returns
+is `USB_SUPPORTED`, so a wider host-written mask is clamped. CCID Management
+(§6) stays reachable to re-enable an application; strict-config requires
+presence for the write. Disabling FIDO2 also blocks its clientPIN and vendor
+`CONFIG_WRITE` commands (§9), so those cannot restore it. The compatibility
+profile additionally permits raw CTAPHID Management and OTP-HID config writes;
+strict-config does not. Keep usable CCID Management access when disabling
+FIDO2 in a strict build. The mask is reversible; the flash it lives in is not,
+and a replay of compatibility writes spends erase cycles nothing returns
 ([threat-model.md](threat-model.md) §1). Identical records are dropped before
 the write, so only distinct ones cost anything. Building `--features strict-config` gates the *write* on
 operator presence; the enforcement of a persisted mask is the same on both

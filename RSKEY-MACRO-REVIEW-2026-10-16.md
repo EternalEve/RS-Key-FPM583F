@@ -9,7 +9,8 @@
 审阅时分支为 `fpm583f-dev`，HEAD 为 `90580173`；工作区已有未提交改动，
 因此结论针对当时的实际工作树，不等同于该提交或已发布固件的结论。
 原始审查只新增本文，当时以下实现建议均未执行；后续 M4 实施记录见第 7 节，
-2026-10-17 的 M5 规范纠偏、理由和验证边界见第 8 节。
+2026-10-17 的 M5 规范纠偏、理由和验证边界见第 8 节；M2 的授权与兼容性
+评估、模拟器恢复回归和已选定的严格日用发行策略见第 11 节。
 
 ## 1. 总体判断与范围
 
@@ -28,7 +29,7 @@ E1 的历史信号来源及 H1 的实物语义仍以
 | 编号 | 问题 | 当前证据性质 | 建议优先级 | 处理位置 |
 | --- | --- | --- | --- | --- |
 | M1 | 关键硬件保证缺少完整实测证据 | 已登记的待验证假设；不是已确认硬件故障 | 交付前必须核实 | 独立硬件工作线 |
-| M2 | 默认管理配置允许部分无确认写入 | 已确认且已公开说明的兼容性取舍 | 高，涉及日用安全策略 | 软件第 4 步 |
+| M2 | 默认管理配置允许部分无确认写入 | 严格日用包、显式兼容包及模拟器恢复门槛已落地并通过完整离线门禁；旧证据包仅同步配置摘要，实物兼容性独立待验 | 高，涉及日用安全策略 | 软件第 4 步，已完成离线验收，见第 11 节 |
 | M3 | 存储 API 容易混淆缺失与读取失败 | 功能修复与契约迁移通过记录修正后的当前工作区完整门禁；既有 Kani state 安全回归未完成，资源问题独立跟踪 | 高，影响跨 applet 的异常处理 | 软件第 3 步，功能进展见第 9 节，资源后续见第 10 节 |
 | M4 | 测试固件覆盖正式固件的本地输出路径 | 审查时确认的构建流程风险；已修复并完成离线验收 | 高，先降低产物误用风险 | 软件第 1 步，已完成，见第 7 节 |
 | M5 | 无堆分配规范与现有 RSA、FIDO ML-DSA 堆使用不一致 | 规范纠偏已完成并通过离线验收；运行时资源实测仍待完成 | 中，修正成本较低 | 软件第 2 步，已完成规范纠偏，见第 8 节 |
@@ -562,3 +563,203 @@ MAC 授权证明通过，耗时约 359 秒；同一失效证明仍报告内存�
 日志为 `target/m3-kani-state-isolated{.log,-driver.log,-run.json,-kernel.log}`。
 候选已自动停止，并确认无自有进程残留；临时交换仍已移除。按当前收尾范围，
 本机资源优化与候选执行器尝试均暂停，后续完整 state 复验等待资源足够的环境。
+
+## 11. M2 授权、恢复回归与严格日用发行
+
+2026-10-18。开工基线为 `09921fc1`，工作区干净。用户授权按计划推进 M2，
+遇到意外或需要抉择时暂停。核对写入入口后，在严格模式模拟器编译失败处暂停；
+用户随后授权补齐其特性入口和依赖接线，并继续验证；选择日用发行启用
+strict-config、提供 2 MB 指纹严格包、宽松版显式命名为兼容包。额外核对发现
+模拟器未执行 HID FIDO2/U2F 开关后，再次暂停并获得补齐及恢复回归的授权。
+以下区分初次评估与最终发行改动；最终完整门禁已从头通过，先前中断和失败日志保留。
+
+### 入口与授权要求
+
+| 入口及影响 | 兼容配置（裸 Cargo） | `strict-config` | 本轮证据 |
+| --- | --- | --- | --- |
+| CCID Management `WRITE CONFIG`：DeviceInfo / 应用开关 | 无触摸、PIN 要求 | 物理确认；不要求 FIDO PIN | 真实 yubikit 的同意 / 拒绝对照；相关配置读回 |
+| FIDO vendor `CONFIG_WRITE`：DeviceInfo、PHY、LED；CTAPHID CBOR 和 CTAP-over-CCID | 无触摸、PIN 要求 | 物理确认；已设 clientPIN 时还需有效 `acfg` token | 三目标、两传输的缺 token、错误权限、错误 MAC、拒绝确认与合法请求对照 |
+| 原始 CTAPHID Management `0x43` | 无确认持久写入 | 不支持 | 真实 yubikit 报 `INVALID_COMMAND`；新增模拟器回归验证不落盘 |
+| OTP `SET_DEVICE_INFO 0x15`：键盘 HID / CCID OTP applet 共用 | 无确认持久写入 | 空成功、不修改记录或 pgmSeq | 模拟器实际 OTP job 回归；不冒充真实 USB feature-report 验证 |
+| CCID Rescue PHY 写入：身份、接口、硬件配置 | 物理确认 | 物理确认 | 当前 `rsk hw` 的同意 / 拒绝对照；既有 rescue 库测试 |
+| CCID Vendor `SET LED`，亦可经 CTAPHID MSG 访问 | 无确认 | 物理确认 | 新增库测试核对拒绝先于实时 LED 变化和持久写入 |
+| Management 整机 RESET | 物理确认；指纹接线另禁用该入口 | 不支持 | 源码核对及既有主机测试；本轮未做设备重置 |
+| OTP legacy `DEVICE_CONFIG` / `SCAN_MAP` / `NDEF` | 兼容入口；SCAN_MAP / NDEF 另按槽位访问码授权 | 不执行写入；SCAN_MAP 也不应用到输出 | 源码核对及既有 OTP 测试；未验证物理键盘输出 |
+
+`strict-config` 的 FIDO PIN 分支还处理仅设置显示设备 PIN 的情况：在设备上收集
+PIN；没有可收集它的后端时拒绝，不能当作未设置。此分支依据源码和既有库测试，
+本轮客户端对照未运行显示窗口或实物 PIN pad。配置读取保持可用；旧应用开关
+仍被执行，切换严格配置不会自动恢复被禁用的应用。CONFIG_LOCK 不实现授权。
+
+### 兼容性结论与资源边界
+
+- yubikit 5.9.1 的 ManagementSession 按连接类型选择不同写入协议。严格配置下
+  CCID 可在确认后修改应用开关；FIDO 管理后端只会发原始 `0x43`，不会自动改用
+  带 PIN token 的 FIDO vendor 命令，因此该连接下的管理写入失败。
+- OTP 管理后端靠 pgmSeq 确认写入，严格模式的空成功不会形成一次成功的配置
+  更新。此项核对了固定环境库源码和模拟器 OTP job，未运行实际 OTP-HID 客户端。
+- 当前 `rsk hw` 经 CCID 或 FIDO 均能完成合法写入，并正确报告拒绝。当前
+  `rsk led --transport fido` 的无 PIN、带 PIN 和拒绝确认路径也通过；模拟器没有
+  CCID LED 硬件后端，故该入口由真实 applet 加记录平台的库测试覆盖。
+- 严格配置只收紧列出的入口。经确认的不同配置仍消耗 Flash；未保护的 OTP
+  槽位编程仍沿用访问码规则，不能宣称它阻止所有未确认写入或解决全部磨损问题。
+  去重不是速率限制，触摸也不等于屏幕展示并确认每个配置字段。
+- 初次评估时 `firmware-strict-config` 只有 4 MB 几何，`firmware-2mb` 没有严格特性。
+  最终增加独立 2 MB 指纹严格包，不能将 4 MB 包直接用于该板。构建和打包通过
+  也不代表已烧录或验证指纹硬件。
+
+### 验证环境修正与回归
+
+模拟器一直依赖显示流程，但没有自己的 `strict-config` 入口。直接启用
+`rsk-device/strict-config,rsk-display/strict-config` 后，显示重置引用的
+`rsk_device::gates_wiped_last` 因缺少 `rsk-device/display` 被裁掉，编译退出 101。
+这不是严格固件已被证明无法构建，也不涉及放宽 wipe gate。
+
+获准后新增模拟器 `strict-config` 特性，转发两处严格特性及显示依赖需要的
+`rsk-device/display`。是否打开窗口仍由运行参数决定；默认模拟器的特性不变。
+初次在独立文件中新增三个模拟器测试，验证 CTAPHID 和 OTP 配置写入符合所选策略、
+合法 CCID 写入可用，并重开存储、模拟掉电重启后核对读回。Vendor 库另补一项
+LED 授权回归。此阶段未修改生产 Rust，`bcdDevice` 保持 `0x09E4`。
+最终发行改动在固件构建标记中增加 strict-config 位，`bcdDevice` 递增为
+`0x09E5`；持久记录、依赖版本、unsafe、堆预算和 `rsk` / TUI 版本不变。
+
+`check.sh` 新增严格模拟器整套测试行，随后增加指纹严格镜像构建和身份校验。
+最终文档测量为 138 行、63 行 Cargo、54 行 Python、21 行其他，测试行数为 17；
+未改变统计守卫。模拟器说明、CLI、
+LED、OTP 指南及 CHANGELOG 已同步。
+
+| 验证 | 实际结果与日志 |
+| --- | --- |
+| 修改前默认 / 严格 applet 与路由测试 | 分别 1040 / 1022 passed，各 1 ignored，均退出 0；`target/m2-default-tests.log`、`target/m2-strict-tests.log` |
+| 严格模拟器错误复现 | 退出 101，E0425，找不到被 cfg 裁掉的 wipe gate；`target/m2-emu-repro.log` |
+| 修正后默认 / 严格模拟器整套测试 | 各 125 passed，均退出 0；`target/m2-emu-{default,strict}-tests.log` |
+| 真实库及当前 CLI 对照 | 默认 / 严格各 46 passed，无跳过，均退出 0；yubikey-manager 5.9.1、python-fido2 2.1.1；`target/m2-client-{default,strict}-final.log` |
+| Vendor LED 库回归 | 默认 / 严格各 17 passed，均退出 0；`target/m2-vendor-tests.log` |
+| 门禁记录及特性预检 | 引用 1522、特性矩阵、roster、自检均通过；配套 187 项测试通过，退出 0；`target/m2-preflight.log` |
+| 文档构建与离线链接 | 退出 0，0 个链接错误；`target/m2-docs.log` |
+| 当前工作区完整门禁首轮 | 退出 1，约 609 秒；停止于证据向量生成文档的两处过期输入计数，未观察到功能断言失败；`target/m2-check.log`、`target/m2-check-run.json` |
+| 证据向量差异定位 | 当前工作树和只读 HEAD 归档均仅需把 SEC-FIDO-005 的两处输入计数从 6 改为 7；stale / MODELLED-ONLY 状态不变。差异为 `target/m2-evidence-vector-{proposed,head}.diff` |
+| 计数同步后的第二轮门禁 | 新增恢复修复获准后，主动中断本轮进程组；退出 143，不能作为通过结果；`target/m2-check-final-interrupted.json` |
+| 最终源码真实客户端 | 默认 / 严格各 46 passed，均退出 0；`target/m2-client-{default,strict}-release.log` |
+| 应用关闭缺陷复现 | 修复前真实客户端返回成功而非 0x27；主机回归在“disabled FIDO2 answered HID CBOR”失败，退出 101；`target/m2-disabled-fido-repro.log`、`target/m2-disabled-apps-host-repro.log` |
+| 应用关闭及恢复回归 | 修复后默认 / 严格整套模拟器各 126 passed；禁用 FIDO2/U2F、重启保持、兄弟应用可用、CCID 重开均覆盖；`target/m2-emu-{default,strict}-recovery.log` |
+| 修复后真实客户端关闭测试 | 1 passed，0x27 拒绝符合预期；`target/m2-disabled-fido-client-final.log` |
+| 发行相关回归预检 | 320 passed，退出 0；构建目录、实际 ELF 打包、策略拒绝、矩阵与引用自检；`target/m2-release-regressions-final.log` |
+| 三个包的真实 Nix installPhase | daily / compat / fingerprint-2mb 的正确镜像均产出 PT ELF 和 UF2；三次交叉替换均在生成 ELF 前按策略拒绝；`target/m2-package-checks.log`、`target/m2-audit/package-results.json` |
+| 最终完整门禁 | 退出 0，1326.40 秒，末尾为 ALL CHECKS PASSED；脚本 3774、CLI 312、interop 45 项均通过；57 个变更文件前后哈希一致；`target/m2-check-release-verified.log`、对应 `-run.json` |
+| 发行改动后的首轮完整门禁 | 停于 threat-model traceability：宽松策略段落改名后漏同步登记表的固定文本锚点；两条诊断是同一锚点失联 / 新段落未分类。只同步 `where`，保留条目 ID、defence 分类、关联性质和守卫规则；`target/m2-check-release-final.log`、对应 `-run.json` |
+| 同步锚点后的后续行预检 | 威胁追踪及后续性质、模型登记通过；停于 slice evidence bundle 的 11 个旧矩阵摘要。不是完整门禁通过；`target/m2-late-preflight.log` |
+| 证据摘要同步后的脚本预检 | 3765 passed、9 failed，失败仅为反例仍引用旧矩阵数字；未将缺少待替换文本或额外 bare-integer 断言失败当作有效反例；`target/m2-token-refinement-preflight.log` |
+| 同步反例输入后的定向验证 | 19 passed、307 deselected，退出 0；保留所有断言，错误数字继续取自当前同一摘要的其他计数；`target/m2-bundle-fixtures-final.log` |
+| 余下门禁行预检 | 文档常量、CLI 312 项、interop 45 项及 gitleaks 均通过，退出 0；仅为后续行，不作为整门禁通过结果；`target/m2-last-rows-preflight.log` |
+
+客户端只连接测试拥有的 `127.0.0.1` 模拟器进程，通过既有 report-only
+python-fido2 连接及 CCID 消息桥使用真实协议库，没有 USB 枚举或硬件回退。
+确认输入为测试脚本在观察到当前提示后发送的合成输入，不是人或实物确认的证据。
+每项使用独立合成存储；错误路径核对具体错误码及相关配置未改变。没有实际运行
+ykman CLI 的发现流程、PicoForge GUI、浏览器或 USB/IP，因此不宣称这些端到端兼容。
+实验源码为 `target/m2-audit/client_checks.py`，二进制身份见各客户端日志。
+
+新增行的反例在包含新文件的临时源码副本中执行 `check.sh` 原样的
+`run_tests "test (emu strict-config)" ...`，日志未筛选：
+
+| 接线反例 | 实际结果及失败方向 |
+| --- | --- |
+| 原实现正向控制 | 退出 0，125 passed |
+| 保留模拟器严格特性名，但去掉 applet 严格特性的转发 | 退出 101，2 failed；原始 CTAPHID 写入被错误接受，OTP no-op 错误推进 pgmSeq；不是合法操作被拒绝 |
+| 仅去掉显示依赖特性转发 | 退出 101，E0425，再现原始缺失 wipe gate 的编译错误 |
+
+汇总及完整原行为 `target/m2-audit/row-mutations.json`，实验脚本为同目录
+`mutate.py`。突变没有写入工作源码；临时副本和本轮专用编译缓存已清理，日志保留。
+
+补齐应用开关后，通过相同门禁行重做五项反例：控制组 126 passed、退出 0；
+去掉严格转发、去掉显示接线、去掉 FIDO2 门槛、去掉 U2F 门槛均退出 101。
+后两者分别明确失败于“disabled FIDO2 answered HID CBOR”和
+“disabled U2F answered HID MSG”，没有把合法请求被拒绝误当成缺陷被检出。
+汇总为 `target/m2-audit/release-row-mutations.json`，原始日志为
+`target/m2-audit/release-row-*.log`。实际指纹严格身份门禁行也用改名兼容 ELF
+验证拒绝，打包脚本另覆盖两种策略的双向拒绝和通过。
+
+首轮门禁的证据向量差异在未改动的 HEAD 归档也出现，不归因于本轮 M2 实现。
+用户随后授权按计划完成，使用原生成器同步这两处计数；不改生成器、证据提交、
+证明条件或状态。同步与复验日志独立保留，首轮失败日志不覆盖。
+
+### 应用关闭与恢复
+
+模拟器原先把 HID CBOR / MSG 直接交给 applet，缺少固件已有的 FIDO2/U2F
+应用开关门槛。获准后仅在模拟器补齐：关闭 FIDO2 返回 OperationDenied，
+关闭 U2F 返回 CONDITIONS_NOT_SATISFIED。固件既有门槛不变。
+关闭 FIDO2 后，clientPIN 和 vendor CONFIG_WRITE 也不可达，不能宣称它们
+能在同一路径自行恢复。严格配置恢复使用仍可访问的 CCID Management，确认后
+重开应用；用户指南明确要求保留可用 CCID。新增回归读回实际存储并模拟重启。
+
+### 已选定的发行策略
+
+- 裸 `nix build` 和 `.#firmware-daily` 启用 strict-config。`nix run .#flash`
+  的默认镜像依赖指向 daily；这里只检查接线，不运行刷写程序。
+- `.#firmware-compat` 明确保留宽松行为。裸 Cargo 和旧 `.#firmware` 保持兼容，
+  不将默认特性的变更隐含施加给原有开发和保证基线。
+- `.#firmware-fingerprint-2mb` 使用 `fingerprint,strict-config`、2 MB Flash、
+  896 KiB KVMAIN、UART0 GP0/1、GP2 touch、GP3 power；仍是待硬件验收的候选。
+- 其余正式发行变体统一启用 strict-config；no-touch 仍仅作测试。下一次发行
+  提供 16 个包，主推荐文件为 `daily.uf2`，旧发行不改写。PR preview 保留
+  原 `default` 标签，但其 Cargo 参数已是严格配置，并增加显式 compat / 指纹包。
+- `.rsk_build` 增加 bit 3。Nix 安装、CI 和发行复制均核对实际 ELF 策略；
+  不能通过改文件名把宽松镜像包装成严格镜像。该标记不是签名或来源证明。
+- 保证矩阵由原生成器更新。新增构建列保持未证实的 gap；2 MB / 16 MB 原有
+  相同特性等价判断因严格特性变化撤回，不将测试通过提升为已有形式证明覆盖。
+  新包使包数从 19 增至 22，对应派生数量下限同步上调，未放宽守卫。矩阵为
+  40 × 34，1077 个 gap；证据向量同时反映已撤回的等价判断。
+
+Nix 安装阶段验证使用实际 Cargo ELF 和从三个 derivation 读取的 installPhase，
+仅将空的 runHook 用于本机夹具。未进行三个包的完整 hermetic Nix 编译或
+`--rebuild` 字节复现；这些要求仍由发行及每日 repro workflow 保留。每日 repro
+已指向 daily。保留的本机 PT ELF/UF2 未签名，不能宣称是已发布的可复现产物。
+
+严格配置不能替代安全启动、OTP 主密钥或硬件验收，仍保留上文的 Flash 磨损边界。
+
+### 旧证据包的配置摘要（暂停后已获准同步）
+
+新增发行包后，当前矩阵为 34 个配置、1360 个单元，而 11 份证据包的
+`result.gate_matrix` 仍把旧的 32 / 1280 及旧 disposition 数量写成当前派生值。
+`bundle_gate.py` 按现行树比较该字段，因此预检失败；这些字段的相邻注释本来
+要求记录当前派生数量，但它们又位于旧证明包中，不能将旧实测结果改作新结果。
+
+当时按用户“遇到意外或需要抉择先暂停”的要求，先不修改 `assurance/bundle/*.toml`。
+已形成仅更新这 11 个 `gate_matrix` 字段、并注明“当前配置元数据复核，历史证明
+和日志不变”的拟议差异：`/tmp/rsk-m2-bundle-metadata.patch`；结构化前后值为
+`target/m2-audit/bundle-metadata-preview.json`。在内存中调用现有转录守卫，11 项
+拟议字段均通过；这不是完整门禁通过，也不是对旧模型或 Kani 证明的新运行。
+用户随后明确批准“仅刷新配置元数据并继续”。已原样应用该差异，并解析 TOML
+逐份比较，确认每份只有 `result.gate_matrix` 的值改变；其余字段完全一致。
+旧 build commit、证明状态、原始日志、哈希、日期、模型和守卫规则均未改变。
+实际 bundle gate 已通过，198 个引用数值仍关联到 63 份日志，100 份原始证据
+均保留并被引用。后续预检和完整门禁另行记录，不将该通过等同于旧证明重跑。
+后续 token completeness 检查还识别了三处旧 `fingerprint` 构建列引用；新增发行包
+已让该特性归属 `firmware-fingerprint-2mb` 列。核对三个实际函数及字段用途后，
+只同步这三个列名，stutter / out-of-scope 分类、理由和对应代码均不变。
+脚本整套预检随后明确报出九个旧数字反例：部分未生成突变，部分因旧数字已不在
+当前摘要内而触发额外的 bare-integer 守卫。核对具体失败后，更新测试输入数字，
+继续从当前摘要的兄弟计数借值，保证仍由目标 `<count> <noun>` 守卫拒绝；
+未删除或放宽断言。相关 19 项定向验证已通过，最终整套验证由完整门禁重做。
+
+### 最终离线验收
+
+在固定 `nix develop` 环境设置 `HOST_TARGET=x86_64-unknown-linux-gnu`，从头执行
+未经筛选的 `./scripts/check.sh`。本轮进程正常退出 0；57 个变更文件在门禁运行
+前后及验收核对时的 SHA-256 完全一致，未发现漏记的变更文件，HEAD 仍为
+`09921fc14b9a9098224dd9d7e5006945e2abdf6a`。原始执行记录为
+`target/m2-check-release-verified-run.json`，独立核对为
+`target/m2-audit/final-gate-observed.json`。之前的退出 1 和中断 143 均不作为本轮通过依据。
+
+脚本整套为 3774 passed（706.80 秒），CLI 为 312 passed，interop 为 45 passed；
+gitleaks 通过。真实客户端的默认 / 严格各 46 项及修复后的单项关闭测试，合计
+93 项通过，其传输和模拟确认边界仍以上文为准。门禁通过不将已有 gap / stale
+或 MODELLED-ONLY 结果提升为新证明，也不代表 M1、M5 的实物或资源验收。
+
+门禁结束后仅向本审查记录填入验收结果；其余代码、配置与证据元数据保持门禁
+结束时的内容。最终文档和记录复核日志为 `target/m2-completion-checks.log`。
+
+本轮没有连接设备、刷写、生产签名、写 OTP、提交或推送；未恢复 M1 实测、M5
+运行时资源实验或 Kani state 资源优化。M2 日用发行策略已完成离线验收；整机安全
+结论、实物兼容性及正式发行执行不在本次结果内。

@@ -38,6 +38,18 @@ tag: the USB `bcdDevice` build counter (bumped on every behavior change), and
 
 ## [Unreleased]
 
+- Daily release packages use `strict-config`; the default Nix build is
+  `firmware-daily`, with explicit `firmware-compat` and experimental
+  `firmware-fingerprint-2mb` alternatives. Packaging checks the actual image's
+  management policy. Bare Cargo and legacy `.#firmware` retain the compatibility
+  profile. **bcdDevice → 0x09E5.**
+
+- Emulator: add a `strict-config` build profile with the display flow's required
+  feature wiring. The merge gate now tests this profile alongside the default,
+  including refused transport config writes and approved CCID writes across an
+  emulated power cycle. HID FIDO2/U2F now obey the enabled-applications mask,
+  with restart and CCID recovery regressions matching firmware's existing gates.
+
 - **Storage read errors:** refuse a resident registration that cannot rule out an
   existing account, and preflight the RP index before either host or on-device
   credential deletion. A failed index read leaves the credential intact for a

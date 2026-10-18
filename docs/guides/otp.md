@@ -203,6 +203,11 @@ ykman config usb --list               # confirm what is on
 ykman config usb --enable otp         # reversible — turns it back on
 ```
 
+On a `strict-config` build, management writes require the CCID approval path;
+raw FIDO and OTP transport writes cannot change this mask. The strict profile
+also disables legacy scan-map and NDEF writes. See the
+[configuration authorization table](cli.md#configuration-write-authorization).
+
 The write persists to the Yubico management capability blob (`EF_DEV_CONF`) and
 the firmware **enforces** it live (no replug): a button press then types
 nothing, and Yubico / HMAC challenge-response is refused on both the keyboard

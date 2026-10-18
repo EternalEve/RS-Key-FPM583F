@@ -669,3 +669,6 @@ fn a_vendor_command_asks_for_no_touch() {
 
     shut_down(path, jobs, device);
 }
+
+#[path = "admin_config_tests.rs"]
+mod admin_config;

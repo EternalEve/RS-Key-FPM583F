@@ -173,6 +173,28 @@ fn set_led_applies_and_persists_the_block() {
 }
 
 #[test]
+fn set_led_authorization_precedes_live_and_persisted_changes() {
+    let pres = RefCell::new(Declining);
+    let mut app = VendorApplet::new(FullPlatform::default(), &pres);
+    let mut fs = Fs::new(RamStorage::default());
+    let before = app.platform.led;
+    let generation = fs.write_gen();
+    let (sw, _) = run(&mut app, &mut fs, &apdu(INS_SET_LED, 200, 0x13, &[5, 9]));
+    if cfg!(feature = "strict-config") {
+        assert_eq!(sw, Sw::SECURITY_STATUS_NOT_SATISFIED);
+        assert_eq!(
+            app.platform.led, before,
+            "a refused write changed the live LED"
+        );
+        assert_eq!(fs.write_gen(), generation, "a refused write reached flash");
+    } else {
+        assert_eq!(sw, Sw::OK);
+        assert_ne!(app.platform.led, before);
+        assert_eq!(fs.write_gen(), generation + 1);
+    }
+}
+
+#[test]
 fn an_effect_only_update_keeps_the_speed() {
     let pres = RefCell::new(AlwaysConfirm);
     let mut app = VendorApplet::new(FullPlatform::default(), &pres);

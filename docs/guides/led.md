@@ -89,6 +89,11 @@ whatever the ROM does. That mode is for flashing firmware and OTP, covered in
 Per-state colour and per-channel brightness are configurable. The values
 persist in flash (`EF_LED_CONF`) and apply live, no reboot:
 
+On a `strict-config` build, approve each CCID LED write on the device. The FIDO
+path also requires the configuration-authorized token when a clientPIN is set;
+`rsk` prompts for it. The compatibility build leaves both writes ungated. See the
+[configuration authorization table](cli.md#configuration-write-authorization).
+
 ```sh
 rsk led --get                                  # print the current config
 rsk led --status idle --color blue             # recolor a state

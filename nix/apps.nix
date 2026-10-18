@@ -65,7 +65,7 @@ let
 
   # One-command flasher wrapping the secure-boot ritual (docs/production.md,
   # docs/build.md). With no argument it seals the reproducible default firmware
-  # (`nix build .#firmware`, the RS-Key identity); pass a path to seal a flavor
+  # (`nix build .#firmware-daily`, strict-config with RS-Key identity); pass a path to seal a flavor
   # you built yourself. The signing key never lives in the store — it is read
   # from the host at run time. The device must already run secure boot with the
   # matching boot key provisioned; with anti-rollback fused the seal version must
@@ -120,7 +120,7 @@ let
       [ $# -gt 0 ] && [ -z "$uf2" ] && uf2="$1"
 
       # Default unsigned image: the reproducible nix-built firmware.
-      [ -z "$uf2" ] && uf2="${firmwarePackage}/firmware.uf2"
+      [ -z "$uf2" ] && uf2="${firmwarePackage}/${firmwarePackage.pname}.uf2"
 
       [ -f "$uf2" ] || { echo "rsk-flash: unsigned image not found: $uf2" >&2; exit 1; }
       [ -f "$key" ] || { echo "rsk-flash: signing key not found: $key (set RS_KEY_SECRETS)" >&2; exit 1; }

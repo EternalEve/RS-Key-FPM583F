@@ -38,7 +38,7 @@ The `freshness` axis reads committed history only, so an uncommitted edit to an 
 - **10 of 59** are checked by a configuration that ACCEPTS a recorded session, and **10** by one that must REFUSE a negative one.
 - **11 of 59** carry at least one Kani harness named after them. That is all `BOUNDED` keys on — a harness NAME, not the `#[kani::proof]` attribute, not a bound, not a `cfg` — so it points at the bundle's method table and is never the proof itself.
 - Rows carrying a dated raw evidence bundle: **11 of 59**; of those, still ahead of every input they are about: **0**.
-- No property is claimed on more than **10** built image(s) of the configuration ledger; every other column is a gap or out of scope.
+- No property is claimed on more than **8** built image(s) of the configuration ledger; every other column is a gap or out of scope.
 - **2 of 59** carry a result measured on a board, each naming the revision it was taken on.
 
 ## What a release may not say
@@ -66,7 +66,7 @@ The `freshness` axis reads committed history only, so an uncommitted edit to an 
 | `SEC-FIDO-002` | `NoCrossTransportTouchConsumption` | 5 of 42 | 5 | 0 of 0 | 2 | 0 | 3 | 4 | `31c21a7` stale (4 input(s) newer) | BOUNDED |
 | `SEC-FIDO-003` | `NoTokenAfterInvalidation` | 5 of 45 | 6 | 0 of 0 | 2 | 0 | 4 | 0 | `31c21a7` stale (10 input(s) newer) | BOUNDED |
 | `SEC-FIDO-004` | `NoAccessibleSecretWithoutGate` | 5 of 39 | 2 | 0 of 0 | 0 | 0 | 4 | 0 | `31c21a7` stale (5 input(s) newer) | MODELLED-ONLY |
-| `SEC-FIDO-005` | `NoUnmanageableCredential` | 5 of 40 | 3 | 0 of 0 | 0 | 0 | 4 | 0 | `31c21a7` stale (6 input(s) newer) | MODELLED-ONLY |
+| `SEC-FIDO-005` | `NoUnmanageableCredential` | 5 of 40 | 3 | 0 of 0 | 0 | 0 | 4 | 0 | `31c21a7` stale (7 input(s) newer) | MODELLED-ONLY |
 | `SEC-FIDO-006` | `ResetNeverWeakensSurvivingState` | 5 of 40 | 3 | 0 of 0 | 1 | 0 | 4 | 0 | `31c21a7` stale (6 input(s) newer) | BOUNDED |
 | `SEC-FIDO-006A` | `ResetKeepsThePinGate` | 1 of 2 | 1 | 0 of 0 | 1 | 0 | 4 | 0 | `b185fc3` stale (2 input(s) newer) | BOUNDED |
 | `SEC-FIDO-006B` | `ResetKeepsTheAlwaysUvGate` | 1 of 2 | 1 | 0 of 0 | 1 | 0 | 4 | 0 | `b185fc3` stale (2 input(s) newer) | BOUNDED |
@@ -80,9 +80,9 @@ The `freshness` axis reads committed history only, so an uncommitted edit to an 
 | `SEC-TRACE-001` | `R4aRawRefinesB` | 2 of 9 | 0 | 2 of 9 | 0 | 0 | 0 | 0 | — | MODELLED-ONLY |
 | `SEC-TRACE-002` | `R4bAlphaMatchesGamma` | 1 of 8 | 0 | 1 of 8 | 0 | 0 | 0 | 0 | — | MODELLED-ONLY |
 | `SEC-TRACE-004` | `R4cGateAnswers` | 2 of 9 | 0 | 2 of 9 | 0 | 0 | 0 | 0 | — | MODELLED-ONLY |
-| `SEC-SEAM-001` | `NoStatusOutsideItsSelection` | 2 of 29 | 5 | 1 of 2 | 0 | 0 | 10 | 0 | — | MODELLED-ONLY |
-| `SEC-SEAM-002` | `NoStatusAfterARefusedAuth` | 2 of 24 | 2 | 1 of 2 | 0 | 0 | 10 | 0 | — | MODELLED-ONLY |
-| `SEC-SEAM-003` | `NoKeyOpOnTheAdminStatus` | 2 of 28 | 5 | 1 of 2 | 0 | 0 | 10 | 0 | — | MODELLED-ONLY |
+| `SEC-SEAM-001` | `NoStatusOutsideItsSelection` | 2 of 29 | 5 | 1 of 2 | 0 | 0 | 8 | 0 | — | MODELLED-ONLY |
+| `SEC-SEAM-002` | `NoStatusAfterARefusedAuth` | 2 of 24 | 2 | 1 of 2 | 0 | 0 | 8 | 0 | — | MODELLED-ONLY |
+| `SEC-SEAM-003` | `NoKeyOpOnTheAdminStatus` | 2 of 28 | 5 | 1 of 2 | 0 | 0 | 8 | 0 | — | MODELLED-ONLY |
 | `SEC-SEAM-004` | `ReselectPreservesAccessStatus` | 2 of 23 | 1 | 1 of 2 | 0 | 0 | 0 | 0 | — | MODELLED-ONLY |
 | `SEC-SEAM-005` | `ExemptRefusalPreservesStatus` | 2 of 24 | 2 | 1 of 2 | 0 | 0 | 0 | 0 | — | MODELLED-ONLY |
 | `SEC-SEAM-006` | `AccessCodeRemovalNeedsTheCode` | 2 of 23 | 1 | 1 of 2 | 0 | 0 | 4 | 0 | — | MODELLED-ONLY |
@@ -105,14 +105,14 @@ The `freshness` axis reads committed history only, so an uncommitted edit to an 
 | `SEC-ADM-002` | `PrivilegedOpNeedsPresence` | 1 of 6 | 1 | 0 of 0 | 0 | 0 | 3 | 4 | — | MODELLED-ONLY |
 | `SEC-ADM-003` | `DisableSetSurvivesLockWrite` | 1 of 6 | 1 | 0 of 0 | 0 | 0 | 0 | 0 | — | MODELLED-ONLY |
 | `SEC-ADM-004` | `DisabledAppletNeverDispatches` | 1 of 6 | 1 | 0 of 0 | 0 | 0 | 4 | 0 | — | MODELLED-ONLY |
-| `SEC-DISP-001` | `ConfirmNamesTheOperation` | 1 of 5 | 1 | 0 of 0 | 0 | 0 | 0 | 31 | — | MODELLED-ONLY |
-| `SEC-DISP-002` | `StaleTouchApprovesNothing` | 1 of 5 | 1 | 0 of 0 | 0 | 0 | 0 | 31 | — | MODELLED-ONLY |
-| `SEC-DISP-003` | `OnlyAllowConfirms` | 1 of 5 | 1 | 0 of 0 | 0 | 0 | 0 | 31 | — | MODELLED-ONLY |
+| `SEC-DISP-001` | `ConfirmNamesTheOperation` | 1 of 5 | 1 | 0 of 0 | 0 | 0 | 0 | 33 | — | MODELLED-ONLY |
+| `SEC-DISP-002` | `StaleTouchApprovesNothing` | 1 of 5 | 1 | 0 of 0 | 0 | 0 | 0 | 33 | — | MODELLED-ONLY |
+| `SEC-DISP-003` | `OnlyAllowConfirms` | 1 of 5 | 1 | 0 of 0 | 0 | 0 | 0 | 33 | — | MODELLED-ONLY |
 | `SEC-BOOT-001` | `MarkerNeverLies` | 4 of 13 | 2 | 0 of 0 | 0 | 0 | 4 | 0 | — | MODELLED-ONLY |
 | `SEC-BOOT-002` | `TheWholeLockRides` | 3 of 8 | 1 | 0 of 0 | 0 | 0 | 4 | 0 | — | MODELLED-ONLY |
-| `SEC-TRANS-001` | `NoCrossChannelSplice` | 1 of 5 | 1 | 0 of 0 | 2 | 0 | 10 | 0 | — | BOUNDED |
-| `SEC-TRANS-002` | `NoSequenceGap` | 1 of 5 | 1 | 0 of 0 | 1 | 0 | 10 | 0 | — | BOUNDED |
-| `SEC-TRANS-003` | `NoBufferOverrun` | 1 of 5 | 1 | 0 of 0 | 1 | 0 | 10 | 0 | — | BOUNDED |
+| `SEC-TRANS-001` | `NoCrossChannelSplice` | 1 of 5 | 1 | 0 of 0 | 2 | 0 | 8 | 0 | — | BOUNDED |
+| `SEC-TRANS-002` | `NoSequenceGap` | 1 of 5 | 1 | 0 of 0 | 1 | 0 | 8 | 0 | — | BOUNDED |
+| `SEC-TRANS-003` | `NoBufferOverrun` | 1 of 5 | 1 | 0 of 0 | 1 | 0 | 8 | 0 | — | BOUNDED |
 | `SEC-RISK-001` | `PerDeviceAttestationCertIsACorrelationHandle` | 0 of 0 | 0 | 0 of 0 | 0 | 0 | 0 | 0 | — | ACCEPTED-RISK |
 | `SEC-RISK-002` | `FlashSnapshotRollsBackPinRetries` | 0 of 0 | 0 | 0 of 0 | 0 | 0 | 0 | 0 | — | ACCEPTED-RISK |
 
@@ -126,7 +126,9 @@ The same 40 P0-family rows, counted the other way round: per column rather than 
 
 | Column | Kind | Published | Placed | Unplaced |
 |---|---|---|---:|---:|
-| `firmware` | package | yes | 40 | 0 |
+| `firmware-daily` | package | yes | 3 | 37 |
+| `firmware-compat` | package | yes | 3 | 37 |
+| `firmware` | package | no | 40 | 0 |
 | `firmware-no-touch` | package | no | 7 | 33 |
 | `firmware-fips` | package | yes | 3 | 37 |
 | `firmware-pqc` | package | yes | 3 | 37 |
@@ -142,10 +144,10 @@ The same 40 P0-family rows, counted the other way round: per column rather than 
 | `firmware-strict-up-pqc` | package | yes | 3 | 37 |
 | `firmware-pico` | package | no | 40 | 0 |
 | `firmware-display` | package | yes | 0 | 40 |
-| `firmware-2mb` | package | yes | 9 | 31 |
-| `firmware-16mb` | package | yes | 9 | 31 |
+| `firmware-2mb` | package | yes | 3 | 37 |
+| `firmware-16mb` | package | yes | 3 | 37 |
 | `firmware-strict-config` | package | yes | 3 | 37 |
-| `fingerprint` | feature | no | 3 | 37 |
+| `firmware-fingerprint-2mb` | package | yes | 3 | 37 |
 | `keygen-bench` | feature | no | 3 | 37 |
 | `core1-stats` | feature | no | 3 | 37 |
 | `bench` | feature | no | 3 | 37 |
@@ -171,7 +173,7 @@ Three spellings of "not current", which used to sit on two different pages and i
 | bundle | `SEC-FIDO-002` | 4 input(s) newer than `31c21a7` |
 | bundle | `SEC-FIDO-003` | 10 input(s) newer than `31c21a7` |
 | bundle | `SEC-FIDO-004` | 5 input(s) newer than `31c21a7` |
-| bundle | `SEC-FIDO-005` | 6 input(s) newer than `31c21a7` |
+| bundle | `SEC-FIDO-005` | 7 input(s) newer than `31c21a7` |
 | bundle | `SEC-FIDO-006` | 6 input(s) newer than `31c21a7` |
 | bundle | `SEC-FIDO-006A` | 2 input(s) newer than `b185fc3` |
 | bundle | `SEC-FIDO-006B` | 2 input(s) newer than `b185fc3` |

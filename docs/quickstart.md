@@ -8,7 +8,7 @@ From zero to a working security key in about ten minutes.
 
 ```mermaid
 flowchart TD
-    a["download rs-key-&lt;version&gt;-default.uf2<br/>(or build it yourself)"] --> c["hold BOOT, plug in"]
+    a["download rs-key-&lt;version&gt;-daily.uf2<br/>(or build it yourself)"] --> c["hold BOOT, plug in"]
     c --> d["flash: drag-and-drop or picotool load"]
     d --> e["board reboots, enumerates over USB"]
     e --> f["set PIN, enroll a passkey / ssh key"]
@@ -36,14 +36,17 @@ such as Google Chrome or Microsoft Edge.
 
 ## 1. Get the firmware
 
-Download the newest `rs-key-<version>-default.uf2` from the
+The next release provides `rs-key-<version>-daily.uf2` on the
 [releases page](https://github.com/TheMaxMur/RS-Key/releases/latest). Take
 `2mb`, `16mb` or `display` instead if that is your board;
-[releases.md](releases.md) has the table of all fourteen images, the cosign
+[releases.md](releases.md) has the table of all sixteen images, the cosign
 signature check, and the reproducibility check.
 
 Every published image is a **touch build**: FIDO operations (registering,
 logging in) require a press of the presence button, BOOTSEL by default.
+Daily images also enable `strict-config` for administrative writes. Use the
+explicit `compat` image only when you need permissive legacy management;
+the [CLI guide](guides/cli.md) lists each route's authorization.
 
 <details>
 <summary>Or build it yourself</summary>
@@ -55,14 +58,14 @@ deps from `flake.nix`.
 
 ```sh
 nix develop                                  # first run downloads the toolchain
-cargo build --release -p firmware
-scripts/pt.sh target/thumbv8m.main-none-eabihf/release/firmware firmware-pt.elf
+cargo build --release -p firmware --features strict-config
+scripts/pt.sh --config-policy strict target/thumbv8m.main-none-eabihf/release/firmware firmware-pt.elf
 picotool uf2 convert firmware-pt.elf -t elf firmware.uf2
 ```
 
 `pt.sh` embeds the partition table that keeps the USB bootloader out of the key's
 storage — `cargo build` cannot, since it is added after linking
-([build.md](build.md#the-partition-table)). `nix build .#firmware` does it for
+([build.md](build.md#the-partition-table)). `nix build .#firmware-daily` does it for
 you.
 
 Set `PRESENCE_PIN=<gpio>` for a dedicated presence button instead of BOOTSEL.

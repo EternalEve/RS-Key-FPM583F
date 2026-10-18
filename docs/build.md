@@ -12,8 +12,10 @@ picotool uf2 convert firmware-pt.elf -t elf firmware.uf2
 ```
 
 The middle step embeds the [partition table](#the-partition-table); skip it and
-the key ships with its storage exposed to the bootloader. `nix build .#firmware`
-folds all three together.
+the key ships with its storage exposed to the bootloader. `nix build` (or
+`.#firmware-daily`) folds all three together and enables `strict-config` for
+daily use. Bare Cargo and the legacy `.#firmware` attribute keep the permissive
+configuration policy; `.#firmware-compat` names that policy explicitly.
 
 ## Build artifact identity
 
@@ -25,20 +27,24 @@ below end in `thumbv8m.main-none-eabihf/release/firmware`:
 | Default touch | `target/` |
 | 16 MB touch | `target/16mb/` |
 | Fingerprint candidate | `target/fingerprint/` |
+| Fingerprint strict-config candidate | `target/strict-fingerprint/` |
 | Display | `target/display/` |
 | No-touch test | `target/no-touch/` |
 
 The default ELF remains touch-enabled after the full gate. All images carry a
 24-byte loadable `.rsk_build` marker generated from the actual Cargo features:
 `RSKBUILD`, then little-endian u32 format version (1), feature flags (bit 0
-no-touch, bit 1 fingerprint, bit 2 display), Flash bytes and KVMAIN bytes.
+no-touch, bit 1 fingerprint, bit 2 display, bit 3 strict-config), Flash bytes
+and KVMAIN bytes.
 The marker survives debug stripping, partition-table insertion and UF2 export.
 It prevents accidental mix-ups; it is not a signature or proof of provenance.
 
 `scripts/pt.sh` checks this marker before producing a packaged ELF. Normal
 packaging refuses no-touch images, including renamed ones, and missing,
 malformed or unknown markers. Older unmarked ELFs must be rebuilt from source.
-The Nix release packages and CI use the same checked entry point. The explicit
+The Nix packages and CI pass `--config-policy strict` or `--config-policy compat`
+to check the requested policy against the actual image, even after renaming.
+The explicit
 test-only path requires an image that actually has no-touch enabled:
 
 ```sh
@@ -79,7 +85,7 @@ flowchart TD
 | `always-uv` | off | Bake the CTAP 2.1 `alwaysUv` option **on by default**, so the key requires user verification (a PIN — or the `display` build's built-in UV pad) for **every** makeCredential / getAssertion straight out of the box, with no post-flash `ykman fido config toggle-always-uv`. The shipped image leaves alwaysUv off until a platform turns it on; this flag flips the default. It stays runtime-toggleable — `toggleAlwaysUv` writes an override that survives reboots but not an `authenticatorReset`, which restores this compiled default. **Set a PIN after flashing:** with alwaysUv on and no PIN, FIDO operations return `CTAP2_ERR_PUAT_REQUIRED` until one is set — the standard cue for the platform (Windows, Chrome) to prompt for a PIN. While alwaysUv is on the **CTAP1/U2F interface is disabled** (CTAP 2.1 §7.2.4, as on a YubiKey): U2F only proves presence, never verification, so legacy U2F-only logins stop working, and getInfo drops `U2F_V2` from its advertised `versions`; WebAuthn / CTAP2 (passkeys) are unaffected. The one exception §7.2.4 allows is a build "protected by a built-in user verification method": on a `display` build **with a PIN set**, U2F stays available and every register / authenticate collects the PIN on the panel instead of a touch. |
 | `largeblob-ext` | off | Serve the **CTAP 2.3 §12.4 `largeBlob` extension instead of** the CTAP 2.1 large-blob design. Not additive, and not a choice the firmware could dodge: §12.4 says *"Authenticators MUST NOT support both extensions"*, so enabling it **withdraws** the `largeBlobKey` extension, the `authenticatorLargeBlobs` command (`0x0C`, which then answers `CTAP1_ERR_INVALID_COMMAND`), the `largeBlobs` option and `maxSerializedLargeBlobArray`. Blobs then live **per credential** (discoverable credentials only) instead of in one platform-managed array, and a whole blob rides in the `getAssertion` that reads or writes it — up to 4046 bytes, sealed at rest under the device seed with the credential id as AAD, which the 2.1 design does not need because the platform encrypts that array itself. Off by default, and think before turning it on: the 2.1 pair is what every shipping browser drives today, so a `largeblob-ext` key **loses WebAuthn `largeBlob` support with current clients**. |
 | `display` | off | **Experimental** trusted-display build for a screen + touch board (Waveshare RP2350-Touch-LCD-2.8). Adds an on-screen **Approve / Deny** that paints the real relying party for every touch (Deny refuses with `OPERATION_DENIED`), an on-device **PIN pad** (built-in user verification (`options.uv`), plus a CCID **pinpad** so GnuPG / OpenSC collect the OpenPGP / PIV PIN on the panel, never over USB), a read-only **Apps** browser (OpenPGP / PIV / OATH state, no PIN), a **Passkeys** manager (delete / rename on-device), and **Settings** (device & FIDO PINs, an optional scrambled PIN pad, on-screen BIP-39 / SLIP-39 recovery export, audit log, factory reset). Entirely `dep:`-gated. A standard key compiles **none** of it, so its image is unaffected. Build it `LED_KIND=none FLASH_SIZE=16M … --features display` (the panel takes GPIO16 for its backlight; a compile-time guard enforces `LED_KIND=none`). Full walkthrough with screenshots: [guides/display.md](guides/display.md). |
-| `strict-config` | off | **Restores the historical strict admin-write authorization.** The DEFAULT build is now the permissive, full-ykman/YubiKey-compatible admin surface: device-config writes (CCID Management `WRITE CONFIG`, FIDO vendor `CONFIG_WRITE`, the CTAPHID `0x43` and OTP-HID `0x15` transport writes) are **ungated**, and Management RESET (device-wide factory reset) plus the OTP-HID `DEVICE_CONFIG` / `SCAN_MAP` / `NDEF` slots are served. `--features strict-config` re-imposes the presence/PIN gates and refuses the ungated transport writes — the historical shipped behavior. This deliberately weakens the DEFAULT threat model: any USB host can rewrite the reported identity with no operator confirmation ([threat-model.md](threat-model.md)). **Not** the runtime flash flag `EF_HARDENED`. Ship it as `firmware-strict-config`. |
+| `strict-config` | off in Cargo; on in daily packages | CCID Management requires presence. FIDO vendor configuration requires presence and an `acfg` token when clientPIN is set; raw CTAPHID writes are unsupported and OTP DeviceInfo writes are no-ops. Management whole-device reset and OTP legacy `DEVICE_CONFIG` / `SCAN_MAP` / `NDEF` writes are disabled. Bare Cargo, legacy `.#firmware` and explicit `compat` retain permissive management writes. See the [authorization table](guides/cli.md) and [threat model](threat-model.md). Separate from the runtime flash flag `EF_HARDENED`. |
 
 ## Environment variables
 
@@ -115,7 +121,7 @@ is added. The candidate screenless 2MB configuration is:
 
 ```sh
 FLASH_SIZE=2097152 KVMAIN=896K FINGERPRINT_POWER_PIN=3 FINGERPRINT_TOUCH_PIN=2 \
-  cargo build --release -p firmware --features fingerprint --target-dir target/fingerprint
+  cargo build --release -p firmware --features fingerprint,strict-config --target-dir target/strict-fingerprint
 ```
 
 Build inside `nix develop`. Omit `FINGERPRINT_POWER_PIN` for the constant-supply
@@ -247,12 +253,13 @@ entering the dev shell or having a Rust toolchain installed. Nix pins the
 toolchain, the cross target, and every dependency:
 
 ```sh
-nix build .#firmware                 # default touch image
-ls result/                           # firmware.elf  firmware.uf2
+nix build                           # strict-config daily touch image
+ls result/                          # firmware-daily.elf  firmware-daily.uf2
 ```
 
-`result/firmware.uf2` is functionally the image the dev-shell `cargo build`
-produces. Unlike the dev-shell build, it is **bit-for-bit
+`result/firmware-daily.uf2` enables `strict-config`, matching a dev-shell build
+with that feature. The legacy `.#firmware` and explicit `.#firmware-compat`
+retain bare Cargo's permissive policy. The Nix derivation is **bit-for-bit
 reproducible**: the derivation remaps the two absolute build inputs out of
 the binary (the per-build sandbox dir and the toolchain store path; both
 land in panic-location strings in `.rodata`, plus DWARF in the `.elf`) with
@@ -262,7 +269,7 @@ on every machine of a platform. The daily `repro` job in
 proves it (`nix build` twice, the second with `--rebuild` so nix compares
 every output byte) and publishes the canonical sha256 in its run summary.
 
-To verify a published image: `nix build .#firmware` at the release commit
+To verify a published daily image: `nix build .#firmware-daily` at the release commit
 and compare hashes. A *sealed* image can't be reproduced by a third party
 (the signature is the signer's); verify the unsigned payload instead, then
 check the seal with `picotool`. The flavors mirror the
@@ -270,7 +277,8 @@ check the seal with `picotool`. The flavors mirror the
 
 | Attribute | Image |
 |---|---|
-| `.#firmware` (default) | touch build, RS-Key identity (`0x1209:0x0001`), fw 5.8.0 |
+| `.#firmware-daily` (also bare `nix build`) | touch + `strict-config`, RS-Key identity (`0x1209:0x0001`), fw 5.8.0 |
+| `.#firmware-compat` / legacy `.#firmware` | permissive touch build, same identity and firmware version |
 | `.#firmware-no-touch` | `--features no-touch` (the test build) |
 | `.#firmware-fips` | `--features fips-profile` |
 | `.#firmware-pqc` | `--features advertise-pqc` |
@@ -278,9 +286,16 @@ check the seal with `picotool`. The flavors mirror the
 | `.#firmware-always-uv` | `--features always-uv` (CTAP 2.1 `alwaysUv` on by default; also `.#firmware-always-uv-pqc`) |
 | `.#firmware-strict-up` | `--features strict-up` (touch on every assertion — **not spec-conformant** for `up:false`; also `.#firmware-strict-up-pqc`) |
 | `.#firmware-display` | `--features display`, `FLASH_SIZE=16M`, `LED_KIND=none` (experimental, Waveshare RP2350-Touch-LCD-2.8) |
-| `.#firmware-2mb` | default features + RS-Key identity, `FLASH_SIZE=2M`, `KVMAIN=896K` (2 MB boards: Seeed XIAO RP2350, Waveshare RP2350-Zero-CM) |
-| `.#firmware-16mb` | default features + RS-Key identity, `FLASH_SIZE=16M` (16 MB boards, e.g. TenStar RP2350-USB) |
-| `.#firmware-strict-config` | `--features strict-config` (historical strict admin-write posture; the default `firmware` is now the permissive full-ykman admin surface) |
+| `.#firmware-2mb` | strict-config + RS-Key identity, `FLASH_SIZE=2M`, `KVMAIN=896K` (2 MB boards: Seeed XIAO RP2350, Waveshare RP2350-Zero-CM) |
+| `.#firmware-16mb` | strict-config + RS-Key identity, `FLASH_SIZE=16M` (16 MB boards, e.g. TenStar RP2350-USB) |
+| `.#firmware-fingerprint-2mb` | `fingerprint,strict-config`, 2 MB / 896 K, UART GP0/1, touch GP2, power GP3; hardware acceptance pending |
+| `.#firmware-strict-config` | retained strict-config daily-policy variant |
+
+All published variants except `compat` enable `strict-config`, including the
+FIPS, PQC, PIN, always-UV, strict-UP and display combinations above. The Cargo
+feature defaults themselves are unchanged. When FIDO2 is disabled, use CCID
+Management to re-enable it; the disabled FIDO2 path cannot carry its own vendor
+configuration command. Keep a working CCID interface for that recovery.
 
 Two caveats:
 
@@ -289,7 +304,7 @@ Two caveats:
   ```sh
   # the ELF, not the UF2: sealing a UF2 leaves the image's own unsigned
   # IMAGE_DEF first in the chain, and a secure-boot device refuses that
-  picotool seal --sign --hash result/firmware.elf -t elf firmware-signed.elf -t elf \
+  picotool seal --sign --hash result/firmware-daily.elf -t elf firmware-signed.elf -t elf \
       ~/.rs-key-secrets/secure_boot_key.pem ~/.rs-key-secrets/otp_secureboot.json \
       --major 1 --minor 0 --rollback 1
   picotool uf2 convert firmware-signed.elf -t elf firmware-signed.uf2

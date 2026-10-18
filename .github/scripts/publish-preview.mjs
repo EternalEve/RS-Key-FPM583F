@@ -11,6 +11,8 @@ import { pathToFileURL } from "node:url";
 const MARKER = "<!-- rs-key-flasher-preview -->";
 export const SAFE_VARIANTS = [
   "default",
+  "compat",
+  "fingerprint-2mb",
   "pqc",
   "fips",
   "fips-pqc",

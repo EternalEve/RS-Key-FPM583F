@@ -674,9 +674,14 @@ async fn serve<PR: rsk_sdk::UserPresence + 'static>(
                 } else {
                     None
                 };
-                signals.begin(cid);
-                let body = ctap.handle_cbor(cid, &data, now_ms).to_vec();
-                signals.end();
+                let body = if ccid.caps_enabled(rsk_devconf::CAP_FIDO2) {
+                    signals.begin(cid);
+                    let body = ctap.handle_cbor(cid, &data, now_ms).to_vec();
+                    signals.end();
+                    body
+                } else {
+                    vec![rsk_fido::CtapError::OperationDenied as u8]
+                };
                 #[cfg(feature = "security-trace")]
                 if let (Some(writer), Some((pre, abstract_pre))) =
                     (security_trace.as_mut(), trace_pre)
@@ -712,6 +717,9 @@ async fn serve<PR: rsk_sdk::UserPresence + 'static>(
                     );
                 }
                 Some(body)
+            }
+            Job::Msg { .. } if !ccid.caps_enabled(rsk_devconf::CAP_U2F) => {
+                Some(rsk_sdk::Sw::CONDITIONS_NOT_SATISFIED.to_bytes().to_vec())
             }
             Job::Msg { cid, data } => {
                 // U2F has no SELECT of its own, so without this another process's

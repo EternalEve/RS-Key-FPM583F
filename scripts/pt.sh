@@ -9,7 +9,7 @@
 # rollback"). It is a *complement* to secure boot, not a substitute — read that
 # section before quoting this as protection.
 #
-#   scripts/pt.sh [--test-no-touch] <in.elf> <out.elf>
+#   scripts/pt.sh [--test-no-touch] [--config-policy strict|compat] <in.elf> <out.elf>
 #
 # The bounds are read back out of the ELF, not restated here: `__kvmain_start`
 # and `__kvcnt_end` are the same absolute symbols `flash_storage.rs` uses to find
@@ -20,12 +20,15 @@
 set -euo pipefail
 
 identity_args=()
-if [ "${1:-}" = --test-no-touch ]; then
-  identity_args+=(--test-no-touch)
-  shift
-fi
-in=${1:?usage: scripts/pt.sh [--test-no-touch] <in.elf> <out.elf>}
-out=${2:?usage: scripts/pt.sh [--test-no-touch] <in.elf> <out.elf>}
+while [[ "${1:-}" == --* ]]; do
+  case "$1" in
+    --test-no-touch) identity_args+=("$1"); shift ;;
+    --config-policy) identity_args+=("$1" "${2:?missing config policy}"); shift 2 ;;
+    *) echo "pt.sh: unknown option $1" >&2; exit 1 ;;
+  esac
+done
+in=${1:?usage: scripts/pt.sh [--test-no-touch] [--config-policy strict|compat] <in.elf> <out.elf>}
+out=${2:?usage: scripts/pt.sh [--test-no-touch] [--config-policy strict|compat] <in.elf> <out.elf>}
 python3 "$(dirname "$0")/firmware_identity.py" "${identity_args[@]}" "$in"
 
 # gcc-arm-embedded ships the one that always reads a thumbv8m ELF; the others are

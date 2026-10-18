@@ -18,7 +18,7 @@ See [production.md](production.md) for that.
 
 | Layer | Artifact | What it proves |
 |---|---|---|
-| Reproducible build | the 14 `.uf2` flavors | the binary is a pure function of the source at the tag. Anyone can rebuild it — which says the BUILD is deterministic, not that the machine code preserves what the source proves |
+| Reproducible build | the 16 `.uf2` flavors | the binary is a pure function of the source at the tag. Anyone can rebuild it — which says the BUILD is deterministic, not that the machine code preserves what the source proves |
 | Repro **gate** | (CI, blocking) | the release job *fails* if any flavor doesn't rebuild bit-identical, so a non-reproducible image is never published |
 | Checksums + signature | `SHA256SUMS` + `SHA256SUMS.sigstore.json` | the hashes were signed by this repo's release workflow (keyless cosign). Up to v0.4.10 the same file is named `SHA256SUMS.cosign.bundle` |
 | Build provenance | a GitHub **attestation**, plus `rs-key-<tag>.intoto.jsonl` on the release | which reusable workflow, at which commit, on which runner built each `.uf2`. **SLSA v1 Build L3**, keyless via `attest-build-provenance`. The API copy is authoritative; the file is for offline checking |
@@ -154,8 +154,8 @@ The closed vocabulary the `Subject` column below is drawn from. Printed here bec
 | 4 | actions/cache | `none` | The cargo registry cache. Outside the Nix sandbox, so it feeds no shipped byte — `nix build` vendors from `Cargo.lock`. |
 | 5 | sigstore/cosign-installer | `none` | Installs the signer. Its pin is part of the trust base: this is the code that holds the OIDC token. |
 | 6 | resolve tag | `admission` | Shape, charset, and an ancestor-of-`main` test. Defence in depth only: an actor who can push a tag also controls this file at that ref, so the primary control is a repository tag ruleset. |
-| 7 | build the 14 reproducible firmware flavors | `none` | Produces the images. A build alone establishes nothing — it is the rebuild below that turns it into evidence. |
-| 8 | reproducibility gate — rebuild all 14, require bit-identical | `bit-for-bit` | Recompiles every flavor already in the store and fails on a hash mismatch, so a non-reproducible image is never published. Says the BUILD is a function of its inputs; says nothing about what the machine code means. |
+| 7 | build the 16 reproducible firmware flavors | `none` | Produces the images. A build alone establishes nothing — it is the rebuild below that turns it into evidence. |
+| 8 | reproducibility gate — rebuild all 16, require bit-identical | `bit-for-bit` | Recompiles every flavor already in the store and fails on a hash mismatch, so a non-reproducible image is never published. Says the BUILD is a function of its inputs; says nothing about what the machine code means. |
 | 9 | generate the CycloneDX SBOM | `inventory` | The firmware crate's dependency tree, scoped to the shipped target. |
 | 10 | checksums | `integrity` | A digest of every `.uf2` and of the SBOM. It does not cover itself, its own signature or the provenance bundle — the last two are written after this step, and the attestation is what stands behind them. |
 | 11 | attest build provenance | `origin` | GitHub build provenance for the `.uf2` files this step is handed, bound to THIS reusable workflow's identity — the difference between SLSA Build L3 and L2. |
@@ -189,26 +189,28 @@ exit 1
 fi
 echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
-# 7. build the 14 reproducible firmware flavors
+# 7. build the 16 reproducible firmware flavors
 tag="${{ steps.tag.outputs.tag }}"
 mkdir -p dist
-for pkg in firmware firmware-pqc firmware-fips firmware-fips-pqc firmware-strong-pin firmware-strong-pin-pqc firmware-always-uv firmware-always-uv-pqc firmware-strict-up firmware-strict-up-pqc firmware-display firmware-2mb firmware-16mb firmware-strict-config; do
+for pkg in firmware-daily firmware-compat firmware-fingerprint-2mb firmware-pqc firmware-fips firmware-fips-pqc firmware-strong-pin firmware-strong-pin-pqc firmware-always-uv firmware-always-uv-pqc firmware-strict-up firmware-strict-up-pqc firmware-display firmware-2mb firmware-16mb firmware-strict-config; do
 echo "::group::nix build .#$pkg"
 out="$(nix build ".#$pkg" --no-link --print-out-paths)"
-nix develop -c python scripts/firmware_identity.py "$out/$pkg.elf"
+policy=strict
+[ "$pkg" = firmware-compat ] && policy=compat
+nix develop -c python scripts/firmware_identity.py --config-policy "$policy" "$out/$pkg.elf"
 label="${pkg#firmware}"; label="${label#-}"
 [ -z "$label" ] && label="default"
 cp "$out/$pkg.uf2" "dist/rs-key-${tag}-${label}.uf2"
 echo "::endgroup::"
 done
 ls -l dist
-# 8. reproducibility gate — rebuild all 14, require bit-identical
-for pkg in firmware firmware-pqc firmware-fips firmware-fips-pqc firmware-strong-pin firmware-strong-pin-pqc firmware-always-uv firmware-always-uv-pqc firmware-strict-up firmware-strict-up-pqc firmware-display firmware-2mb firmware-16mb firmware-strict-config; do
+# 8. reproducibility gate — rebuild all 16, require bit-identical
+for pkg in firmware-daily firmware-compat firmware-fingerprint-2mb firmware-pqc firmware-fips firmware-fips-pqc firmware-strong-pin firmware-strong-pin-pqc firmware-always-uv firmware-always-uv-pqc firmware-strict-up firmware-strict-up-pqc firmware-display firmware-2mb firmware-16mb firmware-strict-config; do
 echo "::group::nix build .#$pkg --rebuild"
 nix build ".#$pkg" --rebuild --no-link
 echo "::endgroup::"
 done
-echo "all 14 flavors rebuilt bit-identical"
+echo "all 16 flavors rebuilt bit-identical"
 # 9. generate the CycloneDX SBOM
 tag="${{ steps.tag.outputs.tag }}"
 nix develop -c cargo cyclonedx --manifest-path firmware/Cargo.toml --target thumbv8m.main-none-eabihf --format json
@@ -293,19 +295,21 @@ The build step and the reproducibility gate iterate the same list, and a differe
 
 | Flavor | Published as | Build selection |
 |---|---|---|
-| `firmware` | `rs-key-<tag>-default.uf2` | no flags, no knobs |
-| `firmware-pqc` | `rs-key-<tag>-pqc.uf2` | `--features advertise-pqc` |
-| `firmware-fips` | `rs-key-<tag>-fips.uf2` | `--features fips-profile` |
-| `firmware-fips-pqc` | `rs-key-<tag>-fips-pqc.uf2` | `--features fips-profile,advertise-pqc` |
-| `firmware-strong-pin` | `rs-key-<tag>-strong-pin.uf2` | `--features strong-pin` |
-| `firmware-strong-pin-pqc` | `rs-key-<tag>-strong-pin-pqc.uf2` | `--features strong-pin,advertise-pqc` |
-| `firmware-always-uv` | `rs-key-<tag>-always-uv.uf2` | `--features always-uv` |
-| `firmware-always-uv-pqc` | `rs-key-<tag>-always-uv-pqc.uf2` | `--features always-uv,advertise-pqc` |
-| `firmware-strict-up` | `rs-key-<tag>-strict-up.uf2` | `--features strict-up` |
-| `firmware-strict-up-pqc` | `rs-key-<tag>-strict-up-pqc.uf2` | `--features strict-up,advertise-pqc` |
-| `firmware-display` | `rs-key-<tag>-display.uf2` | `--features display`, `flashSize = "16M"`, `ledKind = "none"` |
-| `firmware-2mb` | `rs-key-<tag>-2mb.uf2` | `flashSize = "2M"`, `kvmain = "896K"` |
-| `firmware-16mb` | `rs-key-<tag>-16mb.uf2` | `flashSize = "16M"` |
+| `firmware-daily` | `rs-key-<tag>-daily.uf2` | `--features strict-config` |
+| `firmware-compat` | `rs-key-<tag>-compat.uf2` | no flags, no knobs |
+| `firmware-fingerprint-2mb` | `rs-key-<tag>-fingerprint-2mb.uf2` | `--features fingerprint,strict-config`, `flashSize = "2M"`, `kvmain = "896K"` |
+| `firmware-pqc` | `rs-key-<tag>-pqc.uf2` | `--features advertise-pqc,strict-config` |
+| `firmware-fips` | `rs-key-<tag>-fips.uf2` | `--features fips-profile,strict-config` |
+| `firmware-fips-pqc` | `rs-key-<tag>-fips-pqc.uf2` | `--features fips-profile,advertise-pqc,strict-config` |
+| `firmware-strong-pin` | `rs-key-<tag>-strong-pin.uf2` | `--features strong-pin,strict-config` |
+| `firmware-strong-pin-pqc` | `rs-key-<tag>-strong-pin-pqc.uf2` | `--features strong-pin,advertise-pqc,strict-config` |
+| `firmware-always-uv` | `rs-key-<tag>-always-uv.uf2` | `--features always-uv,strict-config` |
+| `firmware-always-uv-pqc` | `rs-key-<tag>-always-uv-pqc.uf2` | `--features always-uv,advertise-pqc,strict-config` |
+| `firmware-strict-up` | `rs-key-<tag>-strict-up.uf2` | `--features strict-up,strict-config` |
+| `firmware-strict-up-pqc` | `rs-key-<tag>-strict-up-pqc.uf2` | `--features strict-up,advertise-pqc,strict-config` |
+| `firmware-display` | `rs-key-<tag>-display.uf2` | `--features display,strict-config`, `flashSize = "16M"`, `ledKind = "none"` |
+| `firmware-2mb` | `rs-key-<tag>-2mb.uf2` | `--features strict-config`, `flashSize = "2M"`, `kvmain = "896K"` |
+| `firmware-16mb` | `rs-key-<tag>-16mb.uf2` | `--features strict-config`, `flashSize = "16M"` |
 | `firmware-strict-config` | `rs-key-<tag>-strict-config.uf2` | `--features strict-config` |
 
 ### Inside the sandbox
@@ -318,7 +322,12 @@ export PATH="${toolchain}/lib/rustlib/$(rustc -vV | sed -n 's/^host: //p')/bin:$
 cargo build --release --offline --frozen -p firmware --target ${target} --config "target.${target}.rustflags=[\"--remap-path-prefix=$NIX_BUILD_TOP=/build\",\"--remap-path-prefix=${toolchain}=/toolchain\"]" ${lib.escapeShellArgs cargoFlags}
 # installPhase
 mkdir -p "$out"
-bash scripts/pt.sh ${lib.optionalString testNoTouch "--test-no-touch"} "target/${target}/release/firmware" "$out/${name}.elf"
+bash scripts/pt.sh ${lib.optionalString testNoTouch "--test-no-touch"} --config-policy ${
+if lib.any (flag: builtins.elem "strict-config" (lib.splitString "," flag)) cargoFlags then
+"strict"
+else
+"compat"
+} "target/${target}/release/firmware" "$out/${name}.elf"
 picotool uf2 convert "$out/${name}.elf" -t elf "$out/${name}.uf2"
 ```
 
@@ -329,10 +338,10 @@ The files that decide what a release is. A digest here covers the parts the tabl
 | File | sha256 |
 |---|---|
 | `.github/workflows/release.yml` | `943eae75595831de403c51f1468be0d255b182a20fb155ab9a9eca956c54270f` |
-| `.github/workflows/release-build.yml` | `4b52f4c814adafe6be5e87d511d98a93319c17e7981df72fbc431cc5f5aaf1c9` |
-| `nix/firmware.nix` | `00563f6bb2d407a559b04dfb16eff4445f839bd09371ab95798745017c9f7808` |
-| `scripts/pt.sh` | `f0a8be31bd8098ec817793e4908a09491388724909147f2b2a29f12932704361` |
-| `scripts/firmware_identity.py` | `9e78d2e0c68cd7bebf58d766e95ff2998a5259c3db7e200ecfcfa0c6ae009e92` |
+| `.github/workflows/release-build.yml` | `37afc940723eace540fbb8dd8e330e07d2cb70eea0c706e51d20dd9e4bbd8678` |
+| `nix/firmware.nix` | `710d087c00de76dc608d138833d9b2b66c6638dcdffecdfb844f8769eb9ee406` |
+| `scripts/pt.sh` | `25f995c87c2d099eda38fde9d0ef9aaca5e21d47657a5ddfaf05908cbc2a1e7e` |
+| `scripts/firmware_identity.py` | `880bcbcfb73b368f07d38c317d3ee414097b4d7b2f427b28ee6ad719cb16533f` |
 
 The CI code that runs them, pinned by commit:
 
@@ -347,7 +356,7 @@ The CI code that runs them, pinned by commit:
 
 The toolchain closure — `flake.lock`, `Cargo.lock` and the tools they pin — is the table above this section, and is deliberately not restated here: one copy, one place it can rot.
 
-Published assets: `SHA256SUMS`, `SHA256SUMS.sigstore.json`, `rs-key-<tag>-16mb.uf2`, `rs-key-<tag>-2mb.uf2`, `rs-key-<tag>-always-uv-pqc.uf2`, `rs-key-<tag>-always-uv.uf2`, `rs-key-<tag>-default.uf2`, `rs-key-<tag>-display.uf2`, `rs-key-<tag>-fips-pqc.uf2`, `rs-key-<tag>-fips.uf2`, `rs-key-<tag>-pqc.uf2`, `rs-key-<tag>-sbom.cdx.json`, `rs-key-<tag>-strict-config.uf2`, `rs-key-<tag>-strict-up-pqc.uf2`, `rs-key-<tag>-strict-up.uf2`, `rs-key-<tag>-strong-pin-pqc.uf2`, `rs-key-<tag>-strong-pin.uf2`, `rs-key-<tag>.intoto.jsonl`.
+Published assets: `SHA256SUMS`, `SHA256SUMS.sigstore.json`, `rs-key-<tag>-16mb.uf2`, `rs-key-<tag>-2mb.uf2`, `rs-key-<tag>-always-uv-pqc.uf2`, `rs-key-<tag>-always-uv.uf2`, `rs-key-<tag>-compat.uf2`, `rs-key-<tag>-daily.uf2`, `rs-key-<tag>-display.uf2`, `rs-key-<tag>-fingerprint-2mb.uf2`, `rs-key-<tag>-fips-pqc.uf2`, `rs-key-<tag>-fips.uf2`, `rs-key-<tag>-pqc.uf2`, `rs-key-<tag>-sbom.cdx.json`, `rs-key-<tag>-strict-config.uf2`, `rs-key-<tag>-strict-up-pqc.uf2`, `rs-key-<tag>-strict-up.uf2`, `rs-key-<tag>-strong-pin-pqc.uf2`, `rs-key-<tag>-strong-pin.uf2`, `rs-key-<tag>.intoto.jsonl`.
 
 ### What this table does not read
 
@@ -372,11 +381,11 @@ it needs no trust in the publisher at all:
 
 ```sh
 git checkout <tag>
-nix build .#firmware            # or .#firmware-pqc, .#firmware-fips, …
-sha256sum result/firmware.uf2   # compare against SHA256SUMS
+nix build .#firmware-daily            # or .#firmware-pqc, .#firmware-fips, …
+sha256sum result/firmware-daily.uf2   # compare against SHA256SUMS
 ```
 
-CI already enforces this: the release job rebuilds all fourteen flavors with
+CI already enforces this: the release job rebuilds all sixteen flavors with
 `nix build --rebuild` and fails on any bit-level difference before publishing.
 
 ### 2. Checksum signature (keyless cosign)
@@ -397,7 +406,7 @@ workflow's identity (`job_workflow_ref`).
 ### 3. Build provenance (GitHub attestation)
 
 ```sh
-gh attestation verify rs-key-<tag>-default.uf2 \
+gh attestation verify rs-key-<tag>-daily.uf2 \
   --repo TheMaxMur/RS-Key \
   --signer-workflow TheMaxMur/RS-Key/.github/workflows/release-build.yml
 ```

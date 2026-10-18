@@ -19,12 +19,14 @@ BUILD_ROWS = (
     "build firmware (release)",
     "build firmware (16M)",
     "build firmware (fingerprint)",
+    "build firmware (fingerprint strict-config)",
     "build firmware (display)",
     "build firmware (test, --features no-touch)",
 )
 ELF = pathlib.Path("thumbv8m.main-none-eabihf/release/firmware")
 DEFAULT = ROOT / "target" / ELF
 NO_TOUCH = ROOT / "target/no-touch" / ELF
+STRICT = ROOT / "target/strict-fingerprint" / ELF
 
 
 def gate_row(name):
@@ -66,9 +68,10 @@ def package(elf, out, *args):
                           capture_output=True, text=True)
 
 
-def identity_row(elf):
-    argv = shlex.split(gate_row("firmware identity (release)"))[2:]
-    assert argv[-1] == str(DEFAULT.relative_to(ROOT))
+def identity_row(elf, name="firmware identity (release)"):
+    argv = shlex.split(gate_row(name))[2:]
+    expected = STRICT if name == "firmware identity (fingerprint strict-config)" else DEFAULT
+    assert argv[-1] == str(expected.relative_to(ROOT))
     argv[-1] = str(elf)
     return subprocess.run(argv, cwd=ROOT, capture_output=True, text=True)
 
@@ -125,7 +128,22 @@ def test_missing_marker_is_refused_by_the_packaging_entry_point(tmp_path):
     assert "missing or malformed .rsk_build marker" in done.stderr
 
 
-@pytest.mark.parametrize("field,value", [(0, b"UNKNOWN!"), (1, 2), (2, 8), (2, 6), (3, 0), (4, 0)])
+@pytest.mark.parametrize("source,policy,accepted", [
+    (STRICT, "strict", True), (STRICT, "compat", False),
+    (DEFAULT, "strict", False), (DEFAULT, "compat", True),
+])
+def test_packaging_checks_policy_inside_a_renamed_image(tmp_path, source, policy, accepted):
+    renamed = tmp_path / "release.elf"
+    shutil.copyfile(source, renamed)
+    out = tmp_path / "packaged.elf"
+    done = package(renamed, out, "--config-policy", policy)
+    assert done.returncode == (0 if accepted else 1), done.stdout + done.stderr
+    assert out.exists() == accepted
+    if not accepted:
+        assert "management-write policy does not match" in done.stderr
+
+
+@pytest.mark.parametrize("field,value", [(0, b"UNKNOWN!"), (1, 2), (2, 16), (2, 6), (3, 0), (4, 0)])
 def test_unrecognized_marker_is_refused_by_the_packaging_entry_point(tmp_path, field, value):
     values = list(firmware_identity.RECORD.unpack(subprocess.run(
         ["arm-none-eabi-objcopy", "-O", "binary", "--only-section=.rsk_build", str(DEFAULT), "/dev/stdout"],
@@ -164,18 +182,27 @@ def test_actual_gate_row_rejects_no_touch_and_missing_markers(tmp_path):
                    check=True, capture_output=True)
     done = identity_row(renamed)
     assert done.returncode == 1 and "missing or malformed .rsk_build marker" in done.stderr, done
+    name = "firmware identity (fingerprint strict-config)"
+    assert identity_row(STRICT, name).returncode == 0
+    shutil.copyfile(DEFAULT, renamed)
+    done = identity_row(renamed, name)
+    assert done.returncode == 1 and "management-write policy does not match strict" in done.stderr, done
 
 
 @pytest.mark.parametrize("directory,profile,geometry", [
     ("target", "default", (4 * 1024 * 1024, 1408 * 1024)),
     ("target/16mb", "default", (16 * 1024 * 1024, 1408 * 1024)),
     ("target/fingerprint", "fingerprint", (2 * 1024 * 1024, 896 * 1024)),
+    ("target/strict-fingerprint", "fingerprint", (2 * 1024 * 1024, 896 * 1024)),
     ("target/display", "display", (16 * 1024 * 1024, 1408 * 1024)),
     ("target/no-touch", "no-touch", (4 * 1024 * 1024, 1408 * 1024)),
 ])
 def test_gate_artifacts_match_their_build_configuration(directory, profile, geometry):
     flags, flash_size, kvmain = firmware_identity.read_marker(ROOT / directory / ELF)
-    assert flags == firmware_identity.PROFILES[profile]
+    expected = firmware_identity.PROFILES[profile]
+    if directory == "target/strict-fingerprint":
+        expected |= firmware_identity.STRICT_CONFIG
+    assert flags == expected
     assert (flash_size, kvmain) == geometry
 
 
@@ -188,5 +215,5 @@ def test_nix_and_ci_use_checked_packaging_for_release_and_test_images():
     assert 'no-touch*) pt_args+=(--test-no-touch)' in ci
     assert 'target/${{ matrix.name }}/thumbv8m.main-none-eabihf/release/firmware' in ci
     release = (ROOT / ".github/workflows/release-build.yml").read_text()
-    assert 'nix develop -c python scripts/firmware_identity.py "$out/$pkg.elf"' in release
+    assert 'nix develop -c python scripts/firmware_identity.py --config-policy "$policy" "$out/$pkg.elf"' in release
     assert 'refusing to publish a no-touch firmware asset' in release

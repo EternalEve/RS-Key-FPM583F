@@ -12,9 +12,10 @@ import sys
 MAGIC = b"RSKBUILD"
 VERSION = 1
 RECORD = struct.Struct("<8sIIII")
-FEATURES = ("no-touch", "fingerprint", "display")
+FEATURES = ("no-touch", "fingerprint", "display", "strict-config")
 PROFILES = {"default": 0, **{name: 1 << bit for bit, name in enumerate(FEATURES)}}
 NO_TOUCH = PROFILES["no-touch"]
+STRICT_CONFIG = PROFILES["strict-config"]
 
 
 def read_marker(elf):
@@ -39,6 +40,8 @@ def main(argv=None):
     parser.add_argument("--test-no-touch", action="store_true",
                         help="require a no-touch test image instead of a touch image")
     parser.add_argument("--expect", choices=PROFILES, help="require these build feature flags")
+    parser.add_argument("--config-policy", choices=("strict", "compat"),
+                        help="require the image's management-write policy")
     parser.add_argument("elf", type=pathlib.Path)
     args = parser.parse_args(argv)
     try:
@@ -48,6 +51,8 @@ def main(argv=None):
                              else "expected a no-touch test image")
         if args.expect is not None and flags != PROFILES[args.expect]:
             raise ValueError(f"build feature flags {flags:#x} do not match {args.expect}")
+        if args.config_policy is not None and bool(flags & STRICT_CONFIG) != (args.config_policy == "strict"):
+            raise ValueError(f"management-write policy does not match {args.config_policy}")
     except (OSError, subprocess.CalledProcessError, ValueError) as error:
         reason = error.stderr.decode(errors="replace").strip() if isinstance(error, subprocess.CalledProcessError) else str(error)
         print(f"firmware-identity: {args.elf}: {reason}", file=sys.stderr)

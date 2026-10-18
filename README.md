@@ -38,7 +38,7 @@ such as Google Chrome or Microsoft Edge.
 
 ### Manual way
 
-1. Download the newest **`rs-key-<version>-default.uf2`** from the
+1. Download **`rs-key-<version>-daily.uf2`** from the next
    [releases page](https://github.com/TheMaxMur/RS-Key/releases/latest).
 2. Hold the board's **BOOT** button while you plug it in. A drive named
    `RP2350` appears.
@@ -51,13 +51,18 @@ Which file to take:
 
 | Your board | Image |
 |---|---|
-| Most RP2350 boards, 4 MB flash | `default` |
+| Most RP2350 boards, 4 MB flash | `daily` |
 | 2 MB flash (Seeed XIAO RP2350, Waveshare RP2350-Zero-CM) | `2mb` |
 | 16 MB flash (TenStar RP2350-USB) | `16mb` |
 | Waveshare RP2350-Touch-LCD-2.8 | `display` |
+| Experimental 2 MB FPM583F wiring (GP0/1 UART, GP2 touch, GP3 power) | `fingerprint-2mb` |
 
-The other ten images are behaviour variants (post-quantum algorithms, the FIPS
-profile, `alwaysUv`, PIN hardening). Full table, plus how to verify the cosign
+Daily images enable `strict-config`: administrative writes require the
+authorization described in the [CLI guide](docs/guides/cli.md). The explicit
+`compat` image retains permissive management writes for legacy clients.
+Fingerprint hardware acceptance is still pending. Other images add behaviour
+variants (post-quantum algorithms, the FIPS profile, `alwaysUv`, PIN hardening).
+Full table, plus how to verify the cosign
 signature and reproduce the build yourself: [docs/releases.md](docs/releases.md).
 
 The longer walkthrough, with the PIN, `ssh` and `gpg` steps, is
@@ -167,8 +172,8 @@ The release images are reproducible, so you can rebuild any of them bit for bit
 git clone https://github.com/TheMaxMur/RS-Key && cd RS-Key
 nix develop                       # toolchain, picotool, host tools, everything
 
-cargo build --release -p firmware
-scripts/pt.sh target/thumbv8m.main-none-eabihf/release/firmware firmware-pt.elf   # fence the key's storage off the bootloader
+cargo build --release -p firmware --features strict-config
+scripts/pt.sh --config-policy strict target/thumbv8m.main-none-eabihf/release/firmware firmware-pt.elf
 picotool uf2 convert firmware-pt.elf -t elf firmware.uf2
 
 # hold BOOTSEL, plug the board in, then flash, either way:

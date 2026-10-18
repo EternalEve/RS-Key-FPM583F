@@ -9,7 +9,7 @@
 # header records the draft that enumerated crates from memory and missed four.
 #
 # Why the file exists at all: every claim this project makes reads as being about
-# "the firmware", and the firmware is nineteen flake packages, a handful of cargo
+# "the firmware", and the firmware is twenty-two flake packages, a handful of cargo
 # features no package expresses, and six board presets under both. A property
 # proved on the default build is otherwise silently asserted about images where
 # the thing it is about does not exist — the four `no-touch` packages remove the
@@ -230,10 +230,11 @@ columns = [
   "firmware-no-touch-fips-pqc", "firmware-strong-pin",
   "firmware-strong-pin-pqc", "firmware-always-uv", "firmware-always-uv-pqc",
   "firmware-strict-up", "firmware-strict-up-pqc", "firmware-pico",
-  "firmware-2mb", "firmware-16mb", "firmware-strict-config", "keygen-bench",
+  "firmware-2mb", "firmware-16mb", "firmware-strict-config",
+  "firmware-daily", "firmware-compat", "firmware-fingerprint-2mb", "keygen-bench",
   "core1-stats", "bench", "fido-conformance", "ea-conformance-rpid",
   "largeblob-ext", "abrobot-16m", "abrobot-4m", "seeed-xiao", "tenstar-usb",
-  "waveshare-one", "waveshare-touch-lcd", "fingerprint",
+  "waveshare-one", "waveshare-touch-lcd",
 ]
 disposition = "out-of-scope"
 basis = "crate-absent"
@@ -354,82 +355,6 @@ sweep RUNS; the write ordering it is torn in the middle of is the same \
 compiled code at the same geometry. The one thing this does not claim is the \
 reverse direction: BOOTSEL sampling stalls XIP and a GPIO read does not, so \
 the column removes a hazard from the reset path rather than adding one."""
-
-[[cell]]
-properties = [
-  "SEC-SEAM-001", "SEC-SEAM-002", "SEC-SEAM-003", "SEC-TRANS-001",
-  "SEC-TRANS-002", "SEC-TRANS-003",
-]
-columns = ["firmware-2mb"]
-same_as = "firmware"
-knob_delta = [
-  "flashSize=2M", "kvmain=896K",
-]
-disposition = "equivalent"
-basis = "same-cargo-features"
-why = """
-Identical cargo-feature closure — the gate re-derives it — so the delta is the \
-knobs listed above: flash geometry, LED wiring, the presence pin, and the panel's \
-serial link. These six statements are about in-RAM state only: the applet \
-security status that lives for the duration of a selection, and the CTAPHID \
-reassembly buffer. \
-Neither reads `PK_FLASH_SIZE`/`PK_KVMAIN_LEN`: inside the firmware image \
-`firmware/src/flash_storage.rs` is their only consumer. Not in the tree — \
-`rsk-wipe/src/main.rs` reads `PK_FLASH_SIZE` too, from its own `build.rs`, \
-which is a separate binary and is what the next sentence is about. Every other \
-row on this column stays \
-`gap`, because the store IS what the geometry changes: `check.sh` rebuilds \
-`rsk-wipe` once per board because a change that stopped `BOARD` reaching the \
-wiper once left a 16 MB board's whole KV store standing behind a "successful" \
-wipe. Those rebuilds mean something only because of the row beside them, \
-`check.sh: rsk-wipe refuses an unknown flash size`, which fails a wiper that \
-links with no board at all — it used to fall back to 4 MB at EXIT=0, so the \
-per-board loop passed whether or not `BOARD` was reaching it. Cited with the \
-`check.sh:` prefix because that label carries no parentheses, and the shape \
-rule alone sees 52% of the row namespace.
-
-Re-decided when `display.spi_freq_hz` moved 62.5 -> 80 MHz with the PIO panel \
-transport, because that knob is no longer only a panel knob: the transport takes \
-its wire rate from `clk_sys / 2`, so this column now runs the whole part at \
-160 MHz where every other one runs 150. That is a real difference and it is \
-recorded in `docs/limitations.md`, but it does not reach these six. They are \
-statements about which state survives a selection and how a reassembly buffer is \
-bounded — no clause in `RSKeyAppletSeams` or `RSKeyTransport` quantifies over \
-time, a rate, or a deadline, so a core that retires instructions faster cannot \
-make one of them true or false. A property that DID depend on timing would owe a \
-`conditional` here instead, and none of the six is one."""
-
-[[cell]]
-properties = [
-  "SEC-SEAM-001", "SEC-SEAM-002", "SEC-SEAM-003", "SEC-TRANS-001",
-  "SEC-TRANS-002", "SEC-TRANS-003",
-]
-columns = ["firmware-16mb"]
-same_as = "firmware"
-knob_delta = [
-  "flashSize=16M",
-]
-disposition = "equivalent"
-basis = "same-cargo-features"
-why = """
-Identical cargo-feature closure — the gate re-derives it — so the delta is the \
-knobs listed above, all of them flash geometry, LED wiring or the presence pin. \
-These six statements are about in-RAM state only: the applet security status \
-that lives for the duration of a selection, and the CTAPHID reassembly buffer. \
-Neither reads `PK_FLASH_SIZE`/`PK_KVMAIN_LEN`: inside the firmware image \
-`firmware/src/flash_storage.rs` is their only consumer. Not in the tree — \
-`rsk-wipe/src/main.rs` reads `PK_FLASH_SIZE` too, from its own `build.rs`, \
-which is a separate binary and is what the next sentence is about. Every other \
-row on this column stays \
-`gap`, because the store IS what the geometry changes: `check.sh` rebuilds \
-`rsk-wipe` once per board because a change that stopped `BOARD` reaching the \
-wiper once left a 16 MB board's whole KV store standing behind a "successful" \
-wipe. Those rebuilds mean something only because of the row beside them, \
-`check.sh: rsk-wipe refuses an unknown flash size`, which fails a wiper that \
-links with no board at all — it used to fall back to 4 MB at EXIT=0, so the \
-per-board loop passed whether or not `BOARD` was reaching it. Cited with the \
-`check.sh:` prefix because that label carries no parentheses, and the shape \
-rule alone sees 52% of the row namespace."""
 
 [[cell]]
 properties = [
@@ -926,12 +851,12 @@ swapped surface move any credential-management or authorization transition the \
 P0-launch models name?"""
 
 [[question]]
-column = "fingerprint"
+column = "firmware-fingerprint-2mb"
 owner = "contributor"
 settled_by = "evidence"
 text = """
-Which P0-family statements remain valid when the shared applets receive a \
-fingerprint context and the worker services UART0? Phase three exercises \
+Which P0-family statements remain valid with strict-config, 2 MB flash / \
+896 K KVMAIN, and the fingerprint worker on UART0 with GP2/GP3 touch/power? Phase three exercises \
 authorization, persistent retry accounting, cancellation and source ownership \
 with a loopback sensor fixture, plus two bounded operation-lifecycle proofs. \
 The existing TLA/trace evidence still uses the default PIN/screen context. \
@@ -939,6 +864,18 @@ The persistent directory and shared FPM583F driver now have offline tests; \
 these do not establish the P0-family refinements for this feature. Settle each \
 row with evidence for the integrated feature; stage-six UART/IRQ/XIP and presence measurements must discharge the \
 hardware assumptions before extending the default build's claims."""
+
+[[question]]
+column = "firmware-daily"
+owner = "contributor"
+settled_by = "evidence"
+text = "The daily package enables strict-config. Which P0-family properties have integrated evidence for its presence and PIN authorization paths, beyond the permissive reference build and the offline management regressions?"
+
+[[question]]
+column = "firmware-compat"
+owner = "contributor"
+settled_by = "sameness"
+text = "Does the explicitly named compatibility package preserve the reference build's feature closure and all build knobs for each P0-family statement? Record the per-column equivalence after reviewing the derived closure."
 
 [[question]]
 column = "abrobot-16m"

@@ -65,6 +65,42 @@ and [Linux host setup](../linux.md).
 The Nix shell stays the primary, reproducible path (it also carries `picotool`,
 `ykman`, `gpg`, and the test suites). The uv/pip path is for hosts without Nix.
 
+## Configuration-write authorization
+
+Authorization depends on the firmware's compile-time `strict-config` feature,
+not the host tool. Daily Nix/release packages enable it; `compat`, bare Cargo
+and the legacy `.#firmware` package retain the compatibility policy.
+
+| Write path | Compatibility build | `strict-config` build |
+|---|---|---|
+| CCID Management `WRITE CONFIG` (application mask / DeviceInfo) | no confirmation | physical approval |
+| FIDO vendor `CONFIG_WRITE` (DeviceInfo, USB identity / hardware, LED block), over HID or CCID | no confirmation | approval, plus a token with `acfg` permission when a clientPIN is set |
+| Raw CTAPHID management `0x43` | no confirmation | unsupported |
+| OTP DeviceInfo `0x15`, over keyboard HID or the OTP CCID applet | no confirmation | no-op; no record or programming-sequence change |
+| Rescue CCID hardware / identity write (`rsk hw`) | physical approval | physical approval |
+| Vendor CCID LED write (`rsk led`) | no confirmation | physical approval |
+
+Reads remain available. `rsk hw --transport fido` and
+`rsk led --transport fido` supply the required token when a PIN is provided or
+entered at the prompt. With only a display device PIN set, strict FIDO writes
+collect it on the device; a screenless backend cannot waive that requirement.
+
+Stock `ykman` management writes can use CCID with approval on a strict build;
+its raw FIDO write path is unsupported, and its OTP write path sees no sequence
+update. Strict builds also disable Management device-wide reset and the legacy
+OTP `DEVICE_CONFIG`, `SCAN_MAP` and `NDEF` writes. Existing application masks
+remain enforced after changing profiles. The config-lock code is not an
+implemented authorization mechanism in either profile.
+
+Strict config does not rate-limit every flash write: approved distinct config
+writes still consume endurance, and OTP slot programming retains its own access
+code policy. See the [build profiles](../build.md) and
+[threat model](../threat-model.md) for the remaining limits.
+
+After disabling FIDO2 on a strict image, use CCID Management to re-enable it:
+the disabled FIDO2 transport also refuses PIN-token requests and FIDO vendor
+configuration. Keep a usable CCID management interface when changing the mask.
+
 ## Command groups
 
 | Group | What it does | Guide |

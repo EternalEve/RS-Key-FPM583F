@@ -93,14 +93,14 @@ test_only = true
 file = "crates/rsk-fido/src/state.rs"
 function = "expire_user_presence"
 disposition = "stutter"
-column = "fingerprint"
+column = "firmware-fingerprint-2mb"
 why = "expires cached fingerprint UP; writes only user_present, which alpha does not observe, and preserves in_use, permissions and has_rp_id"
 
 [[volatile_writer]]
 file = "crates/rsk-fido/src/clientpin.rs"
 function = "get_uv_token"
 disposition = "stutter"
-column = "fingerprint"
+column = "firmware-fingerprint-2mb"
 why = "records fingerprint verification as the source of an issued token; fingerprint_verified is outside alpha, while issue_token owns the abstract issuance fields"
 
 [[volatile_writer]]
@@ -256,7 +256,7 @@ why = "gates on PERM_LBW, outside alpha's permission set; and CTAP 2.3 §12.4 ma
 file = "crates/rsk-fido/src/bio_enrollment.rs"
 function = "authorize"
 disposition = "out-of-scope"
-column = "fingerprint"
+column = "firmware-fingerprint-2mb"
 why = "checks PIN/BE management permission and MAC; PERM_BE and the enrollment lifecycle are outside alpha's mc/ga/cm/acfg permission set and the fingerprint matrix retains its proof gaps"
 
 

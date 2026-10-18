@@ -1,19 +1,22 @@
 # Releases & verification
 
 Releases live on the [GitHub Releases](https://github.com/TheMaxMur/RS-Key/releases)
-page. Each is cut from a `v*` git tag by the
+page. The layout below applies to the next release; older tags keep their
+original assets and policies. Each release is cut from a `v*` git tag by the
 [release workflow](https://github.com/TheMaxMur/RS-Key/blob/main/.github/workflows/release.yml).
 It builds every artifact reproducibly, hashes it, and signs the manifest.
 
 ## What a release contains
 
-- **Fourteen firmware images**: `rs-key-<tag>-<flavor>.uf2`. Every published image
+- **Sixteen firmware images**: `rs-key-<tag>-<flavor>.uf2`. Every published image
   requires a physical touch; the `no-touch` test builds are never released (a
   signed presence-bypass asset would remove the consent gate):
 
   | flavor | flags | use |
   |---|---|---|
-  | `default` | touch | the normal build; start here |
+  | `daily` | touch + strict-config | normal daily build; start here (4 MB) |
+  | `compat` | touch | permissive management compatibility profile; explicit opt-in |
+  | `fingerprint-2mb` | fingerprint + strict-config; 2 MB / 896 KiB KVMAIN | experimental screenless FPM583F candidate, touch GP2 / power GP3; hardware acceptance pending |
   | `pqc` | + advertise-pqc | advertises all three ML-DSA sets in getInfo (breaks old Firefox) |
   | `fips` | + fips-profile | the locked FIPS-style policy ([guides/fips.md](guides/fips.md)) |
   | `fips-pqc` | + both | |
@@ -26,9 +29,12 @@ It builds every artifact reproducibly, hashes it, and signs the manifest.
   | `display` | + display | experimental trusted-display build (Waveshare RP2350-Touch-LCD-2.8, [guides/display.md](guides/display.md)) |
   | `2mb` | `FLASH_SIZE=2M KVMAIN=896K` | 2 MB boards (Seeed XIAO RP2350, Waveshare RP2350-Zero-CM) |
   | `16mb` | `FLASH_SIZE=16M` | 16 MB boards (e.g. TenStar RP2350-USB) |
-  | `strict-config` | + strict-config | the historical strict admin-write posture: config writes stay presence/PIN-gated and the ungated transport writes are refused ([build.md](build.md), [threat-model.md](threat-model.md)). The `default` build is now the permissive full-ykman admin surface |
+  | `strict-config` | + strict-config | the historical strict admin-write posture: config writes stay presence/PIN-gated and the ungated transport writes are refused ([build.md](build.md), [threat-model.md](threat-model.md)). The `compat` build retains the permissive management surface |
 
-  All fourteen present the default **RS-Key** USB identity (`0x1209:0x0001`). For the
+  Every flavor except `compat` enables strict management-write authorization.
+  The legacy `strict-config` flavor is retained as an alias in behavior of `daily`.
+
+  All sixteen present the default **RS-Key** USB identity (`0x1209:0x0001`). For the
   YubiKey-interop identity, build `VIDPID=Yubikey5` yourself ([build.md](build.md)).
 - **`SHA256SUMS`**: a checksum for every image and the SBOM.
 - **`SHA256SUMS.sigstore.json`**: a keyless [cosign](https://docs.sigstore.dev/)
@@ -82,8 +88,8 @@ rebuild them yourself and compare (no need to trust the published binary):
 
 ```sh
 git checkout <tag>
-nix build .#firmware              # the default flavor (others: .#firmware-fips, …)
-sha256sum result/firmware.uf2     # compare against SHA256SUMS for rs-key-<tag>-default.uf2
+nix build .#firmware-daily        # the daily flavor (others: .#firmware-fips, …)
+sha256sum result/firmware-daily.uf2     # compare against SHA256SUMS for rs-key-<tag>-daily.uf2
 ```
 
 A match on Linux reproduces the CI-built artifact exactly. (Cross-platform

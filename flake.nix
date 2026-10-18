@@ -57,7 +57,7 @@
         apps' = import ./nix/apps.nix {
           inherit pkgs self toolchain;
           inherit (hostTools) rskPython;
-          firmwarePackage = firmware.packages.firmware;
+          firmwarePackage = firmware.packages.firmware-daily;
         };
       in
       {

@@ -321,7 +321,7 @@ fn main() {
     };
     // The marker is loadable flash data, so stripping debug names or renaming the
     // ELF cannot hide a test build from the packaging entry point.
-    let features = ["NO_TOUCH", "FINGERPRINT", "DISPLAY"];
+    let features = ["NO_TOUCH", "FINGERPRINT", "DISPLAY", "STRICT_CONFIG"];
     let flags = features
         .iter()
         .enumerate()
