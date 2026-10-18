@@ -49,16 +49,14 @@ impl CacheView {
     };
 }
 
-/// A backend that stores nothing and can be told to have failed. `Fs` reaches the
-/// cache through `Storage::last_error()` alone on the paths this projection
-/// observes, so a medium would only add state for CBMC to unwind.
+/// A backend that stores nothing and can be told to return a read error.
 pub struct FaultBackend {
     pub faulted: bool,
 }
 
 impl Storage for FaultBackend {
-    fn read(&mut self, _fid: u16, _buf: &mut [u8]) -> Option<usize> {
-        None
+    fn read(&mut self, _fid: u16, _buf: &mut [u8]) -> rsk_sdk::error::Result<Option<usize>> {
+        self.size(_fid)
     }
     fn write(&mut self, _fid: u16, _data: &[u8]) -> Result<()> {
         Ok(())
@@ -66,11 +64,12 @@ impl Storage for FaultBackend {
     fn remove(&mut self, _fid: u16) -> Result<()> {
         Ok(())
     }
-    fn size(&mut self, _fid: u16) -> Option<usize> {
-        None
-    }
-    fn last_error(&self) -> bool {
-        self.faulted
+    fn size(&mut self, _fid: u16) -> rsk_sdk::error::Result<Option<usize>> {
+        if self.faulted {
+            Err(rsk_sdk::error::Error::MemoryFatal)
+        } else {
+            Ok(None)
+        }
     }
     fn for_each_key(&mut self, _f: &mut dyn FnMut(u16)) -> bool {
         true
@@ -96,12 +95,12 @@ impl<S: Storage> Fs<S> {
         }
     }
 
-    /// `Put`'s cache clause (`fs.rs:536-556` → `mark_present`).
+    /// `Put`'s cache clause (`fs.rs:534-554` → `mark_present`).
     pub fn step_put(&mut self, fid: u16) {
         self.mark_present(fid);
     }
 
-    /// `Delete`'s cache clause (`fs.rs:596-605` → `mark_absent`).
+    /// `Delete`'s cache clause (`fs.rs:594-603` → `mark_absent`).
     pub fn step_delete(&mut self, fid: u16) {
         self.mark_absent(fid);
     }
@@ -110,7 +109,8 @@ impl<S: Storage> Fs<S> {
     /// unless it faulted, in which case nothing is cached at all. The `Result`
     /// `settle` also carries is the *return* half, which `Confirm` does not model.
     pub fn step_confirm(&mut self, fid: u16, live: bool) {
-        let _ = self.settle(fid, live.then_some(()));
+        let answer = self.storage.size(fid).map(|_| live.then_some(()));
+        let _ = self.settle(fid, answer);
     }
 
     /// The reader `NoFalseAbsent` is stated over (`fs.rs:214-216`).
@@ -187,10 +187,6 @@ impl<S: Storage> Fs<S> {
     /// reported `NoRecordLostToMetaWrite` on the shipped tree for exactly that.
     /// A caller that arms a fault must disarm it before reading.
     ///
-    /// What it does NOT restore is the backend's error latch: the reads it makes
-    /// leave `Storage::last_error()` reporting on THEM. Harmless only because
-    /// every consumer in `Fs` reads the latch immediately after its own call —
-    /// an invariant nothing states, so it is stated here.
     pub fn read_store_view(&mut self) -> StoreView {
         let cached = (self.present, self.decided);
         let absent = self.known_absent(crate::EF_META);

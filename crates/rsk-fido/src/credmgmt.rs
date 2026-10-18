@@ -35,7 +35,7 @@ use crate::credential::{
 use crate::ec::{CredKey, cached_point_len, cose_public_from_point};
 use crate::error::{CtapError, CtapResult};
 use crate::keyderiv::fido_load_key;
-use crate::largeblobext;
+pub(crate) use crate::resident_delete::decrement_rp;
 use crate::seed::load_ppuat;
 use crate::state::{FidoState, PERM_CM};
 use crate::{Ctx, Rng};
@@ -689,55 +689,8 @@ fn delete_credential<S: Storage, R: Rng>(
     slot: u16,
     rp_id_hash: &[u8; 32],
 ) -> CtapResult {
-    crate::credential::bump_cred_store_state(ctx.fs).map_err(|_| CtapError::NotAllowed)?;
-    ctx.fs
-        .delete(EF_CRED + slot)
-        .map_err(|_| CtapError::NotAllowed)?;
-    // The credential's large blob goes with it. Best-effort and non-atomic: a
-    // power cut between the two leaves an orphan that the AAD binding stops the
-    // slot's next owner from opening, and `credential_store` clears anyway.
-    largeblobext::discard(ctx.fs, slot);
-    decrement_rp(ctx.fs, rp_id_hash)?;
+    crate::resident_delete::delete(ctx.fs, slot, rp_id_hash)?;
     Ok(0)
-}
-
-/// Decrement the `EF_RP` count for `rp_id_hash`, deleting the record when it hits
-/// zero. Shared by the CTAP `deleteCredential` (0x06) and the trusted-display
-/// [`crate::passkeys::delete_cred`] so both keep the RP index consistent the same
-/// way. Touches only the flash store, never the session state.
-/// Refines `RSKeySecurityState!NoUnmanageableCredential` — SEC-FIDO-005.
-pub(crate) fn decrement_rp<S: Storage>(
-    fs: &mut Fs<S>,
-    rp_id_hash: &[u8; 32],
-) -> Result<(), CtapError> {
-    let mut rp = [0u8; RP_REC_MAX];
-    let mut occupied = [false; MAX_RESIDENT_CREDENTIALS as usize];
-    slot_map(fs, EF_RP, &mut occupied);
-    for j in 0..MAX_RESIDENT_CREDENTIALS {
-        if !occupied[j as usize] {
-            continue;
-        }
-        let Some(m) = fs.read(EF_RP + j, &mut rp) else {
-            continue;
-        };
-        let m = m.min(rp.len());
-        if m >= RP_PREFIX && rp[1..RP_PREFIX] == *rp_id_hash {
-            rp[0] = rp[0].saturating_sub(1);
-            if rp[0] == 0 {
-                let _ = fs.delete(EF_RP + j);
-                // The RP is gone — drop its device-local nickname too. Best-effort and
-                // non-atomic with the line above: a power cut between them orphans a sealed
-                // nickname, but it is never surfaced (its EF_RP slot is now empty) and the
-                // rpIdHash-AAD binding rejects it if the slot is reused, so reset reclaims it.
-                let _ = fs.delete(crate::consts::EF_RPNICK + j);
-            } else {
-                fs.put(EF_RP + j, &rp[..m])
-                    .map_err(|_| CtapError::NotAllowed)?;
-            }
-            break;
-        }
-    }
-    Ok(())
 }
 
 /// 0x07 updateUserInformation: reseal the credential with a new user name /

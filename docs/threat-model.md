@@ -59,9 +59,10 @@ bulk stream, ISO-7816 APDUs, CTAP2 CBOR. Defenses:
   meeting it.
 - **A flash read can come back an error, and this firmware spells "not
   configured" as an absence.** The backend answers a probe with the value, with
-  *no such key*, or with a failure — and its own API folds the last two together:
-  `Storage::read` and `Storage::size` return `None` for either, which is why a
-  second call, `last_error`, exists to tell them apart. The fold is what makes
+  *no such key*, or with a failure. `Storage::read` and `Storage::size` now return
+  `Result<Option<usize>>` directly: an empty value is `Ok(Some(0))`, absence is
+  `Ok(None)`, and an unreadable value is `Err`. The convenience `Fs::read`,
+  `size` and `has_data` still fold errors into absence. That fold makes
   this a security condition rather than a reliability one, because absence is how
   the tree spells *no PIN set*, *no gate configured* and *not provisioned yet*: a
   probe that merely failed then reads as a decision the owner never made.

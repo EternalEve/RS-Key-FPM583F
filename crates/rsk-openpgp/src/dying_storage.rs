@@ -40,7 +40,7 @@ impl DyingStorage {
 }
 
 impl rsk_fs::Storage for DyingStorage {
-    fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
+    fn read(&mut self, fid: u16, buf: &mut [u8]) -> rsk_sdk::error::Result<Option<usize>> {
         self.inner.read(fid, buf)
     }
     fn write(&mut self, fid: u16, data: &[u8]) -> rsk_sdk::error::Result<()> {
@@ -51,7 +51,7 @@ impl rsk_fs::Storage for DyingStorage {
         self.spend()?;
         self.inner.remove(fid)
     }
-    fn size(&mut self, fid: u16) -> Option<usize> {
+    fn size(&mut self, fid: u16) -> rsk_sdk::error::Result<Option<usize>> {
         self.inner.size(fid)
     }
     fn for_each_key(&mut self, f: &mut dyn FnMut(u16)) -> bool {

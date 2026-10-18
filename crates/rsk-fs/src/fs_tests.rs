@@ -37,7 +37,7 @@ impl CountingStorage {
     }
 }
 impl Storage for CountingStorage {
-    fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
+    fn read(&mut self, fid: u16, buf: &mut [u8]) -> rsk_sdk::error::Result<Option<usize>> {
         self.read_calls += 1;
         self.inner.read(fid, buf)
     }
@@ -49,7 +49,7 @@ impl Storage for CountingStorage {
         self.remove_calls += 1;
         self.inner.remove(fid)
     }
-    fn size(&mut self, fid: u16) -> Option<usize> {
+    fn size(&mut self, fid: u16) -> rsk_sdk::error::Result<Option<usize>> {
         self.size_calls += 1;
         self.inner.size(fid)
     }
@@ -362,7 +362,6 @@ fn a_faulted_ef_meta_read_never_rebuilds_the_blob_from_empty() {
     let mut fs2 = Fs::new(FailFirstRead {
         inner: ram,
         remaining: 1,
-        err: false,
     });
     assert!(
         fs2.meta_add(0xB004, b"new").is_err(),
@@ -465,7 +464,7 @@ impl TearableCompact {
     }
 }
 impl Storage for TearableCompact {
-    fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
+    fn read(&mut self, fid: u16, buf: &mut [u8]) -> rsk_sdk::error::Result<Option<usize>> {
         self.inner.read(fid, buf)
     }
     fn write(&mut self, fid: u16, data: &[u8]) -> Result<()> {
@@ -474,7 +473,7 @@ impl Storage for TearableCompact {
     fn remove(&mut self, fid: u16) -> Result<()> {
         self.inner.remove(fid)
     }
-    fn size(&mut self, fid: u16) -> Option<usize> {
+    fn size(&mut self, fid: u16) -> rsk_sdk::error::Result<Option<usize>> {
         self.inner.size(fid)
     }
     fn for_each_key(&mut self, f: &mut dyn FnMut(u16)) -> bool {
@@ -503,7 +502,7 @@ fn the_at_rest_lap_writes_its_marker_only_after_a_completed_scrub() {
     // Past `Fs`'s present cache: the marker's absence has to be true of the MEDIUM,
     // since a cache-level check passes over a write that never happened.
     assert!(
-        !medium.exists(crate::EF_HARDENED),
+        !medium.exists(crate::EF_HARDENED).unwrap(),
         "a torn lap claimed completion, so no later boot ever scrubs what it left"
     );
 
@@ -511,7 +510,7 @@ fn the_at_rest_lap_writes_its_marker_only_after_a_completed_scrub() {
     let mut done = Fs::new(TearableCompact::new(false));
     crate::run_at_rest_lap(&mut done);
     assert!(
-        done.into_storage().exists(crate::EF_HARDENED),
+        done.into_storage().exists(crate::EF_HARDENED).unwrap(),
         "a completed lap left no marker, so every boot pays the stall again"
     );
     let mut again = Fs::new(TearableCompact::new(false));
@@ -571,6 +570,9 @@ fn an_empty_record_is_not_data() {
     // content costs one layer up.
     let mut fs = fs();
     fs.put(0xCC10, b"").unwrap();
+    assert_eq!(fs.try_size(0xCC10), Ok(Some(0)));
+    assert_eq!(fs.try_read(0xCC10, &mut []), Ok(Some(0)));
+    assert_eq!(fs.try_size(0xCC11), Ok(None));
     assert!(
         !fs.has_data(0xCC10),
         "a zero-length record must not read as data"
@@ -616,7 +618,6 @@ fn a_faulted_ef_meta_read_never_caches_the_blob_as_absent() {
     let mut fs2 = Fs::new(FailFirstRead {
         inner: ram,
         remaining: 1,
-        err: false,
     });
     assert!(
         fs2.meta_delete(0xB004).is_err(),
@@ -831,7 +832,7 @@ fn meta_delete_of_absent_record_does_not_rewrite() {
 /// `Error::Corrupted`, which `fetch_all_items` propagates before its auto-repair).
 struct TruncatedScan(RamStorage);
 impl Storage for TruncatedScan {
-    fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
+    fn read(&mut self, fid: u16, buf: &mut [u8]) -> rsk_sdk::error::Result<Option<usize>> {
         self.0.read(fid, buf)
     }
     fn write(&mut self, fid: u16, data: &[u8]) -> Result<()> {
@@ -840,7 +841,7 @@ impl Storage for TruncatedScan {
     fn remove(&mut self, fid: u16) -> Result<()> {
         self.0.remove(fid)
     }
-    fn size(&mut self, fid: u16) -> Option<usize> {
+    fn size(&mut self, fid: u16) -> rsk_sdk::error::Result<Option<usize>> {
         self.0.size(fid)
     }
     fn for_each_key(&mut self, _f: &mut dyn FnMut(u16)) -> bool {
@@ -1022,7 +1023,7 @@ struct CountedRemove {
 }
 
 impl Storage for CountedRemove {
-    fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
+    fn read(&mut self, fid: u16, buf: &mut [u8]) -> rsk_sdk::error::Result<Option<usize>> {
         self.inner.read(fid, buf)
     }
     fn write(&mut self, fid: u16, data: &[u8]) -> Result<()> {
@@ -1035,7 +1036,7 @@ impl Storage for CountedRemove {
         self.budget -= 1;
         self.inner.remove(fid)
     }
-    fn size(&mut self, fid: u16) -> Option<usize> {
+    fn size(&mut self, fid: u16) -> rsk_sdk::error::Result<Option<usize>> {
         self.inner.size(fid)
     }
     fn for_each_key(&mut self, f: &mut dyn FnMut(u16)) -> bool {
@@ -1044,22 +1045,19 @@ impl Storage for CountedRemove {
 }
 
 /// `Storage` whose first `remaining` reads/sizes FAIL rather than finding the key
-/// absent — the two are indistinguishable through an `Option` return, which is the
-/// whole point.
+/// absent — their `Result` answers keep the fault separate, so `Fs` must not
+/// cache it as an absence.
 struct FailFirstRead {
     inner: RamStorage,
     remaining: usize,
-    err: bool,
 }
 
 impl Storage for FailFirstRead {
-    fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
+    fn read(&mut self, fid: u16, buf: &mut [u8]) -> rsk_sdk::error::Result<Option<usize>> {
         if self.remaining > 0 {
             self.remaining -= 1;
-            self.err = true;
-            return None;
+            return Err(rsk_sdk::error::Error::MemoryFatal);
         }
-        self.err = false;
         self.inner.read(fid, buf)
     }
     fn write(&mut self, fid: u16, data: &[u8]) -> Result<()> {
@@ -1068,25 +1066,20 @@ impl Storage for FailFirstRead {
     fn remove(&mut self, fid: u16) -> Result<()> {
         self.inner.remove(fid)
     }
-    fn size(&mut self, fid: u16) -> Option<usize> {
+    fn size(&mut self, fid: u16) -> rsk_sdk::error::Result<Option<usize>> {
         if self.remaining > 0 {
             self.remaining -= 1;
-            self.err = true;
-            return None;
+            return Err(rsk_sdk::error::Error::MemoryFatal);
         }
-        self.err = false;
         self.inner.size(fid)
     }
     fn for_each_key(&mut self, f: &mut dyn FnMut(u16)) -> bool {
         self.inner.for_each_key(f)
     }
-    fn last_error(&self) -> bool {
-        self.err
-    }
 }
 
 /// Audit run-36: a backend read that FAILED is not a key that is absent, but
-/// `Storage::read`/`size` collapse both into `None` — and `Fs` memoises the answer
+/// the old `Storage::read`/`size` folded both into `None`. `Fs` caches an answer
 /// with the DECIDED bit, so one transient fault would answer "absent" for the rest
 /// of the boot without touching flash again. `clientpin::set_pin` has exactly one
 /// guard, `if has_data(EF_PIN)`, so a poisoned absence lets an unauthenticated host
@@ -1100,7 +1093,6 @@ fn a_failed_read_is_never_memoised_as_an_absence() {
     let mut fs = Fs::new(FailFirstRead {
         inner: ram,
         remaining: 1,
-        err: false,
     });
 
     assert!(!fs.has_data(0x1080), "the faulting probe cannot see it");
@@ -1218,16 +1210,13 @@ fn a_faulted_confirm_caches_nothing_and_a_clean_one_caches_the_answer() {
 struct ArmedRead {
     inner: std::rc::Rc<std::cell::RefCell<RamStorage>>,
     armed: std::rc::Rc<std::cell::Cell<bool>>,
-    err: bool,
 }
 
 impl Storage for ArmedRead {
-    fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
+    fn read(&mut self, fid: u16, buf: &mut [u8]) -> rsk_sdk::error::Result<Option<usize>> {
         if self.armed.get() {
-            self.err = true;
-            return None;
+            return Err(rsk_sdk::error::Error::MemoryFatal);
         }
-        self.err = false;
         self.inner.borrow_mut().read(fid, buf)
     }
     fn write(&mut self, fid: u16, data: &[u8]) -> Result<()> {
@@ -1236,19 +1225,14 @@ impl Storage for ArmedRead {
     fn remove(&mut self, fid: u16) -> Result<()> {
         self.inner.borrow_mut().remove(fid)
     }
-    fn size(&mut self, fid: u16) -> Option<usize> {
+    fn size(&mut self, fid: u16) -> rsk_sdk::error::Result<Option<usize>> {
         if self.armed.get() {
-            self.err = true;
-            return None;
+            return Err(rsk_sdk::error::Error::MemoryFatal);
         }
-        self.err = false;
         self.inner.borrow_mut().size(fid)
     }
     fn for_each_key(&mut self, f: &mut dyn FnMut(u16)) -> bool {
         self.inner.borrow_mut().for_each_key(f)
-    }
-    fn last_error(&self) -> bool {
-        self.err
     }
 }
 
@@ -1266,7 +1250,6 @@ fn armed_fs() -> (
     let fs = Fs::new(ArmedRead {
         inner: inner.clone(),
         armed: armed.clone(),
-        err: false,
     });
     (fs, inner, armed)
 }
@@ -1299,11 +1282,11 @@ fn a_faulted_metadata_drop_is_reported_and_the_value_still_goes() {
     // `remove` never called.
     let mut buf = [0u8; 32];
     assert!(
-        ram.borrow_mut().read(SLOT, &mut buf).is_none(),
+        ram.borrow_mut().read(SLOT, &mut buf).unwrap().is_none(),
         "the value must go even when the record could not be dropped"
     );
     assert!(
-        ram.borrow_mut().read(EF_META, &mut buf).is_some(),
+        ram.borrow_mut().read(EF_META, &mut buf).unwrap().is_some(),
         "the record is what the error is about — it stands"
     );
 }
@@ -1320,9 +1303,9 @@ fn an_unfaulted_delete_takes_the_value_and_the_record() {
     assert_eq!(fs.delete(SLOT), Ok(()));
 
     let mut buf = [0u8; 32];
-    assert!(ram.borrow_mut().read(SLOT, &mut buf).is_none());
+    assert!(ram.borrow_mut().read(SLOT, &mut buf).unwrap().is_none());
     assert!(
-        ram.borrow_mut().read(EF_META, &mut buf).is_none(),
+        ram.borrow_mut().read(EF_META, &mut buf).unwrap().is_none(),
         "the last record was dropped, so EF_META goes with it"
     );
 }
@@ -1349,11 +1332,11 @@ fn a_faulted_metadata_drop_is_reported_by_force_delete_too() {
     );
     let mut buf = [0u8; 32];
     assert!(
-        ram.borrow_mut().read(SLOT, &mut buf).is_none(),
+        ram.borrow_mut().read(SLOT, &mut buf).unwrap().is_none(),
         "the value must go even when the record could not be dropped"
     );
     assert!(
-        ram.borrow_mut().read(EF_META, &mut buf).is_some(),
+        ram.borrow_mut().read(EF_META, &mut buf).unwrap().is_some(),
         "the record is what the error is about — it stands"
     );
 }
@@ -1369,9 +1352,9 @@ fn an_unfaulted_force_delete_takes_the_value_and_the_record() {
     assert_eq!(fs.force_delete(SLOT), Ok(()));
 
     let mut buf = [0u8; 32];
-    assert!(ram.borrow_mut().read(SLOT, &mut buf).is_none());
+    assert!(ram.borrow_mut().read(SLOT, &mut buf).unwrap().is_none());
     assert!(
-        ram.borrow_mut().read(EF_META, &mut buf).is_none(),
+        ram.borrow_mut().read(EF_META, &mut buf).unwrap().is_none(),
         "the last record was dropped, so EF_META goes with it"
     );
 }
@@ -1399,16 +1382,16 @@ fn force_delete_halves_keeps_the_value_and_the_record_apart() {
     );
     let mut buf = [0u8; 32];
     assert!(
-        ram.borrow_mut().read(SLOT, &mut buf).is_none(),
+        ram.borrow_mut().read(SLOT, &mut buf).unwrap().is_none(),
         "the value must go even when the record could not be dropped"
     );
     assert!(
-        ram.borrow_mut().read(EF_META, &mut buf).is_some(),
+        ram.borrow_mut().read(EF_META, &mut buf).unwrap().is_some(),
         "the record is what the error is about — it stands"
     );
 }
 
-/// The three answers, kept apart. `Storage::read`/`size` collapse "no such record"
+/// The three answers, kept apart. `Fs::read`/`size` collapse "no such record"
 /// and "that read failed" into one `None`, and an absent record is how this
 /// firmware spells *not provisioned* — so the collapsing probes must keep behaving
 /// exactly as before, and the `try_*` ones must separate the two. Both halves
@@ -1530,7 +1513,7 @@ fn a_factory_wipe_clears_the_truncated_scan_flag() {
 /// the one fid it is entirely about.
 struct OrderedKeys(RamStorage);
 impl Storage for OrderedKeys {
-    fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
+    fn read(&mut self, fid: u16, buf: &mut [u8]) -> rsk_sdk::error::Result<Option<usize>> {
         self.0.read(fid, buf)
     }
     fn write(&mut self, fid: u16, data: &[u8]) -> Result<()> {
@@ -1539,7 +1522,7 @@ impl Storage for OrderedKeys {
     fn remove(&mut self, fid: u16) -> Result<()> {
         self.0.remove(fid)
     }
-    fn size(&mut self, fid: u16) -> Option<usize> {
+    fn size(&mut self, fid: u16) -> rsk_sdk::error::Result<Option<usize>> {
         self.0.size(fid)
     }
     fn for_each_key(&mut self, f: &mut dyn FnMut(u16)) -> bool {

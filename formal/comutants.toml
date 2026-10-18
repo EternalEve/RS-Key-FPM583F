@@ -124,26 +124,26 @@ note = "registration writes EF_CRED before EF_RP: a torn write strands a live cr
 
 [comutant.BugDeleteRpBeforeCred]
 status = "patch"
-file = "crates/rsk-fido/src/credmgmt.rs"
+file = "crates/rsk-fido/src/resident_delete.rs"
 find = """
-    ctx.fs
-        .delete(EF_CRED + slot)
+    fs.delete(EF_CRED + slot)
         .map_err(|_| CtapError::NotAllowed)?;
 """
 replace = """
-    decrement_rp(ctx.fs, rp_id_hash)?;
-    ctx.fs
-        .delete(EF_CRED + slot)
+    if let Some((fid, n)) = found {
+        commit_decrement(fs, fid, &mut rp[..n])?;
+    }
+    fs.delete(EF_CRED + slot)
         .map_err(|_| CtapError::NotAllowed)?;
 """
 find2 = """
-    largeblobext::discard(ctx.fs, slot);
-    decrement_rp(ctx.fs, rp_id_hash)?;
-    Ok(0)
+    if let Some((fid, n)) = found {
+        commit_decrement(fs, fid, &mut rp[..n])?;
+    }
+    Ok(())
 """
 replace2 = """
-    largeblobext::discard(ctx.fs, slot);
-    Ok(0)
+    Ok(())
 """
 slice = ["cargo", "test", "-p", "rsk-fido"]
 expect = "killed"
@@ -196,7 +196,7 @@ replace = """
 """
 slice = ["cargo", "test", "-p", "rsk-fido"]
 expect = "killed"
-note = "THE VERDICT THIS ROW CARRIED WAS MEASURED IN THE MODEL AND WRITTEN ABOUT THE CODE. `unreachable` said the defect is not falsifiable on its own, and that is true of the MODEL: with the seed leading the wipe unconditionally (0x08BF) the window this re-opens is over a seed already gone, which is why `Mut_BugBackupSealedNotAGate.cfg` has to arm `BugSeedDoesNotLead` beside it. Nothing had asked the code the same question, and a model measurement is evidence about the model. WHAT THE CODE ANSWERS, AND WHAT THAT ANSWER IS WORTH -- both halves, because the first draft of this note got the second one wrong. Two tests fall deterministically, and BOTH TRANSCRIBE THE MATCH ARM this patch edits: `the_gate_set_defers_every_record_whose_absence_is_permissive` (crates/rsk-fido/src/reset_tests.rs:651) iterates the same five-member list, and `reset_projection_finishes_only_after_every_ordered_phase` (crates/rsk-fido/src/reset_assurance_tests.rs:76) asserts the Gate phase may delete it. Control measured, not argued: demoting `EF_MINPINLEN` instead -- which crates/rsk-fido/src/reset.rs:248-254 says out loud is in the phase and in NO clause -- kills the slice identically, 3 of 3 runs. So on their own these two answer `did somebody edit the list`, not `is the defect caught`. THE BEHAVIOURAL TEST THAT EXISTED WAS A COIN FLIP, and the mechanism is measured: `RamStorage` is a `HashMap` and `for_each_key` iterates it (crates/rsk-fs/src/storage.rs:78 and :105), so whether the sweep reaches 0xCC02 before it aborts on the refused 0xCC00 is a fresh permutation per process. Over 400 fixtures the marker survived 233 times and was lost 167. `a_seed_the_medium_kept_stops_the_wipe_before_the_gates` is therefore ~42% and reads deterministic-green on the shipped tree, which is where it looks trustworthy. SO A DETERMINISTIC ONE WAS ADDED IN THE SAME DIFF: `a_backup_seal_swept_with_the_secrets_is_a_reopened_export_window` (crates/rsk-fido/src/reset_assurance_tests.rs:130) drives the projection, whose `delete` takes its phase from the production `reset_phase`, and asserts `reset_keeps_the_backup_seal` over a seed still reachable. Measured in all three directions: shipped GREEN, this mutant RED 5 of 5, the `EF_MINPINLEN` control GREEN 3 of 3. That is the test this row`s `killed` should be read against; the two transcribers are the reason it is not read against them."
+note = "THE VERDICT THIS ROW CARRIED WAS MEASURED IN THE MODEL AND WRITTEN ABOUT THE CODE. `unreachable` said the defect is not falsifiable on its own, and that is true of the MODEL: with the seed leading the wipe unconditionally (0x08BF) the window this re-opens is over a seed already gone, which is why `Mut_BugBackupSealedNotAGate.cfg` has to arm `BugSeedDoesNotLead` beside it. Nothing had asked the code the same question, and a model measurement is evidence about the model. WHAT THE CODE ANSWERS, AND WHAT THAT ANSWER IS WORTH -- both halves, because the first draft of this note got the second one wrong. Two tests fall deterministically, and BOTH TRANSCRIBE THE MATCH ARM this patch edits: `the_gate_set_defers_every_record_whose_absence_is_permissive` (crates/rsk-fido/src/reset_tests.rs:651) iterates the same five-member list, and `reset_projection_finishes_only_after_every_ordered_phase` (crates/rsk-fido/src/reset_assurance_tests.rs:76) asserts the Gate phase may delete it. Control measured, not argued: demoting `EF_MINPINLEN` instead -- which crates/rsk-fido/src/reset.rs:248-254 says out loud is in the phase and in NO clause -- kills the slice identically, 3 of 3 runs. So on their own these two answer `did somebody edit the list`, not `is the defect caught`. THE BEHAVIOURAL TEST THAT EXISTED WAS A COIN FLIP, and the mechanism is measured: `RamStorage` is a `HashMap` and `for_each_key` iterates it (crates/rsk-fs/src/storage.rs:63 and :105), so whether the sweep reaches 0xCC02 before it aborts on the refused 0xCC00 is a fresh permutation per process. Over 400 fixtures the marker survived 233 times and was lost 167. `a_seed_the_medium_kept_stops_the_wipe_before_the_gates` is therefore ~42% and reads deterministic-green on the shipped tree, which is where it looks trustworthy. SO A DETERMINISTIC ONE WAS ADDED IN THE SAME DIFF: `a_backup_seal_swept_with_the_secrets_is_a_reopened_export_window` (crates/rsk-fido/src/reset_assurance_tests.rs:130) drives the projection, whose `delete` takes its phase from the production `reset_phase`, and asserts `reset_keeps_the_backup_seal` over a seed still reachable. Measured in all three directions: shipped GREEN, this mutant RED 5 of 5, the `EF_MINPINLEN` control GREEN 3 of 3. That is the test this row`s `killed` should be read against; the two transcribers are the reason it is not read against them."
 
 [comutant.BugSetPinKeepsPpuat]
 status = "unreachable"
@@ -600,15 +600,13 @@ is told, which is why its target is NoSilentOrphan and not NoOrphanedMetadata.""
 status = "patch"
 file = "crates/rsk-fs/src/fs.rs"
 find = """
-        if r.is_none() && self.storage.last_error() {
-            return Err(Error::MemoryFatal);
-        }
+        let r = r?;
 """
 replace = """
-        if r.is_none() && self.storage.last_error() {
+        let r = r.map_err(|error| {
             self.record(fid, false);
-            return Err(Error::MemoryFatal);
-        }
+            error
+        })?;
 """
 slice = ["cargo", "test", "-p", "rsk-fs"]
 expect = "killed"
@@ -623,7 +621,7 @@ tree can tear a write. Enumerated: every fault backend in
 answers `Ok(())` and cannot fail, and so does every local backend in
 `fs_tests.rs`. The one write-failing medium in the tree,
 `crates/rsk-openpgp/src/dying_storage.rs`, refuses ATOMICALLY — before writing —
-so it drives `crates/rsk-fs/src/fs.rs:786`'s `?` and cannot leave a partial
+so it drives `crates/rsk-fs/src/fs.rs:781`'s `?` and cannot leave a partial
 blob. So there IS a
 line of `rsk-fs` that decides what a failed metadata write costs, and there is no
 way to make one TEAR: the assumption belongs to the medium, and
@@ -635,8 +633,8 @@ DENIABLE — `StoreSolo_BugMetaWriteTearsBlob.cfg` goes RED on
 [comutant.BugMetaDeleteTearsBlob]
 status = "unreachable"
 evidence = """the same backend assumption its sibling denies, at
-`meta_delete`'s own rewrite (`crates/rsk-fs/src/fs.rs:827`) instead of
-`meta_add`'s (`crates/rsk-fs/src/fs.rs:786`), and no `Storage` in this tree
+`meta_delete`'s own rewrite (`crates/rsk-fs/src/fs.rs:821`) instead of
+`meta_add`'s (`crates/rsk-fs/src/fs.rs:781`), and no `Storage` in this tree
 can tear either.
 Re-enumerated rather than inherited, because the roster grew: FIVE fault
 backends in `crates/rsk-fs/src/storage.rs` now — `MetaStuck`, `ProbeStuck`,
@@ -658,14 +656,10 @@ there is to lose."""
 status = "patch"
 file = "crates/rsk-fs/src/fs.rs"
 find = """
-            None if self.storage.last_error() => return Err(Error::MemoryFatal),
-            None => {
-                self.mark_absent(EF_META);
+        let n = match self.storage.read(EF_META, &mut scratch)? {
 """
 replace = """
-            None if false => return Err(Error::MemoryFatal),
-            None => {
-                self.mark_absent(EF_META);
+        let n = match self.storage.read(EF_META, &mut scratch).unwrap_or(None) {
 """
 slice = ["cargo", "test", "-p", "rsk-fs"]
 expect = "killed"
@@ -691,13 +685,10 @@ note = "scan decides the whole FID space after a TRUNCATED walk: a committed key
 status = "patch"
 file = "crates/rsk-fs/src/fs.rs"
 find = """
-            if r.is_none() && self.storage.last_error() {
-                return Err(Error::MemoryFatal);
-            }
-            r.unwrap_or(0).min(scratch.len())
+            let r = self.storage.read(EF_META, &mut scratch)?;
 """
 replace = """
-            r.unwrap_or(0).min(scratch.len())
+            let r = self.storage.read(EF_META, &mut scratch).unwrap_or(None);
 """
 slice = ["cargo", "test", "-p", "rsk-fs"]
 expect = "killed"
@@ -1150,7 +1141,7 @@ replace = """
 """
 slice = ["cargo", "test", "-p", "rsk-otp"]
 expect = "killed"
-note = "E36's shape: NEITHER half of the (use, session) position advances on a press, so two tokens carry the same pair and a validation server cannot tell a replay from a use. The anchor is the whole body, and that is the correction: freezing only the session — the previous patch — is not this defect at all, because the wrap test then reads true on every press and the USE half advances instead, so the position goes on moving. The model switch encodes the frozen PAIR, and the patch has to encode the same arm or the kill is a kill for another reason. Measured rather than argued: the previous patch IS killed too, and its failures read the wrong way round — `the_press_bump_stops_below_the_reserved_high_bit` answers `(6, 0, true)` where `(5, 1, false)` was owed (crates/rsk-otp/src/counter_tests.rs:9), so the USE half advanced AND demanded a flash write, and `a_press_types_nothing_when_it_cannot_persist_the_counter` falls at crates/rsk-otp/src/tests.rs:2176 on `the wrap press did not resume` with the counter run away to 256. Its single repeat is a re-CONFIGURE zeroing a counter that had already reached 3 — a position that had been MOVING. Under THIS patch three tests say `re-typed` instead, and `swap_carries_the_session_counter_with_its_record` goes from green to red."
+note = "E36's shape: NEITHER half of the (use, session) position advances on a press, so two tokens carry the same pair and a validation server cannot tell a replay from a use. The anchor is the whole body, and that is the correction: freezing only the session — the previous patch — is not this defect at all, because the wrap test then reads true on every press and the USE half advances instead, so the position goes on moving. The model switch encodes the frozen PAIR, and the patch has to encode the same arm or the kill is a kill for another reason. Measured rather than argued: the previous patch IS killed too, and its failures read the wrong way round — `the_press_bump_stops_below_the_reserved_high_bit` answers `(6, 0, true)` where `(5, 1, false)` was owed (crates/rsk-otp/src/counter_tests.rs:9), so the USE half advanced AND demanded a flash write, and `a_press_types_nothing_when_it_cannot_persist_the_counter` falls at crates/rsk-otp/src/tests.rs:2173 on `the wrap press did not resume` with the counter run away to 256. Its single repeat is a re-CONFIGURE zeroing a counter that had already reached 3 — a position that had been MOVING. Under THIS patch three tests say `re-typed` instead, and `swap_carries_the_session_counter_with_its_record` goes from green to red."
 
 [comutant.BugOtpPressTypesUnpersisted]
 status = "patch"
@@ -1164,7 +1155,7 @@ replace = """
 """
 slice = ["cargo", "test", "-p", "rsk-otp"]
 expect = "killed"
-note = "a press types its ticket while the persisted half of the position never moves, and the RAM session rolls anyway — so the press after the wrap reads the old counter back and pairs it with session 0, this power cycle's FIRST position. An in-cycle repeat at the very next press, which is the replay a validation server has no way to tell from a use. ONE host test falls and its direction was read rather than counted: `a_press_types_nothing_when_it_cannot_persist_the_counter` (crates/rsk-otp/src/tests.rs:2124) reports `the press after a refused counter write re-typed Some(([112, 117, 98, 108, 105, 99], 1, 0)), already emitted this power cycle` at crates/rsk-otp/src/tests.rs:2161 — a position REPEATED, not a press mis-refused, which is the half of that test the model switch is about."
+note = "a press types its ticket while the persisted half of the position never moves, and the RAM session rolls anyway — so the press after the wrap reads the old counter back and pairs it with session 0, this power cycle's FIRST position. An in-cycle repeat at the very next press, which is the replay a validation server has no way to tell from a use. ONE host test falls and its direction was read rather than counted: `a_press_types_nothing_when_it_cannot_persist_the_counter` (crates/rsk-otp/src/tests.rs:2121) reports `the press after a refused counter write re-typed Some(([112, 117, 98, 108, 105, 99], 1, 0)), already emitted this power cycle` at crates/rsk-otp/src/tests.rs:2158 — a position REPEATED, not a press mis-refused, which is the half of that test the model switch is about."
 
 [comutant.BugOtpBootKeepsPosition]
 status = "patch"
@@ -1189,7 +1180,7 @@ replace = """
 """
 slice = ["cargo", "test", "-p", "rsk-otp"]
 expect = "killed"
-note = "a cold boot leaves the persisted half where the last power cycle left it while the RAM session restarts at 0, so every pair that cycle typed is typeable again: the counter that exists to make a position unique ACROSS reboots stops crossing the reboot. Three host tests fall and all three say that — `boot_bump_retries_a_refused_write_and_pins_what_it_cannot_close` (crates/rsk-otp/src/tests.rs:2184) reports `one refused boot write re-typed the last cycle's position` with both sides `([112, 117, 98, 108, 105, 99], 1, 0)` at crates/rsk-otp/src/tests.rs:2217, and `power_up_bump_retries_a_slot_the_medium_refused` reads the stored counter back at 0 where 1 was owed (crates/rsk-otp/src/tests.rs:1985). The anchor is the whole `if let` and the replacement keeps the `boot_use_counter` call, so the patch is the WRITE and nothing else: dropping the call too left the function dead, and a slice run under -D warnings would then score build-broke instead of a kill."
+note = "a cold boot leaves the persisted half where the last power cycle left it while the RAM session restarts at 0, so every pair that cycle typed is typeable again: the counter that exists to make a position unique ACROSS reboots stops crossing the reboot. Three host tests fall and all three say that — `boot_bump_retries_a_refused_write_and_pins_what_it_cannot_close` (crates/rsk-otp/src/tests.rs:2181) reports `one refused boot write re-typed the last cycle's position` with both sides `([112, 117, 98, 108, 105, 99], 1, 0)` at crates/rsk-otp/src/tests.rs:2214, and `power_up_bump_retries_a_slot_the_medium_refused` reads the stored counter back at 0 where 1 was owed (crates/rsk-otp/src/tests.rs:1985). The anchor is the whole `if let` and the replacement keeps the `boot_use_counter` call, so the patch is the WRITE and nothing else: dropping the call too left the function dead, and a slice run under -D warnings would then score build-broke instead of a kill."
 
 [comutant.BugOtpSwapKeepsSession]
 status = "patch"
@@ -1608,7 +1599,7 @@ pub fn request_rescrub<S: Storage>(fs: &mut Fs<S>) -> Result<()> {
 """
 slice = ["cargo", "test", "-p", "rsk-fs"]
 expect = "killed"
-note = "audit run-35, shipped at four of five re-key sites: a lazy re-key — or a lazy DELETE, which appends a tombstone rather than erasing — leaves EF_HARDENED standing over the weak copy it just superseded, so no future boot ever scrubs it. The DEFINITION is patched, not the call sites, because it dominates all of them — patching sites would leave the oath and openpgp halves unmeasured and over-anchor the entry to an enumeration that grows. The anchor is the WHOLE body because the re-arm outgrew its `delete`: the read-back has to go with it, since the defect is a re-arm that keeps the marker AND still answers `Ok` — leave `try_has_data` standing and the patch models the REFUSAL instead, which kills through `expect(\"a healthy medium re-arms and says so\")` and says the wrong half. The `Fs::rescrub_refused` latch goes with it for the same reason: it is set from this body's `Err` arm, so a patch that kept it would leave a stuck medium still reported and only half the defect modelled. Direction read at both levels: TLC's counterexample is `LazyRekey` at `marker = TRUE` reaching `weak = 1`, a marker standing over a leftover, and the host failure is `requesting_a_rescrub_clears_the_hardened_marker` (crates/rsk-fs/src/fs_tests.rs:385) reporting `a rescrub request must clear the marker, or the lap never runs again` — the marker SURVIVED, not a spurious clear."
+note = "audit run-35, shipped at four of five re-key sites: a lazy re-key — or a lazy DELETE, which appends a tombstone rather than erasing — leaves EF_HARDENED standing over the weak copy it just superseded, so no future boot ever scrubs it. The DEFINITION is patched, not the call sites, because it dominates all of them — patching sites would leave the oath and openpgp halves unmeasured and over-anchor the entry to an enumeration that grows. The anchor is the WHOLE body because the re-arm outgrew its `delete`: the read-back has to go with it, since the defect is a re-arm that keeps the marker AND still answers `Ok` — leave `try_has_data` standing and the patch models the REFUSAL instead, which kills through `expect(\"a healthy medium re-arms and says so\")` and says the wrong half. The `Fs::rescrub_refused` latch goes with it for the same reason: it is set from this body's `Err` arm, so a patch that kept it would leave a stuck medium still reported and only half the defect modelled. Direction read at both levels: TLC's counterexample is `LazyRekey` at `marker = TRUE` reaching `weak = 1`, a marker standing over a leftover, and the host failure is `requesting_a_rescrub_clears_the_hardened_marker` (crates/rsk-fs/src/fs_tests.rs:384) reporting `a rescrub request must clear the marker, or the lap never runs again` — the marker SURVIVED, not a spurious clear."
 
 [comutant.BugMarkerBeforeScrub]
 status = "patch"
@@ -1624,7 +1615,7 @@ replace = """
 """
 slice = ["cargo", "test", "-p", "rsk-fs"]
 expect = "killed"
-note = "the `compact().is_ok()` short-circuit dropped: a torn lap claims completion and the weak copies it left ride under a set marker forever. This is the switch the module's exclusion was really about, and it had no code twin until the order left `firmware/src/main.rs` for `rsk_fs::run_at_rest_lap` — a firmware-compiling patch is classified `build-broke`, which is not a kill. Direction: the host failure is `the_at_rest_lap_writes_its_marker_only_after_a_completed_scrub` (crates/rsk-fs/src/fs_tests.rs:505) reporting `a torn lap claimed completion, so no later boot ever scrubs what it left` — read off the MEDIUM past `Fs`'s present cache, and the marker is PRESENT over a failed lap rather than absent after a good one."
+note = "the `compact().is_ok()` short-circuit dropped: a torn lap claims completion and the weak copies it left ride under a set marker forever. This is the switch the module's exclusion was really about, and it had no code twin until the order left `firmware/src/main.rs` for `rsk_fs::run_at_rest_lap` — a firmware-compiling patch is classified `build-broke`, which is not a kill. Direction: the host failure is `the_at_rest_lap_writes_its_marker_only_after_a_completed_scrub` (crates/rsk-fs/src/fs_tests.rs:504) reporting `a torn lap claimed completion, so no later boot ever scrubs what it left` — read off the MEDIUM past `Fs`'s present cache, and the marker is PRESENT over a failed lap rather than absent after a good one."
 
 [comutant.BugPartialLockCarry]
 status = "patch"

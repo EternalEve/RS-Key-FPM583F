@@ -200,7 +200,7 @@ impl TruncatedScan {
 
 #[cfg(not(feature = "strict-config"))]
 impl Storage for TruncatedScan {
-    fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
+    fn read(&mut self, fid: u16, buf: &mut [u8]) -> rsk_sdk::error::Result<Option<usize>> {
         self.0.read(fid, buf)
     }
     fn write(&mut self, fid: u16, data: &[u8]) -> rsk_sdk::error::Result<()> {
@@ -209,7 +209,7 @@ impl Storage for TruncatedScan {
     fn remove(&mut self, fid: u16) -> rsk_sdk::error::Result<()> {
         self.0.remove(fid)
     }
-    fn size(&mut self, fid: u16) -> Option<usize> {
+    fn size(&mut self, fid: u16) -> rsk_sdk::error::Result<Option<usize>> {
         self.0.size(fid)
     }
     fn for_each_key(&mut self, _f: &mut dyn FnMut(u16)) -> bool {
@@ -241,7 +241,7 @@ impl WriteStuck {
 
 #[cfg(not(feature = "strict-config"))]
 impl Storage for WriteStuck {
-    fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
+    fn read(&mut self, fid: u16, buf: &mut [u8]) -> rsk_sdk::error::Result<Option<usize>> {
         self.0.read(fid, buf)
     }
     fn write(&mut self, _fid: u16, _data: &[u8]) -> rsk_sdk::error::Result<()> {
@@ -250,7 +250,7 @@ impl Storage for WriteStuck {
     fn remove(&mut self, fid: u16) -> rsk_sdk::error::Result<()> {
         self.0.remove(fid)
     }
-    fn size(&mut self, fid: u16) -> Option<usize> {
+    fn size(&mut self, fid: u16) -> rsk_sdk::error::Result<Option<usize>> {
         self.0.size(fid)
     }
     fn for_each_key(&mut self, f: &mut dyn FnMut(u16)) -> bool {

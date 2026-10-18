@@ -561,7 +561,7 @@ PowerCycle ==
 \* step that changes nothing, so a mutant that made it reach would be visible.
 FidoReset == UNCHANGED vars
 
-\* `Fs::factory_wipe` (crates/rsk-fs/src/fs.rs:462-513) is FLASH-only: it never
+\* `Fs::factory_wipe` (crates/rsk-fs/src/fs.rs:460-511) is FLASH-only: it never
 \* sees an applet, so every in-RAM status here stands over freshly-defaulted
 \* verifiers until the reboot both callers queue immediately after
 \* (crates/rsk-device/src/ccid.rs:325-340, crates/rsk-display/src/pin.rs:720-728).

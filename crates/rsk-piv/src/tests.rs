@@ -1716,7 +1716,7 @@ struct RefuseWrite {
 }
 
 impl Storage for RefuseWrite {
-    fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
+    fn read(&mut self, fid: u16, buf: &mut [u8]) -> rsk_sdk::error::Result<Option<usize>> {
         self.inner.read(fid, buf)
     }
     fn write(&mut self, fid: u16, data: &[u8]) -> rsk_sdk::error::Result<()> {
@@ -1731,7 +1731,7 @@ impl Storage for RefuseWrite {
         }
         self.inner.remove(fid)
     }
-    fn size(&mut self, fid: u16) -> Option<usize> {
+    fn size(&mut self, fid: u16) -> rsk_sdk::error::Result<Option<usize>> {
         self.inner.size(fid)
     }
     fn for_each_key(&mut self, f: &mut dyn FnMut(u16)) -> bool {
@@ -5137,7 +5137,7 @@ fn reset_sweeps_more_files_than_one_batch() {
 struct StubbornStorage(RamStorage);
 
 impl Storage for StubbornStorage {
-    fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
+    fn read(&mut self, fid: u16, buf: &mut [u8]) -> rsk_sdk::error::Result<Option<usize>> {
         self.0.read(fid, buf)
     }
     fn write(&mut self, fid: u16, data: &[u8]) -> rsk_sdk::error::Result<()> {
@@ -5146,7 +5146,7 @@ impl Storage for StubbornStorage {
     fn remove(&mut self, _fid: u16) -> rsk_sdk::error::Result<()> {
         Ok(())
     }
-    fn size(&mut self, fid: u16) -> Option<usize> {
+    fn size(&mut self, fid: u16) -> rsk_sdk::error::Result<Option<usize>> {
         self.0.size(fid)
     }
     fn for_each_key(&mut self, f: &mut dyn FnMut(u16)) -> bool {
@@ -5395,7 +5395,7 @@ struct VersionedStorage {
 }
 
 impl Storage for VersionedStorage {
-    fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
+    fn read(&mut self, fid: u16, buf: &mut [u8]) -> rsk_sdk::error::Result<Option<usize>> {
         self.inner.read(fid, buf)
     }
     fn write(&mut self, fid: u16, data: &[u8]) -> rsk_sdk::error::Result<()> {
@@ -5407,7 +5407,7 @@ impl Storage for VersionedStorage {
         self.versions.remove(&fid);
         self.inner.remove(fid)
     }
-    fn size(&mut self, fid: u16) -> Option<usize> {
+    fn size(&mut self, fid: u16) -> rsk_sdk::error::Result<Option<usize>> {
         self.inner.size(fid)
     }
     fn for_each_key(&mut self, f: &mut dyn FnMut(u16)) -> bool {
@@ -5623,7 +5623,7 @@ struct TornMeta {
 }
 
 impl Storage for TornMeta {
-    fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
+    fn read(&mut self, fid: u16, buf: &mut [u8]) -> rsk_sdk::error::Result<Option<usize>> {
         self.inner.read(fid, buf)
     }
     fn write(&mut self, fid: u16, data: &[u8]) -> rsk_sdk::error::Result<()> {
@@ -5639,7 +5639,7 @@ impl Storage for TornMeta {
     fn remove(&mut self, fid: u16) -> rsk_sdk::error::Result<()> {
         self.inner.remove(fid)
     }
-    fn size(&mut self, fid: u16) -> Option<usize> {
+    fn size(&mut self, fid: u16) -> rsk_sdk::error::Result<Option<usize>> {
         self.inner.size(fid)
     }
     fn for_each_key(&mut self, f: &mut dyn FnMut(u16)) -> bool {
@@ -6161,7 +6161,7 @@ struct RefusedThenTruncated {
 }
 
 impl Storage for RefusedThenTruncated {
-    fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
+    fn read(&mut self, fid: u16, buf: &mut [u8]) -> rsk_sdk::error::Result<Option<usize>> {
         self.inner.read(fid, buf)
     }
     fn write(&mut self, fid: u16, data: &[u8]) -> rsk_sdk::error::Result<()> {
@@ -6176,7 +6176,7 @@ impl Storage for RefusedThenTruncated {
         self.truncated |= self.truncate_after == Some(fid);
         Ok(())
     }
-    fn size(&mut self, fid: u16) -> Option<usize> {
+    fn size(&mut self, fid: u16) -> rsk_sdk::error::Result<Option<usize>> {
         self.inner.size(fid)
     }
     fn for_each_key(&mut self, f: &mut dyn FnMut(u16)) -> bool {
@@ -6228,8 +6228,8 @@ fn reset_under(refuse_once: Option<u16>, truncate_after: Option<u16>) -> Residue
     let mut medium = fs.into_storage();
     Residue {
         answered,
-        marker: medium.inner.exists(rsk_fs::EF_HARDENED),
-        slot: medium.inner.exists(slot.get()),
+        marker: medium.inner.exists(rsk_fs::EF_HARDENED).unwrap(),
+        slot: medium.inner.exists(slot.get()).unwrap(),
         verifier_tombstoned: medium.truncated,
     }
 }
@@ -7085,11 +7085,13 @@ struct TearAfter {
 }
 
 impl Storage for TearAfter {
-    fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
-        let v = &self.items.iter().find(|(k, _)| *k == fid)?.1;
+    fn read(&mut self, fid: u16, buf: &mut [u8]) -> rsk_sdk::error::Result<Option<usize>> {
+        let Some((_, v)) = self.items.iter().find(|(k, _)| *k == fid) else {
+            return Ok(None);
+        };
         let n = v.len().min(buf.len());
         buf[..n].copy_from_slice(&v[..n]);
-        Some(v.len())
+        Ok(Some(v.len()))
     }
     fn write(&mut self, fid: u16, data: &[u8]) -> rsk_sdk::error::Result<()> {
         match self.items.iter_mut().find(|(k, _)| *k == fid) {
@@ -7106,11 +7108,12 @@ impl Storage for TearAfter {
         self.items.retain(|(k, _)| *k != fid);
         Ok(())
     }
-    fn size(&mut self, fid: u16) -> Option<usize> {
-        self.items
+    fn size(&mut self, fid: u16) -> rsk_sdk::error::Result<Option<usize>> {
+        Ok(self
+            .items
             .iter()
             .find(|(k, _)| *k == fid)
-            .map(|(_, v)| v.len())
+            .map(|(_, v)| v.len()))
     }
     fn for_each_key(&mut self, f: &mut dyn FnMut(u16)) -> bool {
         for (k, _) in &self.items {
@@ -8406,25 +8409,22 @@ struct MetaFaults {
     inner: RamStorage,
     budget: std::rc::Rc<std::cell::Cell<usize>>,
     unremovable: std::rc::Rc<std::cell::Cell<u16>>,
-    err: bool,
 }
 
 impl MetaFaults {
     fn faulting(&mut self, fid: u16) -> bool {
         if fid == rsk_fs::EF_META && self.budget.get() > 0 {
             self.budget.set(self.budget.get().saturating_sub(1));
-            self.err = true;
             return true;
         }
-        self.err = false;
         false
     }
 }
 
 impl Storage for MetaFaults {
-    fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
+    fn read(&mut self, fid: u16, buf: &mut [u8]) -> rsk_sdk::error::Result<Option<usize>> {
         if self.faulting(fid) {
-            return None;
+            return Err(rsk_sdk::error::Error::MemoryFatal);
         }
         self.inner.read(fid, buf)
     }
@@ -8437,17 +8437,14 @@ impl Storage for MetaFaults {
         }
         self.inner.remove(fid)
     }
-    fn size(&mut self, fid: u16) -> Option<usize> {
+    fn size(&mut self, fid: u16) -> rsk_sdk::error::Result<Option<usize>> {
         if self.faulting(fid) {
-            return None;
+            return Err(rsk_sdk::error::Error::MemoryFatal);
         }
         self.inner.size(fid)
     }
     fn for_each_key(&mut self, f: &mut dyn FnMut(u16)) -> bool {
         self.inner.for_each_key(f)
-    }
-    fn last_error(&self) -> bool {
-        self.err
     }
 }
 
@@ -8474,7 +8471,6 @@ fn move_delete_under_faults(meta_faults: usize, break_remove: bool) -> (Sw, bool
         inner: RamStorage::new(),
         budget: faults.clone(),
         unremovable: unremovable.clone(),
-        err: false,
     });
     fs.scan();
     select(&mut app, &mut fs);
@@ -8567,7 +8563,6 @@ fn reset_with_ef_meta_stuck(stuck: bool) -> (Result<(), Sw>, bool, Vec<&'static 
         inner: RamStorage::new(),
         budget: std::rc::Rc::new(std::cell::Cell::new(0usize)),
         unremovable: unremovable.clone(),
-        err: false,
     });
     fs.scan();
     select(&mut app, &mut fs);
@@ -8668,7 +8663,6 @@ fn metadata_over_an_orphan_head_algo(keep_cache: bool, algo: u8) -> Sw {
         inner: RamStorage::new(),
         budget: faults.clone(),
         unremovable: std::rc::Rc::new(std::cell::Cell::new(0u16)),
-        err: false,
     });
     fs.scan();
     select(&mut app, &mut fs);

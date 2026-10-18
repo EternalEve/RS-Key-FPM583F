@@ -11,7 +11,7 @@
 //! unifies onto the same `sequential-storage` build the firmware links, so
 //! `cargo vet` reads its 16-crate tree as shipped, not as dev-only. See the
 //! manifest. It also buys something the library's mock cannot do: fail a READ,
-//! which is the one fault [`Storage::last_error`] exists to report (audit run-36).
+//! which [`Storage::read`] and [`Storage::size`] must report apart from absence.
 
 extern crate std;
 
@@ -224,7 +224,7 @@ fn mount(flash: &SharedMock) -> TestStore {
 
 fn read_vec(store: &mut TestStore, fid: u16) -> Option<Vec<u8>> {
     let mut buf = [0u8; rsk_fs::MAX_VALUE_BYTES];
-    let n = store.read(fid, &mut buf)?;
+    let n = store.read(fid, &mut buf).unwrap()?;
     Some(buf[..n].to_vec())
 }
 
@@ -275,8 +275,7 @@ fn a_value_round_trips_through_each_partition() {
         read_vec(&mut store, CRED).as_deref(),
         Some(&b"credential"[..])
     );
-    assert_eq!(store.size(CTR), Some(4));
-    assert!(!store.last_error());
+    assert_eq!(store.size(CTR), Ok(Some(4)));
 }
 
 #[test]
@@ -301,13 +300,27 @@ fn a_stored_value_survives_a_reboot() {
 fn a_read_of_an_absent_key_is_an_absence_not_an_error() {
     let flash = SharedMock::new();
     let mut store = mount(&flash);
-    assert_eq!(store.read(CRED, &mut [0u8; 8]), None);
-    assert!(
-        !store.last_error(),
-        "an absence reported as a fault would make `Fs` re-read for ever"
-    );
-    assert_eq!(store.size(CRED), None);
-    assert!(!store.last_error());
+    assert_eq!(store.read(CRED, &mut [0u8; 8]), Ok(None));
+    assert_eq!(store.size(CRED), Ok(None));
+}
+
+#[test]
+fn empty_values_stay_distinct_from_absence_in_both_partitions() {
+    let flash = SharedMock::new();
+    let mut store = mount(&flash);
+    for fid in [CRED, CTR] {
+        store.write(fid, &[]).unwrap();
+        assert_eq!(store.read(fid, &mut [0u8; 1]), Ok(Some(0)));
+        assert_eq!(store.size(fid), Ok(Some(0)));
+        assert_eq!(store.exists(fid), Ok(true));
+    }
+    let mut store = mount(&flash);
+    for fid in [CRED, CTR] {
+        assert_eq!(store.read(fid, &mut []), Ok(Some(0)));
+        store.remove(fid).unwrap();
+        assert_eq!(store.read(fid, &mut []), Ok(None));
+        assert_eq!(store.exists(fid), Ok(false));
+    }
 }
 
 #[test]
@@ -318,8 +331,8 @@ fn a_removed_key_is_gone_from_both_the_read_and_the_walk() {
     store.write(CTR, b"\x00\x00\x00\x07").unwrap();
     store.remove(CRED).unwrap();
     store.remove(CTR).unwrap();
-    assert_eq!(store.read(CRED, &mut [0u8; 8]), None);
-    assert_eq!(store.read(CTR, &mut [0u8; 8]), None);
+    assert_eq!(store.read(CRED, &mut [0u8; 8]), Ok(None));
+    assert_eq!(store.read(CTR, &mut [0u8; 8]), Ok(None));
     assert_eq!(keys(&mut store).0, Vec::<u16>::new());
 }
 
@@ -331,7 +344,7 @@ fn a_short_buffer_still_reports_the_whole_length() {
     let mut store = mount(&flash);
     store.write(CRED, b"0123456789").unwrap();
     let mut buf = [0u8; 4];
-    assert_eq!(store.read(CRED, &mut buf), Some(10));
+    assert_eq!(store.read(CRED, &mut buf), Ok(Some(10)));
     assert_eq!(&buf, b"0123");
 }
 
@@ -369,26 +382,20 @@ fn the_walk_yields_both_partitions_and_says_it_finished() {
 
 #[test]
 fn a_faulted_read_is_reported_as_a_fault() {
-    // Audit run-36: both outcomes collapse into `None`, and `Fs` memoises the
-    // second as a decided fact — so a transient fault became a permanent "file
-    // absent" for the rest of the boot, and every gate that reads `has_data`
-    // opened, `clientpin::set_pin` among them.
+    // Audit run-36 cached read faults as permanent absence, opening has_data gates.
+    // Keep the error in the return value so the cache can leave it undecided.
+    // A recovered medium must still yield the committed value.
+
     let flash = SharedMock::new();
     let mut store = mount(&flash);
     store.write(CRED, b"credential").unwrap();
     flash.fail_reads.set(true);
-    assert_eq!(store.read(CRED, &mut [0u8; 16]), None);
-    assert!(store.last_error());
-    assert_eq!(store.size(CRED), None);
-    assert!(store.last_error());
+    assert_eq!(store.read(CRED, &mut [0u8; 16]), Err(Error::MemoryFatal));
+    assert_eq!(store.size(CRED), Err(Error::MemoryFatal));
     flash.fail_reads.set(false);
     assert_eq!(
         read_vec(&mut store, CRED).as_deref(),
         Some(&b"credential"[..])
-    );
-    assert!(
-        !store.last_error(),
-        "the flag tracks the LAST read, not any read"
     );
 }
 
@@ -576,7 +583,7 @@ fn the_scrub_lap_leaves_no_filler_behind() {
     let (found, complete) = keys(&mut store);
     assert!(complete);
     assert_eq!(found, vec![CRED], "the lap's own records are all gone");
-    assert_eq!(store.read(rsk_fs::EF_SCRUB_FILLER, &mut [0u8; 8]), None);
+    assert_eq!(store.read(rsk_fs::EF_SCRUB_FILLER, &mut [0u8; 8]), Ok(None));
 }
 
 #[test]

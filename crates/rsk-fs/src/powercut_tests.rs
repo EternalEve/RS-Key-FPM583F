@@ -104,12 +104,14 @@ impl Medium {
 }
 
 impl Storage for Medium {
-    fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
+    fn read(&mut self, fid: u16, buf: &mut [u8]) -> rsk_sdk::error::Result<Option<usize>> {
         let kept = self.kept.borrow();
-        let value = kept.get(&fid)?;
+        let Some(value) = kept.get(&fid) else {
+            return Ok(None);
+        };
         let n = value.len().min(buf.len());
         buf[..n].copy_from_slice(&value[..n]);
-        Some(value.len())
+        Ok(Some(value.len()))
     }
 
     fn write(&mut self, fid: u16, data: &[u8]) -> Result<()> {
@@ -129,8 +131,8 @@ impl Storage for Medium {
         self.landed()
     }
 
-    fn size(&mut self, fid: u16) -> Option<usize> {
-        self.kept.borrow().get(&fid).map(Vec::len)
+    fn size(&mut self, fid: u16) -> rsk_sdk::error::Result<Option<usize>> {
+        Ok(self.kept.borrow().get(&fid).map(Vec::len))
     }
 
     fn for_each_key(&mut self, f: &mut dyn FnMut(u16)) -> bool {

@@ -81,7 +81,7 @@ fn drive<S: Storage>(
     let before: StoreView = fs.read_store_view();
     // A fault is armed only for the actions the model gives one, and `Delete`
     // is one of them now: its second disjunct is the EF_META read failing, where
-    // the value goes and the record cannot follow it (`fs.rs:597`). `dead` in the
+    // the value goes and the record cannot follow it (`fs.rs:595`). `dead` in the
     // first disjunct is still a power CUT and not a medium error — the two are
     // different transitions, which is why the mutant that hides the answer
     // (`BugDeleteHidesFaultedDrop`) targets `NoSilentOrphan` and not the order's
@@ -254,24 +254,21 @@ fn every_three_step_sequence_survives_an_unscanned_reboot_between_them() {
 struct FaultAfter {
     inner: RamStorage,
     armed: std::rc::Rc<std::cell::Cell<bool>>,
-    err: bool,
 }
 
 impl FaultAfter {
     fn faulting(&mut self) -> bool {
         if self.armed.get() {
-            self.err = true;
             return true;
         }
-        self.err = false;
         false
     }
 }
 
 impl Storage for FaultAfter {
-    fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
+    fn read(&mut self, fid: u16, buf: &mut [u8]) -> rsk_sdk::error::Result<Option<usize>> {
         if self.faulting() {
-            return None;
+            return Err(rsk_sdk::error::Error::MemoryFatal);
         }
         self.inner.read(fid, buf)
     }
@@ -284,21 +281,16 @@ impl Storage for FaultAfter {
     // read that fails while an append succeeds is also the realistic shape for a
     // log-structured backend: a CRC failure on one item, a fresh page for the next.
     fn write(&mut self, fid: u16, data: &[u8]) -> Result<()> {
-        self.err = false;
         self.inner.write(fid, data)
     }
     fn remove(&mut self, fid: u16) -> Result<()> {
-        self.err = false;
         self.inner.remove(fid)
     }
-    fn size(&mut self, fid: u16) -> Option<usize> {
+    fn size(&mut self, fid: u16) -> rsk_sdk::error::Result<Option<usize>> {
         if self.faulting() {
-            return None;
+            return Err(rsk_sdk::error::Error::MemoryFatal);
         }
         self.inner.size(fid)
-    }
-    fn last_error(&self) -> bool {
-        self.err
     }
     fn for_each_key(&mut self, f: &mut dyn FnMut(u16)) -> bool {
         self.inner.for_each_key(f)
@@ -325,7 +317,6 @@ fn every_two_step_sequence_over_a_failing_medium_keeps_them_too() {
         let medium = FaultAfter {
             inner: seed.into_storage(),
             armed: armed.clone(),
-            err: false,
         };
         // No `scan`: EF_META is UNKNOWN, so the fault is met head-on.
         let mut fs = Fs::new(medium);

@@ -198,6 +198,12 @@ mirrors, PIV `0xD1xx/0xD2xx`, OTP slots `0xBBxx`, phy/rescue `0xE0xx`) and a
 reset wipes exactly its own predicate, never a range shared with another
 applet.
 
+`Storage::read` and `size` return `Result<Option<usize>>`: missing, present but
+empty, and unreadable records remain distinct. `Fs::try_read`, `try_size` and
+the fallible key/metadata probes preserve that distinction. The convenience
+`Fs::read`, `size` and `has_data` retain their explicit lossy contract; security
+decisions use fallible probes or a tested restrictive fallback.
+
 Both regions sit behind one RP2350 **partition table** entry carried in the
 shipped image: the USB bootloader is denied read and write over
 `__kvmain_start..__kvcnt_end`, while secure code — the running firmware,

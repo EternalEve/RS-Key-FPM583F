@@ -572,10 +572,10 @@ struct UnknownWrite {
     after: std::rc::Rc<std::cell::Cell<Option<u8>>>,
 }
 impl rsk_fs::Storage for UnknownWrite {
-    fn read(&mut self, fid: u16, out: &mut [u8]) -> Option<usize> {
+    fn read(&mut self, fid: u16, out: &mut [u8]) -> rsk_sdk::error::Result<Option<usize>> {
         self.inner.read(fid, out)
     }
-    fn size(&mut self, fid: u16) -> Option<usize> {
+    fn size(&mut self, fid: u16) -> rsk_sdk::error::Result<Option<usize>> {
         self.inner.size(fid)
     }
     fn for_each_key(&mut self, f: &mut dyn FnMut(u16)) -> bool {

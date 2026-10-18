@@ -58,7 +58,7 @@ CONSTANTS
 (* defect; `formal/README.md` maps every switch to its commit or audit id.   *)
 CONSTANTS
     BugResetGatesFirst,           \* reset.rs:131-132   two-phase wipe order
-    BugCredBeforeRp,              \* credential.rs:841-894 registration order
+    BugCredBeforeRp,              \* credential.rs:851-904 registration order
     BugTokenSurvivesPinChange,    \* clientpin.rs:318  resetPinUvAuthToken
     BugSetPinKeepsPpuat,          \* clientpin.rs:219-223
     BugChangePinKeepsPpuat,       \* clientpin.rs:307-311
@@ -71,7 +71,7 @@ CONSTANTS
     BugSoftLockLostOnWarmReset,   \* ctap.rs:401-408   PinLock across sys_reset
     BugWarmResetReopensWindow,    \* reset.rs:270-271  in_reset_window
     BugCmWalkIgnoresChannel,      \* state.rs:169-180  may_walk_rps
-    BugDeleteRpBeforeCred,        \* credmgmt.rs:686-694 deleteCredential order
+    BugDeleteRpBeforeCred,        \* resident_delete.rs:22-32 deleteCredential order
     BugBackupSealedNotAGate,      \* reset.rs:226-263 is_fido_gate_fid (run-36)
     BugConsumeKeepsMcGa,          \* state.rs:604-609  a narrowed 6.5.5.7 triad
     BugNoDropStaleCancelAtEntry,  \* crates/rsk-device/src/presence.rs:217-218
@@ -111,7 +111,7 @@ CONSTANT BugFairnessFoldsLocalCeremony
 
 (* A PROPOSED fix, not a defect: order phase 1 of the reset sweep so no EF_RP  *)
 (* entry is dropped while its EF_CRED record is still live. The shipped        *)
-(* `sweep` batches both in `for_each_key` order, which fs.rs:385-388 documents *)
+(* `sweep` batches both in `for_each_key` order, which fs.rs:383-386 documents *)
 (* as store order rather than FID order, so the batch can delete the metadata  *)
 (* first. TRUE models the fix; FALSE is the tree as it stands.                 *)
 CONSTANT FixSweepDropsCredsBeforeRpEntries
@@ -228,7 +228,7 @@ VARIABLES
     \* `state.keydev_dec` (state.rs:341-343): the seed a vendor UNLOCK decrypted
     \* into RAM on a soft-locked device. NOT a second seed -- it is the SAME
     \* owner's seed by another route, and `Ctx::load_keydev` PREFERS it
-    \* (crates/rsk-fido/src/lib.rs:110-120), so deleting the flash record does
+    \* (crates/rsk-fido/src/lib.rs:111-121), so deleting the flash record does
     \* not end reachability
     \* while this stands. That preference is the whole of E110: the model used to
     \* have only the flash record, so a wipe whose flash half succeeded read as
@@ -299,7 +299,7 @@ Init ==
 (* The seed's TWO homes. Every credential box, rpId box, credBlob,          *)
 (* hmac-secret key and large-blob key is derived from the device seed       *)
 (* (reset.rs:184-188), and `Ctx::load_keydev` reads it from RAM first and   *)
-(* flash second (crates/rsk-fido/src/lib.rs:110-120). So "the records still *)
+(* flash second (crates/rsk-fido/src/lib.rs:111-121). So "the records still *)
 (* open" is a claim                                                         *)
 (* about BOTH, and the wipe's own claim -- that what a tear leaves behind is *)
 (* undecryptable -- holds only once the last copy is gone.                   *)
@@ -983,7 +983,7 @@ RegisterRefused ==
     /\ UNCHANGED << pin, gate, store, lock, tok, plat, walk, sys, snap,
                     upSpent, viol, ram >>
 
-\* credential.rs:838-894. Order so that any truncation leaves an RP entry
+\* credential.rs:848-904. Order so that any truncation leaves an RP entry
 \* without a credential -- rolled back best-effort, never reclaimed -- never a
 \* without an RP entry, which enumerateRPs and the display can neither list
 \* nor delete while getAssertion authenticates with it happily (audit run-35).
@@ -1218,7 +1218,7 @@ CmNext(ch) ==
     /\ UNCHANGED << pin, gate, store, lock, tok, plat, pres, walk, sys, op,
                     snap, upSpent, ram >>
 
-\* 0x06 deleteCredential (credmgmt.rs:679-735). It calls verify_cm_token
+\* 0x06 deleteCredential (resident_delete.rs:13-87). It calls verify_cm_token
 \* DIRECTLY rather than going through authorize_cm, so the persistent grant
 \* authorizes no writes -- which is why CmBeginViaPpuat has no delete twin.
 DeleteCredStart(r) ==
@@ -1231,8 +1231,8 @@ DeleteCredStart(r) ==
                     upSpent, ram >>
 
 \* Two flash writes, so a cut has a position: `delete_credential` drops the
-\* EF_CRED record first (credmgmt.rs:686-688) and `decrement_rp` deletes the
-\* EF_RP entry only once its count reaches zero (:697-699). That order leaves a
+\* EF_CRED record first (resident_delete.rs:23-24) and `commit_decrement` deletes the
+\* EF_RP entry only once its count reaches zero (resident_delete.rs:77-79). That order leaves a
 \* torn delete showing an RP entry with no credential -- invisible but harmless.
 \* Reversed, it strands exactly the credential finding 1 strands.
 DeleteCredWriteA ==
@@ -1838,7 +1838,7 @@ NoLiveTokenWithoutPinRecord == tok.live => pin.set
 \* Every live credential is reachable by the management surface: enumerateRPs
 \* and the trusted-display Passkeys view both walk EF_RP, so a credential
 \* without its RP entry can be authenticated with but neither listed nor
-\* deleted (credential.rs:838-845, audit run-35).
+\* deleted (credential.rs:848-855, audit run-35).
 NoUnmanageableCredential == Idle => store.cred \subseteq store.rpent
 
 \* No prefix of an authenticatorReset -- torn or complete -- leaves a

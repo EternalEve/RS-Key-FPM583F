@@ -86,9 +86,8 @@ fn no_false_absent_survives_a_faulted_confirm() {
     let (f, g) = two_fids();
     let mut fs = fresh(true);
     fs.step_put(g);
-    // Not symbolic: a probe that FAILED returned none. `last_error` reports on
-    // the very read that produced the answer, so `Some` under a fault is
-    // unreachable — and the model's faulted arm carries no `Live(f)` either.
+    // A failed probe returns Err, never a value; the model's faulted arm
+    // carries no Live(f) either.
     fs.step_confirm(f, false);
     assert!(
         fs.cache_view(f) == CacheView::CLEAR,

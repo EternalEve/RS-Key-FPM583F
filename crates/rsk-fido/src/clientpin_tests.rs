@@ -1976,7 +1976,7 @@ fn pin_verify_fails_closed_when_the_retry_write_does_not_persist() {
         drop_ef_pin_writes: Rc<Cell<bool>>,
     }
     impl Storage for StaleEfPin {
-        fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
+        fn read(&mut self, fid: u16, buf: &mut [u8]) -> rsk_sdk::error::Result<Option<usize>> {
             self.inner.read(fid, buf)
         }
         fn write(&mut self, fid: u16, data: &[u8]) -> rsk_sdk::error::Result<()> {
@@ -1988,7 +1988,7 @@ fn pin_verify_fails_closed_when_the_retry_write_does_not_persist() {
         fn remove(&mut self, fid: u16) -> rsk_sdk::error::Result<()> {
             self.inner.remove(fid)
         }
-        fn size(&mut self, fid: u16) -> Option<usize> {
+        fn size(&mut self, fid: u16) -> rsk_sdk::error::Result<Option<usize>> {
             self.inner.size(fid)
         }
         fn for_each_key(&mut self, f: &mut dyn FnMut(u16)) -> bool {
@@ -2712,7 +2712,7 @@ impl TearPinFlowAfter {
 }
 
 impl rsk_fs::Storage for TearPinFlowAfter {
-    fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
+    fn read(&mut self, fid: u16, buf: &mut [u8]) -> rsk_sdk::error::Result<Option<usize>> {
         self.inner.read(fid, buf)
     }
     fn write(&mut self, fid: u16, data: &[u8]) -> rsk_sdk::error::Result<()> {
@@ -2723,7 +2723,7 @@ impl rsk_fs::Storage for TearPinFlowAfter {
         self.spend()?;
         self.inner.remove(fid)
     }
-    fn size(&mut self, fid: u16) -> Option<usize> {
+    fn size(&mut self, fid: u16) -> rsk_sdk::error::Result<Option<usize>> {
         self.inner.size(fid)
     }
     fn for_each_key(&mut self, f: &mut dyn FnMut(u16)) -> bool {

@@ -805,6 +805,7 @@ pub fn credential_store<S: Storage>(
 ) -> Result<()> {
     let mut slot: Option<u16> = None;
     let mut new_record = true;
+    let mut unread = false;
     let mut rec = [0u8; CRED_REC_MAX];
     let mut scratch = [0u8; CRED_REC_MAX];
 
@@ -817,8 +818,12 @@ pub fn credential_store<S: Storage>(
             }
             continue;
         }
-        let n = match fs.read(EF_CRED + i, &mut rec) {
-            Some(n) if n > 0 => n.min(rec.len()),
+        let n = match fs.try_read(EF_CRED + i, &mut rec) {
+            Ok(Some(n)) if n > 0 => n.min(rec.len()),
+            Err(_) => {
+                unread = true;
+                continue;
+            }
             _ => continue,
         };
         if n < RECORD_PREFIX || rec[..32] != *rp_id_hash {
@@ -833,6 +838,11 @@ pub fn credential_store<S: Storage>(
         }
     }
 
+    // An unread slot could hold this account. A readable match may still be
+    // replaced, but allocating another slot would risk a duplicate.
+    if new_record && unread {
+        return Err(Error::MemoryFatal);
+    }
     let slot = slot.ok_or(Error::NoMemory)?; // KEY_STORE_FULL
     let resident = derive_resident(cred_id, dev);
     let total = compose_cred_record(rp_id_hash, &resident, pubkey, cred_id, &mut rec)
@@ -1165,3 +1175,7 @@ pub fn migrate_rp_seal<S: Storage>(dev: &Device, fs: &mut Fs<S>) {
 #[cfg(test)]
 #[path = "credential_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "resident_fault_tests.rs"]
+mod fault_tests;

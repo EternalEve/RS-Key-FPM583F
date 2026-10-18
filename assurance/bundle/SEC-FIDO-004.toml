@@ -104,8 +104,8 @@ owner_of_the_kill = [
 # from three tests to one. The survivor is the structural test that reads the gate
 # set itself, which is what the patch actually changes.
 retired_owners_of_the_kill = [
-  "crates/rsk-fido/src/reset_tests.rs:1180 a_torn_reset_never_leaves_a_grant_without_its_pin",
-  "crates/rsk-fido/src/reset_tests.rs:1202 a_torn_device_wide_wipe_never_leaves_a_grant_without_its_pin",
+  "crates/rsk-fido/src/reset_tests.rs:1183 a_torn_reset_never_leaves_a_grant_without_its_pin",
+  "crates/rsk-fido/src/reset_tests.rs:1205 a_torn_device_wide_wipe_never_leaves_a_grant_without_its_pin",
 ]
 # AND THE SECOND FINDING. Five configurations report this invariant RED. Every
 # one of them falls on clause 3.

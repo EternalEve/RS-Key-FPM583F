@@ -15,32 +15,17 @@ pub trait Storage {
     /// to the device backend's, so a host test hits the same rejection.
     const MAX_VALUE: usize = crate::MAX_VALUE_BYTES;
     /// Copy the value for `fid` into `buf` (truncated to `buf.len()`), returning
-    /// the value's full length, or `None` if `fid` is absent.
-    fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize>;
+    /// the value's full length. `Ok(None)` means absent; a failed probe is `Err`.
+    fn read(&mut self, fid: u16, buf: &mut [u8]) -> Result<Option<usize>>;
     /// Store (or replace) the value for `fid`.
     fn write(&mut self, fid: u16, data: &[u8]) -> Result<()>;
     /// Remove `fid` if present.
     fn remove(&mut self, fid: u16) -> Result<()>;
-    /// Length of the value for `fid`, or `None`.
-    fn size(&mut self, fid: u16) -> Option<usize>;
+    /// Length of the value for `fid`: empty is `Ok(Some(0))`, absent is `Ok(None)`.
+    fn size(&mut self, fid: u16) -> Result<Option<usize>>;
     /// Whether `fid` has a stored value.
-    fn exists(&mut self, fid: u16) -> bool {
-        self.size(fid).is_some()
-    }
-    /// Whether the most recent [`read`](Self::read) / [`size`](Self::size) FAILED,
-    /// rather than finding the key absent.
-    ///
-    /// Both return `None` for either outcome, and [`Fs`](crate::Fs) memoises the
-    /// answer as a *decided* fact — so without this a transient backend fault
-    /// becomes a permanent "file absent" for the rest of the boot, and every gate
-    /// that reads `has_data` opens: `clientpin::set_pin` is guarded by
-    /// `if has_data(EF_PIN)` alone, so a poisoned absence lets an unauthenticated
-    /// host install its own PIN over the owner's (audit run-36).
-    ///
-    /// Defaults to `false` — a backend that cannot fail (the test RAM map) never
-    /// needs to say so, and an implementor that forgets is no worse than before.
-    fn last_error(&self) -> bool {
-        false
+    fn exists(&mut self, fid: u16) -> Result<bool> {
+        Ok(self.size(fid)?.is_some())
     }
     /// Invoke `f` once per stored key (used to rebuild the dynamic-file set and to
     /// probe credential slots without a per-slot `read` of every absent FID).
@@ -85,11 +70,13 @@ pub mod ram {
     }
 
     impl Storage for RamStorage {
-        fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
-            let v = self.map.get(&fid)?;
+        fn read(&mut self, fid: u16, buf: &mut [u8]) -> Result<Option<usize>> {
+            let Some(v) = self.map.get(&fid) else {
+                return Ok(None);
+            };
             let n = v.len().min(buf.len());
             buf[..n].copy_from_slice(&v[..n]);
-            Some(v.len())
+            Ok(Some(v.len()))
         }
         fn write(&mut self, fid: u16, data: &[u8]) -> Result<()> {
             self.map.insert(fid, data.to_vec());
@@ -99,8 +86,8 @@ pub mod ram {
             self.map.remove(&fid);
             Ok(())
         }
-        fn size(&mut self, fid: u16) -> Option<usize> {
-            self.map.get(&fid).map(|v| v.len())
+        fn size(&mut self, fid: u16) -> Result<Option<usize>> {
+            Ok(self.map.get(&fid).map(|v| v.len()))
         }
         fn for_each_key(&mut self, f: &mut dyn FnMut(u16)) -> bool {
             for &k in self.map.keys() {
@@ -132,7 +119,6 @@ pub mod faults {
     pub struct MetaStuck {
         inner: Rc<RefCell<RamStorage>>,
         stuck: Rc<Cell<bool>>,
-        err: bool,
     }
 
     /// The other end of a [`MetaStuck`]: arms the fault, and reads the medium
@@ -152,7 +138,6 @@ pub mod faults {
                 Self {
                     inner: inner.clone(),
                     stuck: stuck.clone(),
-                    err: false,
                 },
                 Medium { inner, stuck },
             )
@@ -166,17 +151,15 @@ pub mod faults {
         }
         /// Whether `fid` still has a value ON THE MEDIUM.
         pub fn live(&self, fid: u16) -> bool {
-            self.inner.borrow_mut().exists(fid)
+            self.inner.borrow_mut().exists(fid).unwrap()
         }
     }
 
     impl Storage for MetaStuck {
-        fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
+        fn read(&mut self, fid: u16, buf: &mut [u8]) -> Result<Option<usize>> {
             if fid == EF_META && self.stuck.get() {
-                self.err = true;
-                return None;
+                return Err(Error::MemoryFatal);
             }
-            self.err = false;
             self.inner.borrow_mut().read(fid, buf)
         }
         fn write(&mut self, fid: u16, data: &[u8]) -> Result<()> {
@@ -185,31 +168,19 @@ pub mod faults {
         fn remove(&mut self, fid: u16) -> Result<()> {
             self.inner.borrow_mut().remove(fid)
         }
-        fn size(&mut self, fid: u16) -> Option<usize> {
+        fn size(&mut self, fid: u16) -> Result<Option<usize>> {
             if fid == EF_META && self.stuck.get() {
-                self.err = true;
-                return None;
+                return Err(Error::MemoryFatal);
             }
-            self.err = false;
             self.inner.borrow_mut().size(fid)
         }
         fn for_each_key(&mut self, f: &mut dyn FnMut(u16)) -> bool {
             self.inner.borrow_mut().for_each_key(f)
         }
-        /// The whole point: a FAILED read must not be memoised as absence.
-        fn last_error(&self) -> bool {
-            self.err
-        }
     }
 
-    /// A RAM medium whose `read`/`size` of ONE chosen fid fail while every other
-    /// value still reads: the single faulted probe, aimed at the record a caller is
-    /// about to make a decision about.
-    ///
-    /// [`Storage::read`] answers `None` for that and for an absent key alike, and an
-    /// absent record is how this firmware spells *not provisioned* — so this is the
-    /// medium that separates "no PIN configured" from "I could not look". It reports
-    /// through [`Storage::last_error`] exactly as the device's `SeqStorage` does.
+    /// A RAM medium whose selected probe returns a storage error while other
+    /// records remain readable, using the same result contract as `SeqStorage`.
     pub struct ProbeStuck {
         inner: Rc<RefCell<RamStorage>>,
         stuck: Rc<Cell<Option<u16>>>,
@@ -221,7 +192,6 @@ pub mod faults {
         skip: Rc<Cell<u32>>,
         refused: Rc<Cell<Option<u16>>>,
         truncate: Rc<Cell<bool>>,
-        err: bool,
     }
 
     /// The other end of a [`ProbeStuck`]: arms the fault, and reads the medium past
@@ -252,7 +222,6 @@ pub mod faults {
                     skip: skip.clone(),
                     refused: refused.clone(),
                     truncate: truncate.clone(),
-                    err: false,
                 },
                 ProbeMedium {
                     inner,
@@ -303,7 +272,7 @@ pub mod faults {
         /// The bytes stored for `fid` ON THE MEDIUM, fault or no fault.
         pub fn value(&self, fid: u16) -> Option<Vec<u8>> {
             let mut buf = [0u8; crate::MAX_VALUE_BYTES];
-            let n = self.inner.borrow_mut().read(fid, &mut buf)?;
+            let n = self.inner.borrow_mut().read(fid, &mut buf).unwrap()?;
             Some(buf[..n.min(buf.len())].to_vec())
         }
     }
@@ -327,12 +296,10 @@ pub mod faults {
     }
 
     impl Storage for ProbeStuck {
-        fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
+        fn read(&mut self, fid: u16, buf: &mut [u8]) -> Result<Option<usize>> {
             if self.faults(fid) {
-                self.err = true;
-                return None;
+                return Err(Error::MemoryFatal);
             }
-            self.err = false;
             self.inner.borrow_mut().read(fid, buf)
         }
         fn write(&mut self, fid: u16, data: &[u8]) -> Result<()> {
@@ -344,12 +311,10 @@ pub mod faults {
             }
             self.inner.borrow_mut().remove(fid)
         }
-        fn size(&mut self, fid: u16) -> Option<usize> {
+        fn size(&mut self, fid: u16) -> Result<Option<usize>> {
             if self.faults(fid) {
-                self.err = true;
-                return None;
+                return Err(Error::MemoryFatal);
             }
-            self.err = false;
             self.inner.borrow_mut().size(fid)
         }
         fn for_each_key(&mut self, f: &mut dyn FnMut(u16)) -> bool {
@@ -357,9 +322,6 @@ pub mod faults {
                 return false;
             }
             self.inner.borrow_mut().for_each_key(f)
-        }
-        fn last_error(&self) -> bool {
-            self.err
         }
     }
 
@@ -424,7 +386,7 @@ pub mod faults {
         }
         /// Whether `fid` still has a value ON THE MEDIUM.
         pub fn live(&self, fid: u16) -> bool {
-            self.inner.borrow_mut().exists(fid)
+            self.inner.borrow_mut().exists(fid).unwrap()
         }
         /// Removals the medium was asked for. The refusal alone cannot tell a sweep
         /// that STOPPED on it from one that swallowed it: the second spins on the
@@ -436,7 +398,7 @@ pub mod faults {
     }
 
     impl Storage for RemoveStuck {
-        fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
+        fn read(&mut self, fid: u16, buf: &mut [u8]) -> Result<Option<usize>> {
             self.inner.borrow_mut().read(fid, buf)
         }
         fn write(&mut self, fid: u16, data: &[u8]) -> Result<()> {
@@ -452,7 +414,7 @@ pub mod faults {
             }
             self.inner.borrow_mut().remove(fid)
         }
-        fn size(&mut self, fid: u16) -> Option<usize> {
+        fn size(&mut self, fid: u16) -> Result<Option<usize>> {
             self.inner.borrow_mut().size(fid)
         }
         fn for_each_key(&mut self, f: &mut dyn FnMut(u16)) -> bool {
@@ -479,7 +441,7 @@ pub mod faults {
     }
 
     impl Storage for TruncatedWalk {
-        fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
+        fn read(&mut self, fid: u16, buf: &mut [u8]) -> Result<Option<usize>> {
             self.0.read(fid, buf)
         }
         fn write(&mut self, fid: u16, data: &[u8]) -> Result<()> {
@@ -488,7 +450,7 @@ pub mod faults {
         fn remove(&mut self, fid: u16) -> Result<()> {
             self.0.remove(fid)
         }
-        fn size(&mut self, fid: u16) -> Option<usize> {
+        fn size(&mut self, fid: u16) -> Result<Option<usize>> {
             self.0.size(fid)
         }
         fn for_each_key(&mut self, _f: &mut dyn FnMut(u16)) -> bool {
@@ -539,7 +501,7 @@ pub mod faults {
     }
 
     impl Storage for Undead {
-        fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
+        fn read(&mut self, fid: u16, buf: &mut [u8]) -> Result<Option<usize>> {
             self.inner.read(fid, buf)
         }
         fn write(&mut self, fid: u16, data: &[u8]) -> Result<()> {
@@ -552,7 +514,7 @@ pub mod faults {
             }
             Ok(())
         }
-        fn size(&mut self, fid: u16) -> Option<usize> {
+        fn size(&mut self, fid: u16) -> Result<Option<usize>> {
             self.inner.size(fid)
         }
         fn for_each_key(&mut self, f: &mut dyn FnMut(u16)) -> bool {
@@ -644,7 +606,7 @@ pub mod faults {
         /// The bytes stored for `fid` ON THE MEDIUM, cut or no cut.
         pub fn value(&self, fid: u16) -> Option<Vec<u8>> {
             let mut buf = [0u8; crate::MAX_VALUE_BYTES];
-            let n = self.inner.borrow_mut().read(fid, &mut buf)?;
+            let n = self.inner.borrow_mut().read(fid, &mut buf).unwrap()?;
             Some(buf[..n.min(buf.len())].to_vec())
         }
         /// The whole of a lazy re-key's ordering, read off the log: the
@@ -696,7 +658,7 @@ pub mod faults {
     }
 
     impl Storage for Cut {
-        fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
+        fn read(&mut self, fid: u16, buf: &mut [u8]) -> Result<Option<usize>> {
             self.inner.borrow_mut().read(fid, buf)
         }
         fn write(&mut self, fid: u16, data: &[u8]) -> Result<()> {
@@ -713,7 +675,7 @@ pub mod faults {
             self.log.borrow_mut().push(Op::Remove(fid));
             self.inner.borrow_mut().remove(fid)
         }
-        fn size(&mut self, fid: u16) -> Option<usize> {
+        fn size(&mut self, fid: u16) -> Result<Option<usize>> {
             self.inner.borrow_mut().size(fid)
         }
         fn for_each_key(&mut self, f: &mut dyn FnMut(u16)) -> bool {

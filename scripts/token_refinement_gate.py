@@ -724,6 +724,12 @@ def discovered_outcomes(
     return producers, {site for site in producers if visible.search(code[site])} | grant
 
 
+def store_call(writers: set[str]) -> str:
+    """A write prefix ending at its FID, after any explicit UFCS receiver."""
+    names = "|".join(sorted(writers, key=len, reverse=True))
+    return rf"(?:\.(?:{names})\s*\(|::(?:{names})\s*\(\s*{RECEIVER})"
+
+
 def fid_parameter_types(code: dict, generic: set, call: str) -> set[str]:
     """The TYPES a fid parameter is declared with, read off the sites that already
     write one they were handed: `put_sealed32(.., fid: KeyFid, ..)` gives `KeyFid`.
@@ -732,9 +738,9 @@ def fid_parameter_types(code: dict, generic: set, call: str) -> set[str]:
     instead of joining a hand-list here — the mistake this file's own header
     records for the two rosters it used to carry. Measured today: `KeyFid`, `u16`.
 
-    The FIRST argument of the write and not [`discovered_persistent`]'s receiver
-    form: that one lets the receiver swallow the fid and hand back the argument
-    after it, which taught this `&[u8]` and made every payload parameter a fid.
+    `store_call` has already consumed an explicit UFCS receiver. Making that
+    receiver optional for a method call swallows its fid; ignoring it for a
+    qualified call instead teaches this `&mut Fs<S>` as a fid type.
     """
     first = re.compile(call + r"\s*([a-z_]\w*)\s*[,).]")
     kinds = set()
@@ -774,11 +780,11 @@ def discovered_persistent(
     receiver call. Measured 2026-09-16, when the boot re-seal of the grant record
     became a production write no clause here could see.
     """
-    call = rf"(?:\.|::)(?:{'|'.join(sorted(writers, key=len, reverse=True))})\s*\("
+    call = store_call(writers)
     alternation = "|".join(sorted(keys, key=len, reverse=True))
-    named = re.compile(rf"{call}\s*(?:{RECEIVER})?(?:[a-z_]+::)*(?:{alternation})\b")
-    parameterised = re.compile(rf"{call}\s*(?:{RECEIVER})?[a-z_]\w*\s*[,).]")
-    localised = re.compile(rf"{call}\s*(?:{RECEIVER})?([a-z_]\w*)\s*[,).]")
+    named = re.compile(rf"{call}\s*(?:[a-z_]+::)*(?:{alternation})\b")
+    parameterised = re.compile(rf"{call}\s*[a-z_]\w*\s*[,).]")
+    localised = re.compile(rf"{call}\s*([a-z_]\w*)\s*[,).]")
     mentions, values, naming = vocabulary
 
     generic = {site for site, body in code.items() if parameterised.search(body)}
@@ -944,9 +950,9 @@ def foreign_writers(root: Path, writers: set[str], keys: set[str]) -> list[str]:
     reads as two sites — one message per write, or the roster is a count of
     spellings.
     """
-    call = rf"(?:\.|::)(?:{'|'.join(sorted(writers, key=len, reverse=True))})\s*\("
+    call = store_call(writers)
     alternation = "|".join(sorted(keys, key=len, reverse=True))
-    named = re.compile(rf"{call}\s*(?:{RECEIVER})?(?:[a-z_]+::)*(?:{alternation})\b")
+    named = re.compile(rf"{call}\s*(?:[a-z_]+::)*(?:{alternation})\b")
     # The module, not the two names: `use rsk_fido::consts;` then `consts::EF_PIN`
     # reaches the same record, and a glob import names neither.
     imports = re.compile(r"rsk_fido::consts\b")

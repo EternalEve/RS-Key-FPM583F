@@ -2020,7 +2020,7 @@ impl TornStorage {
 }
 
 impl Storage for TornStorage {
-    fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
+    fn read(&mut self, fid: u16, buf: &mut [u8]) -> rsk_sdk::error::Result<Option<usize>> {
         self.inner.read(fid, buf)
     }
     fn write(&mut self, fid: u16, data: &[u8]) -> rsk_sdk::error::Result<()> {
@@ -2037,7 +2037,7 @@ impl Storage for TornStorage {
         self.order.retain(|&f| f != fid);
         self.inner.remove(fid)
     }
-    fn size(&mut self, fid: u16) -> Option<usize> {
+    fn size(&mut self, fid: u16) -> rsk_sdk::error::Result<Option<usize>> {
         self.inner.size(fid)
     }
     fn for_each_key(&mut self, f: &mut dyn FnMut(u16)) -> bool {
@@ -2304,7 +2304,7 @@ struct RefusedThenTruncated {
 }
 
 impl Storage for RefusedThenTruncated {
-    fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
+    fn read(&mut self, fid: u16, buf: &mut [u8]) -> rsk_sdk::error::Result<Option<usize>> {
         self.inner.read(fid, buf)
     }
     fn write(&mut self, fid: u16, data: &[u8]) -> rsk_sdk::error::Result<()> {
@@ -2319,7 +2319,7 @@ impl Storage for RefusedThenTruncated {
         self.truncated |= self.truncate_after == Some(fid);
         Ok(())
     }
-    fn size(&mut self, fid: u16) -> Option<usize> {
+    fn size(&mut self, fid: u16) -> rsk_sdk::error::Result<Option<usize>> {
         self.inner.size(fid)
     }
     fn for_each_key(&mut self, f: &mut dyn FnMut(u16)) -> bool {
@@ -2367,9 +2367,9 @@ fn reset_under(refuse_once: Option<u16>, truncate_after: Option<u16>) -> Residue
     let mut medium = fs.into_storage();
     Residue {
         answered,
-        marker: medium.inner.exists(rsk_fs::EF_HARDENED),
-        verifier: medium.inner.exists(EF_OTP_PIN),
-        cred: medium.inner.exists(EF_OATH_CRED),
+        marker: medium.inner.exists(rsk_fs::EF_HARDENED).unwrap(),
+        verifier: medium.inner.exists(EF_OTP_PIN).unwrap(),
+        cred: medium.inner.exists(EF_OATH_CRED).unwrap(),
     }
 }
 

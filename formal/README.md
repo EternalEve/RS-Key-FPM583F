@@ -104,8 +104,8 @@ match more than one file in the tree.
 | `NoCrossTransportTouchConsumption` | A presence decision produced for one transport is never applied to another — neither a confirm nor a cancel | `crates/rsk-device/src/presence.rs`: `Arbiter::pending_for` · `::request_cancel` / `::cancel_otp_wait` (the scope guards) · `ButtonWait::wait` (the `spent` latch). `firmware/src/presence.rs` keeps only the board half. **The model retains the wait-entry stale-cancel drop as its defence; firmware also clears at dispatch end.** The exit clear cannot substitute for it — a cancel latched by a dispatch that never entered `wait` is never seen by the exit — see "The cancel that no wait was open for" |
 | `NoTokenAfterInvalidation` | A grant invalidated by a PIN change, PIN set, reset, `stopUsingPinUvAuthToken` or power cycle never authorizes again | `crates/rsk-fido/src/`: `state.rs:515-531` (`reset_pin_uv_auth_token`) · `state.rs:576-600` (`stop_using_token`) · `state.rs:634-647` (`expire_stale_token`) · `clientpin.rs:307-318` · `seed.rs:326-327` (`clear_ppuat`) |
 | `NoAccessibleSecretWithoutGate` | No live secret is reachable while the gate record that protects it is gone | `crates/rsk-fido/src/`: `reset.rs:221-264` (`is_fido_gate_fid`) · `reset.rs:106-128` (phase order) · `credmgmt.rs:270-287` (`authorized_by_ppuat`) · `clientpin.rs:219-223`, `:900-904` |
-| `NoUnmanageableCredential` | Every live credential is reachable by the management surface (its `EF_RP` entry exists) | `crates/rsk-fido/src/`: `credential.rs:814-836` (registration write order) · `credmgmt.rs:679-734` (`delete_credential` / `decrement_rp`) · `passkeys.rs:90-152` (`for_each_rp`, the `EF_RP` walk the display lists from) |
-| `ResetNeverWeakensSurvivingState` | No prefix of an `authenticatorReset` — torn or complete — leaves a surviving usable secret whose gate has already gone, where "surviving" counts the RAM copy of the seed as well as the flash record | `crates/rsk-fido/src/`: `reset.rs:37-134` (`reset` and its flash half `wipe`: session then seed then two phases) · `reset.rs:112-115` (`ctx.state.reset()` ahead of every flash write) · `reset.rs:136-182` (`sweep`, and the `Err` at `:163-167` that leaves the device running) · `reset.rs:221-264` (`is_fido_gate_fid`, incl. `EF_BACKUP_SEALED`) · `reset.rs:321-329` (`survives_factory_reset`) · `crates/rsk-fido/src/lib.rs:110-120` (`Ctx::load_keydev`, the RAM copy that wins) · `state.rs:453-463` (`FidoState::reset`, what drops it). Shipped twin for its third clause: `reset_tests.rs::a_torn_reset_never_unseals_a_surviving_seed` |
+| `NoUnmanageableCredential` | Every live credential is reachable by the management surface (its `EF_RP` entry exists) | `crates/rsk-fido/src/`: `credential.rs:815-846` (registration write order) · `resident_delete.rs:13-87` (`delete` / `decrement_rp`) · `passkeys.rs:90-152` (`for_each_rp`, the `EF_RP` walk the display lists from) |
+| `ResetNeverWeakensSurvivingState` | No prefix of an `authenticatorReset` — torn or complete — leaves a surviving usable secret whose gate has already gone, where "surviving" counts the RAM copy of the seed as well as the flash record | `crates/rsk-fido/src/`: `reset.rs:37-134` (`reset` and its flash half `wipe`: session then seed then two phases) · `reset.rs:112-115` (`ctx.state.reset()` ahead of every flash write) · `reset.rs:136-182` (`sweep`, and the `Err` at `:163-167` that leaves the device running) · `reset.rs:221-264` (`is_fido_gate_fid`, incl. `EF_BACKUP_SEALED`) · `reset.rs:321-329` (`survives_factory_reset`) · `crates/rsk-fido/src/lib.rs:111-121` (`Ctx::load_keydev`, the RAM copy that wins) · `state.rs:453-463` (`FidoState::reset`, what drops it). Shipped twin for its third clause: `reset_tests.rs::a_torn_reset_never_unseals_a_surviving_seed` |
 
 ### Two more that are not among the six, and three clauses that now have names
 
@@ -205,8 +205,8 @@ says how deep TLC had to go to find it, roughly.
 |---|---|---|---|
 | `BugResetGatesFirst` | `reset.rs:131-132` phase order | `ResetNeverWeakensSurvivingState` | 2 352 states |
 | `BugBackupSealedNotAGate` | `reset.rs:226-263` — `EF_BACKUP_SEALED` back in phase 1 (audit run-36) | `ResetNeverWeakensSurvivingState` | 2 347 states |
-| `BugCredBeforeRp` | `credential.rs:817-836` write order | `NoUnmanageableCredential` | 820 states |
-| `BugDeleteRpBeforeCred` | `credmgmt.rs:686-694` — `decrement_rp` ahead of the `EF_CRED` delete | `NoUnmanageableCredential` | 111 503 states |
+| `BugCredBeforeRp` | `credential.rs:818-846` write order | `NoUnmanageableCredential` | 820 states |
+| `BugDeleteRpBeforeCred` | `resident_delete.rs:22-32` — `commit_decrement` ahead of the `EF_CRED` delete | `NoUnmanageableCredential` | 111 503 states |
 | `BugTokenSurvivesPinChange` | `clientpin.rs:318` | `NoTokenAfterInvalidation` | 15 299 states |
 | `BugSetPinKeepsPpuat` | `clientpin.rs:219-223` | `NoTokenAfterInvalidation` | 416 314 states |
 | `BugChangePinKeepsPpuat` | `clientpin.rs:307-311` | `NoTokenAfterInvalidation` | 11 183 states |
@@ -307,16 +307,16 @@ split three ways, and the split is the point.
 | | |
 |---|---|
 | **Equivalent, not a defect** | `ctaphid.rs:476` `\|` → `^` on `(f[5] << 8) \| f[6]` — disjoint bits, the two operators agree |
-| **Fail-safe direction** | `ctaphid.rs:477` `>` → `>=` refuses an exactly-maximum message: stricter, so `NoBufferOverrun` still holds. `fs.rs:233` and `fs.rs:281` `\|=` → `&=` clear *decided* bits, which sends more reads to the reliable backend |
-| **Model-blind** | the dynamic-file registry in `scan` (`fs.rs:286` and `fs.rs:289`, three mutants), `try_has_data`'s zero-length test (`fs.rs:377`), `factory_wipe`'s 64-key batch bound (`fs.rs:503`), the registry retain in `delete` (`fs.rs:603`), and **`meta_delete`'s fault guard (`fs.rs:806`)** |
+| **Fail-safe direction** | `ctaphid.rs:477` `>` → `>=` refuses an exactly-maximum message: stricter, so `NoBufferOverrun` still holds. `fs.rs:233` and `fs.rs:279` `\|=` → `&=` clear *decided* bits, which sends more reads to the reliable backend |
+| **Model-blind** | the dynamic-file registry in `scan` (`fs.rs:284` and `fs.rs:287`, three mutants), `try_has_data`'s zero-length test (`fs.rs:375`), `factory_wipe`'s 64-key batch bound (`fs.rs:501`), the registry retain in `delete` (`fs.rs:601`), and **`meta_delete`'s fault guard (`fs.rs:801`)** |
 
 The last one was worth the exercise on its own. `Fs::meta_add_reserve` refuses a
 FAILED EF_META read and the model carries that as `BugMetaAddDropsOnFault`; its
-sibling `Fs::meta_delete` has the identical guard at `fs.rs:808`, and **nothing
+sibling `Fs::meta_delete` has the identical guard at `fs.rs:799`, and **nothing
 held it at either level**. No test killed it, and `MetaDelete` was modelled as an
 unconditional single write with no read to fail. Worse than a lost delete: the
 mutant caches EF_META as *absent*, and the next `meta_add` legitimately trusts
-`known_absent` and rebuilds the blob from empty (`fs.rs:769`), so the records go
+`known_absent` and rebuilds the blob from empty (`fs.rs:767`), so the records go
 on the write **after** the defect. That is why it is `NoFalseMetaAbsent`,
 SEC-STORE-004, a step recorder — once the cache has lied, the losing write is
 correct code and no state predicate over `meta` can tell the two apart.
@@ -472,7 +472,7 @@ same 64-key loop and had nothing. PIV has
 
 #### Eight more, and the cardinality lesson one layer down
 
-`decrement_rp` addresses its slot four times — read, delete, nickname-delete,
+`resident_delete.rs` addresses an RP slot four times — read, delete, nickname-delete,
 write-back — and **every one of them could have been `EF_RP - j`** with the
 suite green. The match beside them, `m >= RP_PREFIX && hash == wanted`, could
 have been `||` and matched on length alone. The reason is exactly what
@@ -1035,7 +1035,7 @@ violation, and `floors.txt` records what that costs.
 `Shipped.cfg` (every switch off) is **RED**, and that is the result, not a
 broken model. Both findings are one class: **the two-phase wipe controls the
 order *between* phases but nothing controls the order *within* a phase.**
-`sweep` batches whatever `for_each_key` yields, and `fs.rs:380-383` documents
+`sweep` batches whatever `for_each_key` yields, and `fs.rs:378-381` documents
 that walk as log-structured *store* order, not FID order; each `force_delete`
 is its own flash write, so a power cut can land between any two of them.
 
@@ -1051,7 +1051,7 @@ the seed still present — a usable discoverable passkey that `enumerateRPs` and
 the trusted-display Passkeys view cannot list (both walk `EF_RP`) and that
 `enumerateCredentials` therefore cannot reach to delete, while `getAssertion`
 (which scans `EF_CRED`) authenticates with it happily. That is precisely the
-state `credential.rs:838-845` orders registration to avoid and that audit
+state `credential.rs:848-855` orders registration to avoid and that audit
 run-35 recorded as one that "never self-heals" — reached here from the *other*
 direction, the wipe rather than the write.
 
@@ -1128,7 +1128,7 @@ a completed one.
 The second one *was* the sharpest result this model had produced about itself:
 **it could not have caught the regression that fix's own review caught.**
 `Ctx::load_keydev` prefers the in-RAM `state.keydev_dec`
-(`crates/rsk-fido/src/lib.rs:110-120`), so
+(`crates/rsk-fido/src/lib.rs:111-121`), so
 with the flash seed always deleted first a *failed* sweep would have left the
 power cycle running on a seed nothing stores — `BACKUP_EXPORT` included — which
 is why `ctx.state.reset()` moved ahead of the flash work (`reset.rs:112-115`).
@@ -1605,11 +1605,11 @@ seventh, recorded with the fault-disjunct work earlier in this file.)
 
 | Mutation switch | Rebuilds | Target invariant | Caught in |
 |---|---|---|---|
-| `BugDeleteValueBeforeMeta` | `fs.rs:597-599` — the two backend writes reversed, so a torn delete leaves value-gone-meta-alive (`delete_landed`) | `NoOrphanedMetadata` | 54 states |
+| `BugDeleteValueBeforeMeta` | `fs.rs:595-597` — the two backend writes reversed, so a torn delete leaves value-gone-meta-alive (`delete_landed`) | `NoOrphanedMetadata` | 54 states |
 | `BugDeleteMetaOnlyUnderPresent` | the 0x077C databug — `delete` dropping `EF_META` only under `if present_bit`, so a meta-only file keeps its record | `NoOrphanedMetadata` | 55 states |
-| `BugDeleteHidesFaultedDrop` | the shipped tree before `fs.rs:604` — a faulted `meta_delete` swallowed, so the caller hears `Ok` about a record standing over a value that is gone | `NoSilentOrphan` | 61 states |
+| `BugDeleteHidesFaultedDrop` | the shipped tree before `fs.rs:602` — a faulted `meta_delete` swallowed, so the caller hears `Ok` about a record standing over a value that is gone | `NoSilentOrphan` | 61 states |
 | `BugCacheFaultAsAbsent` | audit run-36 — `record` in place of `record_unless_faulted`, caching a faulted read as a decided absence | `NoFalseAbsent` | 23 states |
-| `BugTruncatedScanDecidesAll` | `fs.rs:299-301` — `scan` deciding the whole FID space after a *truncated* walk, so a missed live key reads absent | `NoFalseAbsent` | 24 states |
+| `BugTruncatedScanDecidesAll` | `fs.rs:297-299` — `scan` deciding the whole FID space after a *truncated* walk, so a missed live key reads absent | `NoFalseAbsent` | 24 states |
 | `BugMetaAddDropsOnFault` | the 0x077C databug's meta half — a faulted `EF_META` read rebuilt from empty, dropping every other record | `NoRecordLostToMetaWrite` | 51 states |
 
 `Store.cfg` is **GREEN, exhaustive** over 364 distinct states at depth 6 in
@@ -1995,10 +1995,10 @@ firmware keeps only the OTP gate and the placement of the stall.
 All three switches are registered co-mutants now, each measured `killed` and
 each failure read for its direction rather than its colour:
 `BugRekeyKeepsTheMarker` (`requesting_a_rescrub_clears_the_hardened_marker`,
-`crates/rsk-fs/src/fs_tests.rs:385` — the marker SURVIVED),
+`crates/rsk-fs/src/fs_tests.rs:384` — the marker SURVIVED),
 `BugMarkerBeforeScrub`
 (`the_at_rest_lap_writes_its_marker_only_after_a_completed_scrub`,
-`crates/rsk-fs/src/fs_tests.rs:505` — the marker is PRESENT over a torn lap,
+`crates/rsk-fs/src/fs_tests.rs:504` — the marker is PRESENT over a torn lap,
 read off the medium past `Fs`'s cache), `BugPartialLockCarry`
 (`pin_lock_round_trips_and_boot_leaves_it_alone` at
 `crates/rsk-fido/src/state_tests.rs:134`, `left: 0 right: 2` — a live batch
@@ -2337,7 +2337,7 @@ version of this paragraph said no correct build could make it FALSE at one. That
 was wrong, and the review measured it.** The argument was that a served
 discoverable registration writes a credential, so it arrives as a `RegisterWrite`
 and never as the stutter a gate row is made of. It does — the *first* time.
-`credential.rs:824-834` reuses the slot when `(rpIdHash, userId)` already match
+`credential.rs:829-839` reuses the slot when `(rpIdHash, userId)` already match
 and `bump_rp` is then skipped, so a RE-registration of the same user writes
 nothing the snapshot can see. Driven on the emulator with no PIN: the second and
 third `makeCredential rk:true` each come back `0x00` having moved only
@@ -2501,7 +2501,7 @@ State 2  MetaAdd("a")        meta = [a |-> TRUE,  b |-> FALSE]
 The cache says `EF_META` is absent while `b`'s record stands. Nothing in
 `TypeOK` or the four invariants forbids that state, and from it `MetaAdd` does
 exactly what the shipped code does — trusts the cache and rebuilds the blob from
-empty (`fs.rs:769`), losing `b`. This is SEC-STORE-004's damage arriving from a
+empty (`fs.rs:767`), losing `b`. This is SEC-STORE-004's damage arriving from a
 STATE rather than from the step that made the cache lie, and the model had no
 way to say the cache is honest. One conjunct fixes it:
 
@@ -3058,7 +3058,7 @@ abstractions producing traces the firmware cannot follow.
   cryptographically dead. The reset snapshot's `snap.seed` *does* make that
   distinction, but only for the backup-marker clause.
 - **The order within a sweep phase is arbitrary.** `for_each_key` yields in
-  flash-ring order (`fs.rs:380-383`), which is *a* fixed order per device state,
+  flash-ring order (`fs.rs:378-381`), which is *a* fixed order per device state,
   not a free choice. Both findings below need only that some reachable ring
   order puts one delete before another.
 - **`DeviceUnlock` is ungated and needs no device lock.** The real vendor

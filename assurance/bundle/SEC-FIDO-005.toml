@@ -87,25 +87,25 @@ threat_clause_reading = "a covering, and the two places it is WIDER than the inv
 # second tag in a counted file moves nothing.
 owners_tagged = [
   "crates/rsk-fido/src/credential.rs:795 credential_store — the producer of the ANTECEDENT (`store.cred`) and the site that writes the consequent first",
-  "crates/rsk-fido/src/credmgmt.rs:708 decrement_rp — the sole destroyer of the CONSEQUENT (`store.rpent`)",
+  "crates/rsk-fido/src/resident_delete.rs:5 credential deletion — the sole destroyer of the CONSEQUENT (`store.rpent`)",
   "crates/rsk-fido/src/passkeys.rs:89 for_each_rp — the management surface, which is what `unmanageable` MEANS",
 ]
 # BOTH HALVES OF THE IMPLICATION ARE COVERED, and the grep that shows it is
 # `grep -rn NoUnmanageableCredential crates/ firmware/`: five hits, three of them
 # in production files, one per half plus the reader. That is a better tag set
 # than `SEC-FIDO-007`'s, whose single tag sat on the consequent alone.
-owners_tag_reading = "covered, and two named gaps rather than a wrong tag. The gaps are the SOLE producer of the consequent, `crates/rsk-fido/src/credential.rs:901 bump_rp`, which writes `rec[0] = 1` into a fresh EF_RP record and carries no tag of any kind; and `crates/rsk-fido/src/reset.rs`, which destroys BOTH sides in one sweep, carries six `Refines` tags for four OTHER properties (SEC-FIDO-004, -006, -006A, -006B, -006C at :35, :105, :199, :217-219, :285) and none for this one — while being the file `formal/comutants.toml`'s third co-mutant patches and the file whose model twin `ResetSweepSecrets` produces the deepest counterexample this property has. Neither absence moves the derived column: `credential.rs` and `reset.rs` are one file each, and `credential.rs` is already counted"
+owners_tag_reading = "covered, and two named gaps rather than a wrong tag. The gaps are the SOLE producer of the consequent, `crates/rsk-fido/src/credential.rs:911 bump_rp`, which writes `rec[0] = 1` into a fresh EF_RP record and carries no tag of any kind; and `crates/rsk-fido/src/reset.rs`, which destroys BOTH sides in one sweep, carries six `Refines` tags for four OTHER properties (SEC-FIDO-004, -006, -006A, -006B, -006C at :35, :105, :199, :217-219, :285) and none for this one — while being the file `formal/comutants.toml`'s third co-mutant patches and the file whose model twin `ResetSweepSecrets` produces the deepest counterexample this property has. Neither absence moves the derived column: `credential.rs` and `reset.rs` are one file each, and `credential.rs` is already counted"
 # Every production site that writes either side, enumerated because the tag set
 # names three functions and the sites are ten — eight entries, of which the third
 # names the three best-effort rollbacks together.
 owners_writers = [
-  "crates/rsk-fido/src/credential.rs:853 — `bump_rp(...)?` inside `credential_store`, the EF_RP write that LEADS the credential (the order the threat clause states)",
-  "crates/rsk-fido/src/credential.rs:888 — `fs.put(EF_CRED + slot, ...)`, the antecedent's only producer",
-  "crates/rsk-fido/src/credential.rs:867, :884, :890 — the three best-effort `let _ = decrement_rp(...)` rollbacks, each itself a flash write",
-  "crates/rsk-fido/src/credmgmt.rs:693 — `delete_credential`'s `fs.delete(EF_CRED + slot)`, the antecedent's destroyer, ahead of the RP work",
-  "crates/rsk-fido/src/credmgmt.rs:732 — `let _ = fs.delete(EF_RP + j)` at count zero, the consequent's destroyer",
-  "crates/rsk-fido/src/credmgmt.rs:736 — `fs.put(EF_RP + j, ...)` on the write-back path, the count decrement that does NOT delete",
-  "crates/rsk-fido/src/passkeys.rs:284 — the trusted-display delete's `let _ = decrement_rp(...)`, the same effect keyed by slot",
+  "crates/rsk-fido/src/credential.rs:863 — `bump_rp(...)?` inside `credential_store`, the EF_RP write that LEADS the credential (the order the threat clause states)",
+  "crates/rsk-fido/src/credential.rs:898 — `fs.put(EF_CRED + slot, ...)`, the antecedent's only producer",
+  "crates/rsk-fido/src/credential.rs:877, credential.rs:894, credential.rs:900 — the three best-effort `let _ = decrement_rp(...)` rollbacks, each itself a flash write",
+  "crates/rsk-fido/src/resident_delete.rs:23 — the shared delete's `fs.delete(EF_CRED + slot)`, the antecedent's destroyer, ahead of the RP work",
+  "crates/rsk-fido/src/resident_delete.rs:79 — `fs.delete(fid)` at count zero, the consequent's destroyer",
+  "crates/rsk-fido/src/resident_delete.rs:84 — `fs.put(fid, rp)` on the write-back path, the count decrement that does NOT delete",
+  "crates/rsk-fido/src/passkeys.rs:273 — the trusted-display entry delegates to the shared fallible delete, keyed by slot",
   "crates/rsk-fido/src/reset.rs — the wipe, which deletes the seed first and then sweeps EF_RP and EF_CRED in flash-ring order (the clause's stated carve-out)",
 ]
 owners_readers = [
@@ -117,7 +117,7 @@ owners_readers = [
 # derived `co = 3` counts and no tag names.
 owners_co_refuted = [
   "crates/rsk-fido/src/credential.rs — BugCredBeforeRp, two hunks",
-  "crates/rsk-fido/src/credmgmt.rs — BugDeleteRpBeforeCred, two hunks",
+  "crates/rsk-fido/src/resident_delete.rs — BugDeleteRpBeforeCred, two hunks",
   "crates/rsk-fido/src/reset.rs — BugSeedDoesNotLead, one hunk",
 ]
 # The tests that kill them, recorded here because they count in NO derived
@@ -201,7 +201,7 @@ bound_solo_configurations = 3
 stops_solo_configurations = "a fourth ordering. The three switches are the three orderings the shipped tree chose — registration, credential-management delete and the wipe — so an ordering nobody wrote a switch for is not shown to be falsifiable"
 bound_counterexample_depths = 14
 stops_counterexample_depths = "nothing — the depth is the deepest MEASURED trace of the three and not a cap the configurations impose; the other two fall shallower"
-shipped_relation = "each configuration checks TypeOK and this invariant and NOTHING else, and arms exactly one Bug* with every other FALSE — which is what tells these kills from a neighbouring invariant's. The three switches are the three orderings the shipped tree chose: registration (EF_RP before EF_CRED, credential.rs:853 vs :888), credential-management delete (EF_CRED before the count, credmgmt.rs:693 vs :679) and the wipe (the seed before the batch — the `FIDO_SEED_FIDS` loop at reset.rs:124-128, under the comment at :105-107 that says why). The depth bound is the deepest of the three traces, 14 on Solo_BugDeleteRpBeforeCred; the other two fall at 7 and 13. Unlike SEC-FIDO-007, the Solo_ rows are not the ONLY place this property is observed to fail — `formal/gen-configs.sh:185-187` puts a mutant's target invariant FIRST in a Mut_ configuration's INVARIANTS block, so all three Mut_ twins report this name too"
+shipped_relation = "each configuration checks TypeOK and this invariant and NOTHING else, and arms exactly one Bug* with every other FALSE — which is what tells these kills from a neighbouring invariant's. The three switches are the three orderings the shipped tree chose: registration (EF_RP before EF_CRED, credential.rs:863 vs credential.rs:898), credential-management delete (EF_CRED before the count, resident_delete.rs:23 vs resident_delete.rs:29) and the wipe (the seed before the batch — the `FIDO_SEED_FIDS` loop at reset.rs:124-128, under the comment at :105-107 that says why). The depth bound is the deepest of the three traces, 14 on Solo_BugDeleteRpBeforeCred; the other two fall at 7 and 13. Unlike SEC-FIDO-007, the Solo_ rows are not the ONLY place this property is observed to fail — `formal/gen-configs.sh:185-187` puts a mutant's target invariant FIRST in a Mut_ configuration's INVARIANTS block, so all three Mut_ twins report this name too"
 cfg = "none"
 features = "none"
 
@@ -222,7 +222,7 @@ features = "none"
 [[method]]
 obligation = "the production side: which sites own each half, whether the tags reach them, and what `reachable by the management surface` means in Rust that `store.rpent` does not say"
 method = "review"
-artifact = "crates/rsk-fido/src/credential.rs::credential_store + crates/rsk-fido/src/credmgmt.rs::decrement_rp + …enumerate_rps + crates/rsk-fido/src/passkeys.rs::for_each_rp"
+artifact = "crates/rsk-fido/src/credential.rs::credential_store + crates/rsk-fido/src/resident_delete.rs::decrement_rp + crates/rsk-fido/src/credmgmt.rs::enumerate_rps + crates/rsk-fido/src/passkeys.rs::for_each_rp"
 bound_tagged_owners = 3
 stops_tagged_owners = "any owner outside the three the tag set names. This is a count of SITES and not a shrink of a shipped constant, because a review has no other unit"
 bound_writer_sites = 8
@@ -231,8 +231,8 @@ bound_reader_sites = 3
 stops_reader_sites = "anything about what a reader DOES with a slot it read. The count names the three browse surfaces and not their agreement — measured, two of them disagree on one skip condition"
 bound_skip_conditions = 3
 stops_skip_conditions = "the invariant itself, and this is the finding: a record that exists and is SKIPPED satisfies `store.rpent` as plain set membership while being exactly what the clause forbids. Three skip conditions are three ways for that to happen, and no model bound reaches any of them"
-bound_files_in_argument = 4
-stops_files_in_argument = "anything in a fifth file"
+bound_files_in_argument = 5
+stops_files_in_argument = "anything in a sixth file; resident_delete.rs now shares the host and display deletion sequencing"
 bound_crates = 1
 stops_crates = "a site outside rsk-fido. The whole argument is in one crate, so a management surface in another would be outside it"
 shipped_relation = "eight writer entries over four files in ONE crate — ten sites, since one entry holds the three best-effort rollbacks — against the three functions the tag set names; the count is a count of sites and not a shrink of a shipped constant, because a review has no other unit. The three skip conditions are the finding: both browse surfaces drop an EF_RP slot when `fs.read` answers None (credmgmt.rs:385, passkeys.rs:113), when `n < RP_PREFIX || buf[0] == 0` (credmgmt.rs:389, passkeys.rs:117) and when `unseal_rp_id` fails (credmgmt.rs:423, passkeys.rs:122) — and `store.rpent` is plain set membership, so a record that exists and is skipped satisfies the invariant while being exactly what the clause forbids. The two surfaces do not even agree with each other on the third: `enumerate_rps` answers `CtapError::Other` for the WHOLE walk, so one unsealable record hides every other relying party from the host, while `for_each_rp` skips that one and lists the rest"
@@ -240,18 +240,18 @@ cfg = "none — every site above is unconditional production code; the invariant
 features = "none"
 
 [[method]]
-obligation = "the five sites the tree already records as open in this class, and whether the model's abstraction hides them"
+obligation = "the five sites the historical CHANGELOG [0.4.11] records as open in this class, and whether the model's abstraction hides failing writes"
 method = "review"
-artifact = "CHANGELOG.md crates/rsk-fido/src/credential.rs::bump_rp crates/rsk-fido/src/credmgmt.rs::delete_credential crates/rsk-fido/src/largeblobext.rs::discard"
+artifact = "CHANGELOG.md crates/rsk-fido/src/credential.rs::bump_rp crates/rsk-fido/src/resident_delete.rs::delete crates/rsk-fido/src/largeblobext.rs::discard"
 bound_open_sites = 5
-stops_open_sites = "any site in this class the CHANGELOG's list does not name. The five were read from a list the tree already keeps, so the review is exactly as complete as that list is"
+stops_open_sites = "any site the historical list does not name. This is its five-site denominator, not a count of errors still swallowed: M3 now reports RP removal and display deletion failures, while failing writes can still leave orphan RP records"
 bound_sites_in_the_forbidden_direction = 0
 stops_sites_in_the_forbidden_direction = "nothing about whether the five are harmless. Measured, none can falsify this invariant — every one strands an EF_RP entry OVER a credential that is gone, which is the direction `cred subseteq rpent` does not constrain — so the zero says this property does not reach them and SEC-STORE-006 is where that direction is asserted"
 bound_model_actions_that_can_fail = 0
 stops_model_actions_that_can_fail = "every one of the five leaks. No action of the model can FAIL a flash write, so an `Err` returned by `Fs::put` and a best-effort rollback that itself fails are outside every configuration in this bundle"
 bound_tear_producers = 2
 stops_tear_producers = "a tear anywhere but between two writes that succeeded. Both producers act between successful writes, so the failure mode where the write itself returns an error is not a tear this model can produce"
-shipped_relation = "CHANGELOG.md [0.4.11] `Still open, same class, and named here` names five sites as open, same class, `so the next sweep starts from a list`: the power-cut window between the RP bump and the credential write; `delete_credential` removing EF_CRED and then answering `NotAllowed` when the EF_RP write fails; `decrement_rp`'s own `let _ = fs.delete(EF_RP + j)`; the trusted-display delete swallowing the same failure; and `largeblobext::discard`. MEASURED AGAINST THE INVARIANT, AND THIS IS THE ANSWER: none of the five can falsify it. Every one strands an EF_RP entry OVER a credential that is gone or never landed — `rpent \\supset cred`, the direction `cred \\subseteq rpent` does not constrain — which is precisely why the shipped order was chosen. What the model hides is therefore not a defect in this property's direction but the five leaks themselves: no action of `RSKeySecurityState` can FAIL a flash write (the two tear producers are `PowerCut`, RSKeySecurityState.tla:1522, and `ResetAborts`, :1484, and both act between two writes that succeeded), so an `Err` returned by `Fs::put` and a best-effort rollback that itself fails are outside every configuration. AS-CRED-3 is the row that owns it, and `SEC-STORE-006 NoSilentOrphan` is where that direction is asserted instead"
+shipped_relation = "CHANGELOG.md [0.4.11] `Still open, same class, and named here` names five sites as open, same class, `so the next sweep starts from a list`: the power-cut window between the RP bump and the credential write; `delete_credential` removing EF_CRED and then answering `NotAllowed` when the EF_RP write fails; `decrement_rp`'s own `fs.delete(fid)`; the trusted-display delete swallowing the same failure; and `largeblobext::discard`. MEASURED AGAINST THE INVARIANT, AND THIS IS THE ANSWER: none of the five can falsify it. Every one strands an EF_RP entry OVER a credential that is gone or never landed — `rpent \\supset cred`, the direction `cred \\subseteq rpent` does not constrain — which is precisely why the shipped order was chosen. What the model hides is therefore not a defect in this property's direction but the five leaks themselves: no action of `RSKeySecurityState` can FAIL a flash write (the two tear producers are `PowerCut`, RSKeySecurityState.tla:1522, and `ResetAborts`, :1484, and both act between two writes that succeeded), so an `Err` returned by `Fs::put` and a best-effort rollback that itself fails are outside every configuration. AS-CRED-3 is the row that owns it, and `SEC-STORE-006 NoSilentOrphan` is where that direction is asserted instead"
 cfg = "none"
 features = "none"
 
@@ -341,8 +341,8 @@ c_twin_direction = "BOTH failures fall in the modelled direction and the asserti
 c_twin_untransferred = "the other two twins are transcribed from formal/comutants.toml and were NOT re-driven here: BugDeleteRpBeforeCred (:125-154, `expect = \"killed\"`, whose note records it as batch 1's one measured GAP, closed by a_torn_delete_never_leaves_a_credential_without_its_rp) and BugSeedDoesNotLead (:343-359, `expect = \"killed\"`). A recorded verdict is evidence and a re-run is better evidence; this bundle bought one and says which"
 
 # THE PRODUCTION SIDE, by review.
-r_owners = "8 writer entries (10 sites, one entry holding the three best-effort rollbacks) and 3 reader sites over 4 files in 1 crate, against the 3 functions the Refines tags name. The sole producer of the consequent (bump_rp) and the file that destroys both sides (reset.rs) carry no tag for this property, and reset.rs carries six for four others"
-r_tag = "both halves of the implication are tagged, which is what SEC-FIDO-007's single tag was not: credential.rs::credential_store owns the antecedent, credmgmt.rs::decrement_rp owns the consequent, passkeys.rs::for_each_rp owns the reader that makes `manageable` mean anything"
+r_owners = "8 writer entries (10 sites, one entry holding the three best-effort rollbacks) and 3 reader sites over 5 files in 1 crate, against the 3 functions the Refines tags name. The sole producer of the consequent (bump_rp) and the file that destroys both sides (reset.rs) carry no tag for this property, and reset.rs carries six for four others"
+r_tag = "both halves of the implication are tagged, which is what SEC-FIDO-007's single tag was not: credential.rs::credential_store owns the antecedent, resident_delete.rs owns the credential-first deletion and RP decrement, passkeys.rs::for_each_rp owns the reader that makes `manageable` mean anything"
 r_management_surface = "`store.rpent` is set membership; the shipped surfaces need three more conjuncts. Both drop a slot on a failed `fs.read`, on `buf[0] == 0` and on a failed `unseal_rp_id`, and the model can express none of them — so a device whose EF_RP record exists but does not unseal satisfies this invariant while showing the owner nothing. The two surfaces also disagree on the last arm: enumerate_rps fails the whole walk with CtapError::Other, for_each_rp skips one record. Of the three arms only the read failure is one a live medium reaches, and it is the same class docs/threat-model.md:60-93 states as its own clause"
 r_rollback_class = "the five sites CHANGELOG.md [0.4.11] `Still open, same class, and named here` leaves open in this class are ALL in the direction this invariant does not constrain — each strands an EF_RP entry over a credential that never landed or is already gone. That is not luck: it is the shipped write order, and the threat clause states the same thing in the same words. The model hides them for a different reason than a wrong direction — it has no failing write at all"
 r_fix_arm_never_run = "THE RUN HAS HAPPENED, so this row's name is now its history. `FixSweepDropsCredsBeforeRpEntries` — the counterfactual repair the tree did NOT take, RSKeySecurityState.tla:1405, which holds the sweep's rpent arm until `store.cred` is empty — WAS FALSE in every configuration that assigns it and TRUE in none when this row was written; measured now, it is TRUE in exactly one, formal/gen-configs.sh:322 over Historical_E76.cfg, against 95 files that pass FALSE. formal/runs.toml's safety tier at 9cafee7 records that file GREEN over a complete search, so a recorded verdict now DOES depend on the constant's value and the tree has MEASURED that the repair holds this invariant. The conjunct is load-bearing and observed to be: the one-line control Mut_BugSeedDoesNotLead.cfg is RED on this invariant at 1 875 109 states. What is still true of the row: the constant is outside the standing-assumption registry, so the assumption gate's both-arms rule never looks at it — gate_assumption below tracks four booleans and this is not one, and the FALSE arm is observed through that control rather than through the gate"
@@ -441,7 +441,7 @@ sha256 = "0a1bc93a320447121b5ab19c9dab6ee8a03a688df2e684b6d9a89097e3e3ee3d"
 id = "AS-CRED-1"
 statement = "`store.cred` and `store.rpent` are SETS of relying parties — one credential per RP — so the EF_RP count byte that `bump_rp` increments and `decrement_rp` decrements does not exist in the model, and neither does any interleaving that needs two credentials of one relying party."
 kind = "model abstraction"
-discharger = "the store slice of stage 5, and until then the two host tests that reach where the model cannot: crates/rsk-fido/src/credmgmt_tests.rs:2175 deleting_one_of_two_credentials_writes_back_to_its_own_rp_slot exists precisely because `decrement_rp`'s write-back path (credmgmt.rs:736) is a fourth EF_RP write that no sole-credential test reaches. The count is where this property's sharpest unmodelled failure would live: a count that under-runs deletes the EF_RP record with a credential still behind it, which is the invariant's forbidden direction, and crates/rsk-fido/src/credential.rs:937-942 says in its own comment that a 256th credential once recorded 255 and did exactly that (audit run-35)"
+discharger = "the store slice of stage 5, and until then the two host tests that reach where the model cannot: crates/rsk-fido/src/credmgmt_tests.rs:2175 deleting_one_of_two_credentials_writes_back_to_its_own_rp_slot exists precisely because `decrement_rp`'s write-back path (resident_delete.rs:84) is a fourth EF_RP write that no sole-credential test reaches. The count is where this property's sharpest unmodelled failure would live: a count that under-runs deletes the EF_RP record with a credential still behind it, which is the invariant's forbidden direction, and crates/rsk-fido/src/credential.rs:947-952 says in its own comment that a 256th credential once recorded 255 and did exactly that (audit run-35)"
 expressible = "no — a cardinality, not a boolean; scripts/assumption_gate.py accepts a boolean CONSTANT and nothing else"
 registered = "yes — assurance/platform.toml PLAT-MODEL-002, pending, whose statement is this assumption in as many words and whose `supports` already names SEC-FIDO-005. Its `covers` needs `slice:AS-CRED-1` beside the AS-AUTH-6 it holds; an extension, not a new row"
 

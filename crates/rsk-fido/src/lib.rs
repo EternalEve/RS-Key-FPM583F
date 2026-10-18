@@ -38,6 +38,7 @@ pub mod largeblobs;
 pub mod makecredential;
 pub mod passkeys;
 pub mod reset;
+mod resident_delete;
 pub mod seed;
 pub mod selection;
 pub mod state;

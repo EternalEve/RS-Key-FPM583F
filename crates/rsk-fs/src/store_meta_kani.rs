@@ -5,8 +5,8 @@
 //! cache clauses use.
 //!
 //! `meta_add` and `meta_delete` each read the one shared blob, and
-//! `Storage::read` answers `None` for "absent" and for "the read failed" alike.
-//! Each therefore consults the error latch, and each has an arm where it must
+//! `Storage::read` returns `Ok(None)` for absence and `Err` for a failed probe.
+//! Each propagates the error directly, and each has an arm where it must
 //! refuse: rebuilding from an empty scratch drops every other applet's record
 //! (`RSKeyStore!NoRecordLostToMetaWrite`, SEC-STORE-003), and caching the same
 //! `None` as absence stands a false `metaAbsent` over live records
@@ -35,7 +35,7 @@
 //!   [`two_file_fids`] has to assume the collision away. That direction is an
 //!   over-approximation the shrink INVENTS rather than one it hides: a `meta_add`
 //!   whose subject is EF_META itself is a state the shipped store cannot reach;
-//! * that `scan` registers every file it is handed. `fs.rs:286` skips
+//! * that `scan` registers every file it is handed. `fs.rs:284` skips
 //!   `fid == EF_META`, so under the alias it refuses FID 23 — a FID this file's
 //!   own domain draws from. Inert today, because no harness in the tree reaches
 //!   `scan`, and the first one written over this domain is where it would bite.
@@ -65,7 +65,7 @@ fn two_file_fids() -> (u16, u16) {
 }
 
 /// `MetaAdd(f)` at its faulted disjunct: an EF_META read that FAILED is refused,
-/// never rebuilt from an empty blob — `meta_add_reserve`'s guard, `fs.rs:776-778`.
+/// never rebuilt from an empty blob — `meta_add_reserve`'s guard, `fs.rs:770`.
 ///
 /// The clean direction is not decoration: over a backend that genuinely holds no
 /// blob, rebuilding from empty is the *correct* move, so a guard keyed on
@@ -85,8 +85,17 @@ fn a_faulted_meta_read_is_refused_rather_than_rebuilt_from_empty() {
     let faulted: bool = kani::any();
     kani::cover!(faulted, "the assume set leaves a faulted store");
     kani::cover!(!faulted, "the assume set leaves a clean one");
-    let mut fs = fresh(faulted);
-    let answered = fs.meta_add(f, &[0xA5]);
+    // Split the input before the call so CBMC need not merge nested enum
+    // payloads; both values still execute the same production operation.
+    let (fs, answered) = if faulted {
+        let mut fs = fresh(true);
+        let answered = fs.meta_add(f, &[0xA5]);
+        (fs, answered)
+    } else {
+        let mut fs = fresh(false);
+        let answered = fs.meta_add(f, &[0xA5]);
+        (fs, answered)
+    };
     assert!(
         !faulted || answered == Err(Error::MemoryFatal),
         "a failed EF_META read was rebuilt from an empty blob"
@@ -114,7 +123,7 @@ fn a_faulted_meta_read_is_refused_rather_than_rebuilt_from_empty() {
 }
 
 /// `MetaDelete(f)` at its faulted disjunct: an EF_META read that FAILED never
-/// becomes a decided absence — `meta_delete`'s guard, `fs.rs:808`, and the one thing
+/// becomes a decided absence — `meta_delete`'s guard, `fs.rs:799`, and the one thing
 /// that keeps `metaAbsent` honest while records stand.
 ///
 /// The clean direction caches the absence, and must: that is what lets the next
@@ -132,8 +141,15 @@ fn a_faulted_meta_read_is_never_cached_as_an_absent_blob() {
     let faulted: bool = kani::any();
     kani::cover!(faulted, "the assume set leaves a faulted store");
     kani::cover!(!faulted, "the assume set leaves a clean one");
-    let mut fs = fresh(faulted);
-    let answered = fs.meta_delete(f);
+    let (fs, answered) = if faulted {
+        let mut fs = fresh(true);
+        let answered = fs.meta_delete(f);
+        (fs, answered)
+    } else {
+        let mut fs = fresh(false);
+        let answered = fs.meta_delete(f);
+        (fs, answered)
+    };
     assert!(
         !faulted || !fs.reads_absent(EF_META),
         "a failed EF_META read was cached as a confirmed absence"

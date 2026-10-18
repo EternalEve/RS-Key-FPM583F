@@ -74,7 +74,7 @@ struct RefusesFid {
     fid: std::rc::Rc<std::cell::Cell<u16>>,
 }
 impl Storage for RefusesFid {
-    fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
+    fn read(&mut self, fid: u16, buf: &mut [u8]) -> rsk_sdk::error::Result<Option<usize>> {
         self.inner.read(fid, buf)
     }
     fn write(&mut self, fid: u16, data: &[u8]) -> rsk_sdk::error::Result<()> {
@@ -86,7 +86,7 @@ impl Storage for RefusesFid {
     fn remove(&mut self, fid: u16) -> rsk_sdk::error::Result<()> {
         self.inner.remove(fid)
     }
-    fn size(&mut self, fid: u16) -> Option<usize> {
+    fn size(&mut self, fid: u16) -> rsk_sdk::error::Result<Option<usize>> {
         self.inner.size(fid)
     }
     fn for_each_key(&mut self, f: &mut dyn FnMut(u16)) -> bool {

@@ -151,7 +151,7 @@ TABLE_FLOOR = 5
 #: What it still does not cover: a case gutted rather than deleted. `assert True`
 #: counts here exactly as the case it replaced did, and nothing in this file reads
 #: a case's body.
-SUITE_CASES = 2672
+SUITE_CASES = 2674
 
 
 def check_sh():

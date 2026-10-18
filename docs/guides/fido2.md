@@ -162,6 +162,13 @@ ykman fido credentials delete <id>  # remove one (same build; browsers expose th
 relying party with its user names and a credential-id prefix. There is no
 `rsk`-native delete yet. Use `ykman` or the browser/OS passkey manager for that.
 
+A registration that cannot read enough stored credentials to rule out an existing
+account refuses rather than creating a duplicate. Host and on-device deletion
+read the required RP index before changing anything: a failed index read leaves
+the credential intact, so retry after storage recovers. Writes remain
+non-atomic; an index update failure after the credential was removed is reported
+as a failure and may leave an orphan RP entry.
+
 **credProtect.** A site can mark a passkey UV-required (credProtect level 3). The
 firmware then hides it from discovery and from exclude-list checks until you
 verify with the PIN, so it never leaks its existence to an unauthenticated

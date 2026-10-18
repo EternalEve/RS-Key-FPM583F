@@ -73,11 +73,11 @@ fn config_tlv_clamps_a_lying_over_read() {
     // exercises the clamp against an even larger claim.)
     struct OverRead;
     impl Storage for OverRead {
-        fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
-            (fid == EF_DEV_CONF).then(|| {
+        fn read(&mut self, fid: u16, buf: &mut [u8]) -> rsk_sdk::error::Result<Option<usize>> {
+            Ok((fid == EF_DEV_CONF).then(|| {
                 buf.fill(0xAB);
                 255 // claim far more than buf.len()
-            })
+            }))
         }
         fn write(&mut self, _: u16, _: &[u8]) -> rsk_sdk::error::Result<()> {
             Ok(())
@@ -85,8 +85,8 @@ fn config_tlv_clamps_a_lying_over_read() {
         fn remove(&mut self, _: u16) -> rsk_sdk::error::Result<()> {
             Ok(())
         }
-        fn size(&mut self, fid: u16) -> Option<usize> {
-            (fid == EF_DEV_CONF).then_some(255)
+        fn size(&mut self, fid: u16) -> rsk_sdk::error::Result<Option<usize>> {
+            Ok((fid == EF_DEV_CONF).then_some(255))
         }
         // A stub that yields no keys yet holds EF_DEV_CONF via read/size: report
         // "incomplete" so `scan` never fast-decides the held key absent.

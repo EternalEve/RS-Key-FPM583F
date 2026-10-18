@@ -34,8 +34,8 @@ of `fs.rs` so the private methods are reachable without widening them.
 |---|---|---|
 | `Put(f, v)` | `mark_present` | `f` is decided live; no other FID moves |
 | `Delete(f)` | `mark_absent` | `f` is decided absent; a live neighbour stays live |
-| `Confirm(f)`, `fault = FALSE` | `record_unless_faulted` | the backend's answer is cached as decided |
-| `Confirm(f)`, `fault = TRUE` | `record_unless_faulted` | **nothing** is cached — audit run-36 |
+| `Confirm(f)`, `fault = FALSE` | `settle` | the backend's answer is cached as decided |
+| `Confirm(f)`, `fault = TRUE` | `settle` | **nothing** is cached — audit run-36 |
 | `Init` / `Reboot` | `Fs::new` | nothing cached, nothing decided |
 | — | `known_absent` | a clear present bit is trusted only once decided confirms it |
 
@@ -249,9 +249,10 @@ after: meta=[true, false, false]  val=[false, false, false]
 ```
 
 That is the 0x077C databug's end state, on the shipped tree, with no power cut
-and no meta-only file. It is reachable on hardware — `rsk-store`'s `read` and
-`size` set `last_err` straight from `sequential-storage`'s `fetch_item`, so
-`last_error()` is a flash read error and not a modelling device. And the tree
+and no meta-only file. The refusal models a backend read failure:
+`rsk-store`'s `read` and `size` now map `sequential-storage`'s `fetch_item`
+failure directly to `Err(MemoryFatal)`, replacing the separate error latch.
+That contract does not establish how a fault is induced on a board. And the tree
 already treats the consequence as a defect **in one place**: `rsk-piv`'s
 `files.rs:302-310` reaches for `force_delete` precisely because "a stale AES-256
 head left over a re-minted 24-byte DEFAULT_MGM wedges the slot on the length
@@ -313,7 +314,7 @@ the aborting tree too.
 
 **Every caller now carries a written decision**, in
 [`assurance/deleters.toml`](https://github.com/TheMaxMur/RS-Key/blob/main/assurance/deleters.toml):
-45 sites — 25 `delete`, 10 `delete_key`, 5 `force_delete`, 5
+44 sites — 24 `delete`, 10 `delete_key`, 5 `force_delete`, 5
 `force_delete_halves` — each classed, each
 saying whether its fid can carry a head, and each saying whether discarding the
 answer is an allowed best-effort wipe there or a device reporting success over

@@ -22,7 +22,7 @@
 #
 # Scope, matching the roadmap's §3.4 so the counts reproduce: callers outside
 # `crates/rsk-fs` (which defines the family), outside `fuzz/`, and outside the
-# cfg-gated `*_tests.rs` / `*_kani.rs` sources. That leaves 45 — 25 `delete`,
+# cfg-gated `*_tests.rs` / `*_kani.rs` sources. That leaves 44 — 24 `delete`,
 # 10 `delete_key`, 5 `force_delete`, 5 `force_delete_halves`.
 #
 # Run the same derivation over `crates/rsk-fs` and it finds FIVE more, which this
@@ -147,31 +147,31 @@ disposition = "must-read"
 why = "an empty rpId list means no RP qualifies for vendor-facilitated enterprise attestation; a surviving list keeps the ones the host removed."
 
 [[site]]
-file = "crates/rsk-fido/src/credmgmt.rs"
-line = 694
-call = ".delete(EF_CRED + slot)"
+file = "crates/rsk-fido/src/resident_delete.rs"
+line = 23
+call = "fs.delete(EF_CRED + slot)"
 verb = "delete"
 answer = "read"
 class = "secret-or-gate"
 metadata = "none"
 disposition = "must-read"
-why = "deleteCredential's only effect. A surviving EF_CRED is an assertable credential the platform was told is gone."
+why = "The shared host and panel credential deletion. A surviving EF_CRED is an assertable credential the platform was told is gone."
 
 [[site]]
-file = "crates/rsk-fido/src/credmgmt.rs"
-line = 727
-call = "let _ = fs.delete(EF_RP + j);"
+file = "crates/rsk-fido/src/resident_delete.rs"
+line = 79
+call = "fs.delete(fid).map_err(|_| CtapError::NotAllowed)?;"
 verb = "delete"
-answer = "discarded"
+answer = "read"
 class = "bookkeeping"
 metadata = "none"
-disposition = "best-effort"
-why = "the RP index at count zero, and the credential it counted has already gone through the read above; a survivor is a stale count the next decrement or a reset reclaims."
+disposition = "must-read"
+why = "the credential is already gone, but success also requires the RP index update to land; an unreadable index refuses before any mutation, and a refused removal is reported."
 
 [[site]]
-file = "crates/rsk-fido/src/credmgmt.rs"
-line = 732
-call = "let _ = fs.delete(crate::consts::EF_RPNICK + j);"
+file = "crates/rsk-fido/src/resident_delete.rs"
+line = 82
+call = "let _ = fs.delete(EF_RPNICK + (fid - EF_RP));"
 verb = "delete"
 answer = "discarded"
 class = "bookkeeping"
@@ -222,17 +222,6 @@ class = "bookkeeping"
 metadata = "none"
 disposition = "best-effort"
 why = "clearing a display-only label: a survivor keeps the old nickname on the panel, which is what the line beside it says it is willing to leave."
-
-[[site]]
-file = "crates/rsk-fido/src/passkeys.rs"
-line = 278
-call = "if fs.delete(ef_cred_fid).is_err() {"
-verb = "delete"
-answer = "read"
-class = "secret-or-gate"
-metadata = "none"
-disposition = "must-read"
-why = "the panel's own deleteCredential — it reports the deletion to the owner's face, and a surviving EF_CRED is still assertable."
 
 [[site]]
 file = "crates/rsk-fido/src/reset.rs"
@@ -593,7 +582,7 @@ why = "the source's certificate. Public, gating nothing, and MOVE's own answer a
 
 [[fs_removal]]
 file = "crates/rsk-fs/src/fs.rs"
-line = 518
+line = 516
 method = "factory_wipe"
 call = "self.storage.remove(fid)?;"
 rearms = true
@@ -602,7 +591,7 @@ why = "the device-wide wipe, and the reason this table exists. Its `compact()` t
 
 [[fs_removal]]
 file = "crates/rsk-fs/src/fs.rs"
-line = 599
+line = 597
 method = "delete"
 call = "self.storage.remove(fid)?;"
 rearms = false
@@ -611,7 +600,7 @@ why = "the family's own conditional removal. It cannot re-arm: `request_rescrub`
 
 [[fs_removal]]
 file = "crates/rsk-fs/src/fs.rs"
-line = 648
+line = 646
 method = "force_delete_halves"
 call = "if let Err(refused) = self.storage.remove(fid) {"
 rearms = false
@@ -620,7 +609,7 @@ why = "the unconditional twin, and `force_delete`'s body as well. Same reason: t
 
 [[fs_removal]]
 file = "crates/rsk-fs/src/fs.rs"
-line = 823
+line = 817
 method = "meta_delete"
 call = "self.storage.remove(EF_META)?;"
 rearms = false

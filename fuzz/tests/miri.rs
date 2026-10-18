@@ -122,13 +122,13 @@ fn miri_fs_meta() {
 
     struct MetaBlob<'a>(&'a [u8]);
     impl Storage for MetaBlob<'_> {
-        fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
+        fn read(&mut self, fid: u16, buf: &mut [u8]) -> rsk_sdk::error::Result<Option<usize>> {
             if fid != rsk_fs::EF_META {
-                return None;
+                return Ok(None);
             }
             let n = self.0.len().min(buf.len());
             buf[..n].copy_from_slice(&self.0[..n]);
-            Some(self.0.len())
+            Ok(Some(self.0.len()))
         }
         fn write(&mut self, _fid: u16, _data: &[u8]) -> Result<()> {
             Ok(())
@@ -136,8 +136,8 @@ fn miri_fs_meta() {
         fn remove(&mut self, _fid: u16) -> Result<()> {
             Ok(())
         }
-        fn size(&mut self, fid: u16) -> Option<usize> {
-            (fid == rsk_fs::EF_META).then_some(self.0.len())
+        fn size(&mut self, fid: u16) -> rsk_sdk::error::Result<Option<usize>> {
+            Ok((fid == rsk_fs::EF_META).then_some(self.0.len()))
         }
         // Non-enumerating stub: report "incomplete" so `scan` keeps confirm-on-miss.
         fn for_each_key(&mut self, _f: &mut dyn FnMut(u16)) -> bool {
@@ -1688,15 +1688,18 @@ fn miri_power_cut() {
         }
     }
     impl Storage for TortureStorage {
-        fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
-            let value = if fid == 0xC000 {
-                block_on(self.counter.fetch_item::<&[u8]>(&mut self.buf, &fid)).ok()??
+        fn read(&mut self, fid: u16, buf: &mut [u8]) -> rsk_sdk::error::Result<Option<usize>> {
+            let fetched = if fid == 0xC000 {
+                block_on(self.counter.fetch_item::<&[u8]>(&mut self.buf, &fid))
             } else {
-                block_on(self.main.fetch_item::<&[u8]>(&mut self.buf, &fid)).ok()??
+                block_on(self.main.fetch_item::<&[u8]>(&mut self.buf, &fid))
+            };
+            let Some(value) = fetched.map_err(|_| rsk_sdk::error::Error::MemoryFatal)? else {
+                return Ok(None);
             };
             let n = value.len().min(buf.len());
             buf[..n].copy_from_slice(&value[..n]);
-            Some(value.len())
+            Ok(Some(value.len()))
         }
         fn write(&mut self, fid: u16, data: &[u8]) -> rsk_sdk::error::Result<()> {
             if fid == 0xC000 {
@@ -1714,13 +1717,15 @@ fn miri_power_cut() {
             }
             .map_err(|_| rsk_sdk::error::Error::MemoryFatal)
         }
-        fn size(&mut self, fid: u16) -> Option<usize> {
-            let value = if fid == 0xC000 {
-                block_on(self.counter.fetch_item::<&[u8]>(&mut self.buf, &fid)).ok()??
+        fn size(&mut self, fid: u16) -> rsk_sdk::error::Result<Option<usize>> {
+            let fetched = if fid == 0xC000 {
+                block_on(self.counter.fetch_item::<&[u8]>(&mut self.buf, &fid))
             } else {
-                block_on(self.main.fetch_item::<&[u8]>(&mut self.buf, &fid)).ok()??
+                block_on(self.main.fetch_item::<&[u8]>(&mut self.buf, &fid))
             };
-            Some(value.len())
+            Ok(fetched
+                .map_err(|_| rsk_sdk::error::Error::MemoryFatal)?
+                .map(|value| value.len()))
         }
         // Non-enumerating stub: report "incomplete" so `scan` keeps confirm-on-miss.
         fn for_each_key(&mut self, _f: &mut dyn FnMut(u16)) -> bool {

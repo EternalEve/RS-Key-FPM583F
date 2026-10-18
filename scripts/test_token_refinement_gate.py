@@ -264,6 +264,40 @@ def test_green_fixture_passes(tree: Tree):
     assert tree.findings() == []
 
 
+def test_a_qualified_delete_does_not_make_the_store_parameter_a_fid(tree: Tree):
+    tree.append("crates/rsk-fido/src/lib.rs", "pub mod resident_delete;\n")
+    tree.write(
+        "crates/rsk-fido/src/resident_delete.rs",
+        "fn delete(fs: &mut Fs<S>, slot: u16) { fs.delete(EF_CRED + slot); }\n",
+    )
+    tree.append(
+        "crates/rsk-fido/src/state.rs",
+        "fn seal(fs: &mut Fs<S>, fid: u16, data: &[u8]) { fs.put(fid, data); }\n\n"
+        "fn migrate(fs: &mut Fs<S>, data: &[u8]) { seal(fs, EF_ALWAYS_UV, data); }\n\n"
+        "fn payload() -> [u8; 2] { EF_PIN.to_be_bytes() }\n\n"
+        "fn stray(fs: &mut Fs<S>) {\n"
+        "    resident_delete::delete(fs, 0);\n    migrate(fs, &payload());\n}\n",
+    )
+    assert tree.findings() == []
+
+
+@pytest.mark.parametrize("owner", ["Fs", "rsk_fs::Fs", "Fs::<S>", "StoreAlias"])
+def test_a_qualified_writer_takes_its_fid_after_the_receiver(tree: Tree, owner: str):
+    tree.append(
+        "crates/rsk-fido/src/state.rs",
+        f"fn seal(fid: u16) {{ {owner}::put(&mut ctx.fs, fid, &[]); }}\n\n"
+        "fn relay(fid: u16) { seal(fid); }\n\n"
+        "fn stray() { relay(EF_PIN); }\n",
+    )
+    findings = tree.findings()
+    for function in ("seal", "relay", "stray"):
+        assert contains(
+            findings,
+            f"persistent: unowned concrete site crates/rsk-fido/src/state.rs::{function}",
+        ), findings
+    assert len(findings) == 3, findings
+
+
 def test_this_checkout_passes():
     assert token_refinement_gate.audit(token_refinement_gate.ROOT)[0] == []
 
@@ -407,7 +441,7 @@ def test_an_unowned_concrete_site_fails(tree: Tree, body: str, finding: str):
         # CONTROL. A local bound from a fid this projection does not own.
         "fn stray() { let fid = EF_ALWAYS_UV; let _ = fs.put(fid, &[]); }\n",
         # CONTROL. A fid built from a RUNTIME value folds to nothing —
-        # `credential.rs:919` really is `let fid = EF_RP + i`, and a rule that
+        # `credential.rs:929` really is `let fid = EF_RP + i`, and a rule that
         # guessed from the mention would own it.
         "fn stray(i: u16) { let fid = EF_PIN_BASE + i; let _ = fs.put(fid, &[]); }\n",
         # CONTROL. A gate that masks its own PARAMETER and that nobody hands the
@@ -995,10 +1029,18 @@ def test_a_private_store_helper_is_not_part_of_the_write_api(tree: Tree):
     assert tree.findings() == []
 
 
-def test_the_module_import_and_not_the_two_names_scopes_the_foreign_sweep(tree: Tree):
+@pytest.mark.parametrize(
+    "call",
+    [
+        "fs.delete(consts::EF_PIN)",
+        "Fs::<S>::delete(crate::context::store(ctx), consts::EF_PIN)",
+        "StoreAlias::delete(&mut ctx.fs, consts::EF_PIN)",
+    ],
+)
+def test_the_module_import_and_not_the_two_names_scopes_the_foreign_sweep(tree: Tree, call: str):
     tree.write(
         "crates/rsk-display/src/applets.rs",
-        "use rsk_fido::consts;\n\nfn stray() { fs.delete(consts::EF_PIN); }\n",
+        f"use rsk_fido::consts;\n\nfn stray() {{ {call}; }}\n",
     )
     assert only(
         tree.findings(), "foreign: unowned concrete site crates/rsk-display/src/applets.rs::stray"

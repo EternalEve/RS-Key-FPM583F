@@ -72,11 +72,6 @@ pub struct SeqStorage<
     /// fuzz target's ring is 8 pages against the board's 352, and a lap sized for
     /// the wrong one either misses pages it must scrub or writes 44× too much.
     main_len: usize,
-    /// Whether the last `read`/`size` FAILED rather than finding the key absent —
-    /// `Storage::last_error`. Both collapse into `None`, and `Fs` caches the second
-    /// as a decided absence, so without this a transient fault opened every gate
-    /// that reads `has_data` for the rest of the boot (audit run-36).
-    last_err: bool,
 }
 
 /// Route the hot per-operation counters to the dedicated counter partition so their
@@ -107,7 +102,6 @@ impl<F: NorFlash + MultiwriteNorFlash + Clone, CM: CacheImpl<u16>, CC: CacheImpl
             counter: MapStorage::new(flash, MapConfig::new(counter_range), counter_cache),
             buf: [0; KV_BUF],
             main_len,
-            last_err: false,
         }
     }
 }
@@ -118,19 +112,18 @@ impl<F: NorFlash + MultiwriteNorFlash + Clone, CM: CacheImpl<u16>, CC: CacheImpl
     for SeqStorage<F, CM, CC>
 {
     const MAX_VALUE: usize = rsk_fs::MAX_VALUE_BYTES;
-    fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
+    fn read(&mut self, fid: u16, buf: &mut [u8]) -> Result<Option<usize>> {
         let fetched = if is_counter_fid(fid) {
             block_on(self.counter.fetch_item::<&[u8]>(&mut self.buf, &fid))
         } else {
             block_on(self.main.fetch_item::<&[u8]>(&mut self.buf, &fid))
         };
-        // Distinguish "absent" from "the read failed" for `Fs`, which memoises the
-        // first as a decided fact — see `Storage::last_error`.
-        self.last_err = fetched.is_err();
-        let value = fetched.ok()??;
+        let Some(value) = fetched.map_err(|_| Error::MemoryFatal)? else {
+            return Ok(None);
+        };
         let n = value.len().min(buf.len());
         buf[..n].copy_from_slice(&value[..n]);
-        Some(value.len())
+        Ok(Some(value.len()))
     }
 
     fn write(&mut self, fid: u16, data: &[u8]) -> Result<()> {
@@ -156,19 +149,15 @@ impl<F: NorFlash + MultiwriteNorFlash + Clone, CM: CacheImpl<u16>, CC: CacheImpl
         main.and(counter).map_err(|_| Error::MemoryFatal)
     }
 
-    fn size(&mut self, fid: u16) -> Option<usize> {
+    fn size(&mut self, fid: u16) -> Result<Option<usize>> {
         let fetched = if is_counter_fid(fid) {
             block_on(self.counter.fetch_item::<&[u8]>(&mut self.buf, &fid))
         } else {
             block_on(self.main.fetch_item::<&[u8]>(&mut self.buf, &fid))
         };
-        self.last_err = fetched.is_err();
-        let value = fetched.ok()??;
-        Some(value.len())
-    }
-
-    fn last_error(&self) -> bool {
-        self.last_err
+        Ok(fetched
+            .map_err(|_| Error::MemoryFatal)?
+            .map(|value| value.len()))
     }
 
     fn for_each_key(&mut self, f: &mut dyn FnMut(u16)) -> bool {

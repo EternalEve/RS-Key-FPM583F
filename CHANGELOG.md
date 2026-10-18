@@ -38,6 +38,17 @@ tag: the USB `bcdDevice` build counter (bumped on every behavior change), and
 
 ## [Unreleased]
 
+- **Storage read errors:** refuse a resident registration that cannot rule out an
+  existing account, and preflight the RP index before either host or on-device
+  credential deletion. A failed index read leaves the credential intact for a
+  retry; index write failures are reported. Backend reads now return errors
+  directly instead of using a separate error latch. Persistent records and
+  PIN/passkey derivation are unchanged. **bcdDevice → 0x09E4.**
+
+- **Token-refinement gate:** trace the FID after an associated function's explicit
+  receiver, keeping store and payload parameters out of the FID type set and
+  detecting writes reached through qualified helper chains.
+
 - **Build artifact safety:** keep the default, 16 MB, fingerprint, display and
   no-touch gate images in separate target directories. Packaging checks a
   loadable build marker and refuses no-touch or unidentified images unless the

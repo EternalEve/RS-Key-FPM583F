@@ -70,7 +70,7 @@ owners_tagged = [
   "crates/rsk-fido/src/reset.rs:144 sweep — one phase of it",
   "crates/rsk-fido/src/reset.rs:327 survives_factory_reset — the OTHER wipe, the trusted-display one, which the model does not have at all",
   "crates/rsk-fido/src/state.rs:452 FidoState::reset — the volatile half, and the first thing the command does",
-  "crates/rsk-fido/src/lib.rs:109 Ctx::load_keydev — RAM first then flash, which is what makes the RAM copy count as surviving",
+  "crates/rsk-fido/src/lib.rs:110 Ctx::load_keydev — RAM first then flash, which is what makes the RAM copy count as surviving",
 ]
 # And the three CLAUSE tags, which are all on one function and are the reason
 # each clause row derives `rust = 1`.
@@ -85,8 +85,8 @@ owner_of_the_alpha = "crates/rsk-fido/src/reset_assurance.rs:106-134 — `reset_
 # three killing tests are.
 owners_co_refuted = ["crates/rsk-fido/src/reset.rs"]
 owners_of_the_kills = [
-  "crates/rsk-fido/src/reset_tests.rs:737 a_torn_reset_never_unseals_a_surviving_seed — the shipped twin RSKeySecurityState.tla:1827 names",
-  "crates/rsk-fido/src/reset_tests.rs:1220 a_torn_reset_never_leaves_the_session_running_on_a_wiped_seed",
+  "crates/rsk-fido/src/reset_tests.rs:740 a_torn_reset_never_unseals_a_surviving_seed — the shipped twin RSKeySecurityState.tla:1827 names",
+  "crates/rsk-fido/src/reset_tests.rs:1223 a_torn_reset_never_leaves_the_session_running_on_a_wiped_seed",
   "crates/rsk-fido/src/reset_assurance_tests.rs:130 a_backup_seal_swept_with_the_secrets_is_a_reopened_export_window",
   "crates/rsk-fido/src/reset_assurance_tests.rs:46 reset_property_controls_go_red_on_each_early_gate_mutant — three mutants, one per clause, and the only per-clause negative control anywhere in the tree outside `formal/`",
 ]

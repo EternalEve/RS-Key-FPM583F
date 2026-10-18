@@ -237,17 +237,15 @@ impl<S: Storage> Fs<S> {
     /// an absence it actually reported, and the answer cached only when there was
     /// one.
     ///
-    /// `Storage::read`/`size` return `None` for both outcomes. Caching a fault would
+    /// `Storage::read`/`size` keep faults apart from absence. Caching a fault would
     /// set the DECIDED bit and turn one transient error into a permanent "file
     /// absent" for the rest of the boot (audit run-36); leaving the FID undecided
     /// re-probes it next time, which is the pre-cache behaviour. Separating the two
     /// at the RETURN is the other half, and the one the `try_*` probes publish —
     /// see [`try_has_data`](Self::try_has_data).
     #[inline]
-    fn settle<T>(&mut self, fid: u16, r: Option<T>) -> Result<Option<T>> {
-        if r.is_none() && self.storage.last_error() {
-            return Err(Error::MemoryFatal);
-        }
+    fn settle<T>(&mut self, fid: u16, r: Result<Option<T>>) -> Result<Option<T>> {
+        let r = r?;
         self.record(fid, r.is_some());
         Ok(r)
     }
@@ -357,7 +355,7 @@ impl<S: Storage> Fs<S> {
     }
 
     /// [`size`](Self::size), fallible — see [`try_read`](Self::try_read).
-    fn try_size(&mut self, fid: u16) -> Result<Option<usize>> {
+    pub fn try_size(&mut self, fid: u16) -> Result<Option<usize>> {
         if self.known_absent(fid) {
             return Ok(None);
         }
@@ -769,13 +767,10 @@ impl<S: Storage> Fs<S> {
         let n = if self.known_absent(EF_META) {
             0
         } else {
-            let r = self.storage.read(EF_META, &mut scratch);
+            let r = self.storage.read(EF_META, &mut scratch)?;
             // A FAILED read must not read as "no blob": rebuilding from an empty
             // scratch would drop every other applet's metadata on this write. Same
             // rule as the present-cache — only a definitive answer may be acted on.
-            if r.is_none() && self.storage.last_error() {
-                return Err(Error::MemoryFatal);
-            }
             r.unwrap_or(0).min(scratch.len())
         };
         let mut out = [0u8; META_MAX];
@@ -801,11 +796,10 @@ impl<S: Storage> Fs<S> {
             return Ok(()); // confirmed no meta blob → nothing to drop
         }
         let mut scratch = [0u8; META_MAX];
-        let n = match self.storage.read(EF_META, &mut scratch) {
+        let n = match self.storage.read(EF_META, &mut scratch)? {
             Some(n) => n.min(scratch.len()),
             // Absent means there is nothing to drop; a FAILED read means we do not
             // know, and caching that as absence would orphan every stored head.
-            None if self.storage.last_error() => return Err(Error::MemoryFatal),
             None => {
                 self.mark_absent(EF_META);
                 return Ok(());

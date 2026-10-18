@@ -322,8 +322,8 @@ struct DuplicateVersions {
 }
 
 impl rsk_fs::Storage for DuplicateVersions {
-    fn read(&mut self, _fid: u16, _buf: &mut [u8]) -> Option<usize> {
-        None
+    fn read(&mut self, _fid: u16, _buf: &mut [u8]) -> rsk_sdk::error::Result<Option<usize>> {
+        Ok(None)
     }
     fn write(&mut self, _fid: u16, _data: &[u8]) -> rsk_sdk::error::Result<()> {
         Ok(())
@@ -333,8 +333,8 @@ impl rsk_fs::Storage for DuplicateVersions {
         self.live = false;
         Ok(())
     }
-    fn size(&mut self, _fid: u16) -> Option<usize> {
-        None
+    fn size(&mut self, _fid: u16) -> rsk_sdk::error::Result<Option<usize>> {
+        Ok(None)
     }
     fn for_each_key(&mut self, f: &mut dyn FnMut(u16)) -> bool {
         if self.live {
@@ -379,8 +379,8 @@ fn reset_sweep_de_dupes_stored_versions() {
 struct ReYielding;
 
 impl rsk_fs::Storage for ReYielding {
-    fn read(&mut self, _fid: u16, _buf: &mut [u8]) -> Option<usize> {
-        None
+    fn read(&mut self, _fid: u16, _buf: &mut [u8]) -> rsk_sdk::error::Result<Option<usize>> {
+        Ok(None)
     }
     fn write(&mut self, _fid: u16, _data: &[u8]) -> rsk_sdk::error::Result<()> {
         Ok(())
@@ -388,8 +388,8 @@ impl rsk_fs::Storage for ReYielding {
     fn remove(&mut self, _fid: u16) -> rsk_sdk::error::Result<()> {
         Ok(())
     }
-    fn size(&mut self, _fid: u16) -> Option<usize> {
-        None
+    fn size(&mut self, _fid: u16) -> rsk_sdk::error::Result<Option<usize>> {
+        Ok(None)
     }
     fn for_each_key(&mut self, f: &mut dyn FnMut(u16)) -> bool {
         f(EF_CRED);
@@ -689,11 +689,13 @@ struct TearAfter {
 }
 
 impl rsk_fs::Storage for TearAfter {
-    fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
-        let v = &self.items.iter().find(|(k, _)| *k == fid)?.1;
+    fn read(&mut self, fid: u16, buf: &mut [u8]) -> rsk_sdk::error::Result<Option<usize>> {
+        let Some((_, v)) = self.items.iter().find(|(k, _)| *k == fid) else {
+            return Ok(None);
+        };
         let n = v.len().min(buf.len());
         buf[..n].copy_from_slice(&v[..n]);
-        Some(v.len())
+        Ok(Some(v.len()))
     }
     fn write(&mut self, fid: u16, data: &[u8]) -> rsk_sdk::error::Result<()> {
         match self.items.iter_mut().find(|(k, _)| *k == fid) {
@@ -710,11 +712,12 @@ impl rsk_fs::Storage for TearAfter {
         self.items.retain(|(k, _)| *k != fid);
         Ok(())
     }
-    fn size(&mut self, fid: u16) -> Option<usize> {
-        self.items
+    fn size(&mut self, fid: u16) -> rsk_sdk::error::Result<Option<usize>> {
+        Ok(self
+            .items
             .iter()
             .find(|(k, _)| *k == fid)
-            .map(|(_, v)| v.len())
+            .map(|(_, v)| v.len()))
     }
     fn for_each_key(&mut self, f: &mut dyn FnMut(u16)) -> bool {
         for (k, _) in &self.items {
@@ -1620,7 +1623,7 @@ struct RefusedThenTruncated {
 }
 
 impl rsk_fs::Storage for RefusedThenTruncated {
-    fn read(&mut self, fid: u16, buf: &mut [u8]) -> Option<usize> {
+    fn read(&mut self, fid: u16, buf: &mut [u8]) -> rsk_sdk::error::Result<Option<usize>> {
         self.inner.read(fid, buf)
     }
     fn write(&mut self, fid: u16, data: &[u8]) -> rsk_sdk::error::Result<()> {
@@ -1635,7 +1638,7 @@ impl rsk_fs::Storage for RefusedThenTruncated {
         self.truncated |= self.truncate_after == Some(fid);
         Ok(())
     }
-    fn size(&mut self, fid: u16) -> Option<usize> {
+    fn size(&mut self, fid: u16) -> rsk_sdk::error::Result<Option<usize>> {
         self.inner.size(fid)
     }
     fn for_each_key(&mut self, f: &mut dyn FnMut(u16)) -> bool {
@@ -1677,8 +1680,8 @@ fn reset_under(refuse_once: Option<u16>, truncate_after: Option<u16>) -> Residue
     let mut medium = fs.into_storage();
     Residue {
         answered,
-        marker: medium.inner.exists(rsk_fs::EF_HARDENED),
-        pin: medium.inner.exists(EF_PIN),
+        marker: medium.inner.exists(rsk_fs::EF_HARDENED).unwrap(),
+        pin: medium.inner.exists(EF_PIN).unwrap(),
     }
 }
 
