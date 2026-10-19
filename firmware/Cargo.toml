@@ -92,6 +92,8 @@ embedded-storage-async = "0.4"
 embedded-io-async = { version = "=0.7.0", optional = true }
 
 [features]
+# Optional FIDO AID on CCID, independent of HID and the other card applets.
+fido-ccid = ["rsk-device/fido-ccid"]
 # FPM583F V1.2.0 UART service; physical compatibility is measured in phase 6.
 fingerprint = ["dep:embedded-io-async"]
 # Physical BOOTSEL touch for user presence is REQUIRED BY DEFAULT and is NOT a

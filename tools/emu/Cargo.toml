@@ -13,6 +13,8 @@ name = "rsk-emu"
 path = "src/main.rs"
 
 [features]
+# Match the firmware's opt-in FIDO route on the card socket.
+fido-ccid = ["rsk-device/fido-ccid"]
 # The emulator always builds the display flow, whose factory reset needs the
 # display-side wipe gate even when the window is disabled at runtime.
 strict-config = ["rsk-device/strict-config", "rsk-device/display", "rsk-display/strict-config"]

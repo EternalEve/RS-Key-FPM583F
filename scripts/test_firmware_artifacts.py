@@ -8,6 +8,7 @@ import re
 import shlex
 import shutil
 import subprocess
+import tomllib
 
 import pytest
 
@@ -22,6 +23,7 @@ BUILD_ROWS = (
     "build firmware (fingerprint strict-config)",
     "build firmware (display)",
     "build firmware (test, --features no-touch)",
+    "build firmware (fido-ccid)",
 )
 ELF = pathlib.Path("thumbv8m.main-none-eabihf/release/firmware")
 DEFAULT = ROOT / "target" / ELF
@@ -143,7 +145,7 @@ def test_packaging_checks_policy_inside_a_renamed_image(tmp_path, source, policy
         assert "management-write policy does not match" in done.stderr
 
 
-@pytest.mark.parametrize("field,value", [(0, b"UNKNOWN!"), (1, 2), (2, 16), (2, 6), (3, 0), (4, 0)])
+@pytest.mark.parametrize("field,value", [(0, b"UNKNOWN!"), (1, 2), (2, 32), (2, 6), (3, 0), (4, 0)])
 def test_unrecognized_marker_is_refused_by_the_packaging_entry_point(tmp_path, field, value):
     values = list(firmware_identity.RECORD.unpack(subprocess.run(
         ["arm-none-eabi-objcopy", "-O", "binary", "--only-section=.rsk_build", str(DEFAULT), "/dev/stdout"],
@@ -196,6 +198,7 @@ def test_actual_gate_row_rejects_no_touch_and_missing_markers(tmp_path):
     ("target/strict-fingerprint", "fingerprint", (2 * 1024 * 1024, 896 * 1024)),
     ("target/display", "display", (16 * 1024 * 1024, 1408 * 1024)),
     ("target/no-touch", "no-touch", (4 * 1024 * 1024, 1408 * 1024)),
+    ("target/fido-ccid", "fido-ccid", (4 * 1024 * 1024, 1408 * 1024)),
 ])
 def test_gate_artifacts_match_their_build_configuration(directory, profile, geometry):
     flags, flash_size, kvmain = firmware_identity.read_marker(ROOT / directory / ELF)
@@ -204,6 +207,29 @@ def test_gate_artifacts_match_their_build_configuration(directory, profile, geom
         expected |= firmware_identity.STRICT_CONFIG
     assert flags == expected
     assert (flash_size, kvmain) == geometry
+
+
+def test_default_identity_row_refuses_an_opt_in_fido_ccid_image():
+    done = identity_row(ROOT / "target/fido-ccid" / ELF)
+    assert done.returncode == 1 and "do not match default" in done.stderr, done
+
+
+@pytest.mark.parametrize("manifest,forward", [
+    ("firmware/Cargo.toml", "rsk-device/fido-ccid"),
+    ("tools/emu/Cargo.toml", "rsk-device/fido-ccid"),
+    ("crates/rsk-device/Cargo.toml", "rsk-fido/fido-ccid"),
+])
+def test_fido_ccid_switch_is_opt_in_and_forwarded(manifest, forward):
+    features = tomllib.loads((ROOT / manifest).read_text())["features"]
+    pending = list(features.get("default", []))
+    enabled = set()
+    while pending:
+        feature = pending.pop()
+        if feature not in enabled:
+            enabled.add(feature)
+            pending.extend(features.get(feature, []))
+    assert not {"fido-ccid", forward} & enabled, "the CCID FIDO switch must remain opt-in"
+    assert forward in features["fido-ccid"], f"{manifest} did not forward the switch"
 
 
 def test_nix_and_ci_use_checked_packaging_for_release_and_test_images():

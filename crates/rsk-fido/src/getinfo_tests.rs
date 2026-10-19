@@ -164,11 +164,13 @@ fn get_info_fields() {
     assert_eq!(d.u8().unwrap(), 0x08);
     assert_eq!(d.u64().unwrap(), MAX_CRED_ID_LENGTH);
 
-    // 0x09 transports ["usb", "smart-card"] — the FIDO AID is routed onto CCID too
+    // 0x09 transports follow the compiled FIDO routes.
     assert_eq!(d.u8().unwrap(), 0x09);
-    assert_eq!(d.array().unwrap().unwrap(), 2);
-    assert_eq!(d.str().unwrap(), "usb");
-    assert_eq!(d.str().unwrap(), "smart-card");
+    let expected = expected_transports();
+    assert_eq!(d.array().unwrap().unwrap(), expected.len() as u64);
+    for transport in expected {
+        assert_eq!(d.str().unwrap(), *transport);
+    }
 
     // 0x0A algorithms: [{alg, type:"public-key"} …] — the NIST ECDSA curves,
     // then EdDSA (-8) unless `fido-conformance` suppresses it; `advertise-pqc`
@@ -244,9 +246,11 @@ fn get_info_fields() {
     // 0x1A transportsForReset — a 2-byte key (26 > 23), so it sorts after every
     // 1-byte key and before 0x1D.
     assert_eq!(d.u8().unwrap(), 0x1A);
-    assert_eq!(d.array().unwrap().unwrap(), 2);
-    assert_eq!(d.str().unwrap(), "usb");
-    assert_eq!(d.str().unwrap(), "smart-card");
+    let expected = expected_transports();
+    assert_eq!(d.array().unwrap().unwrap(), expected.len() as u64);
+    for transport in expected {
+        assert_eq!(d.str().unwrap(), *transport);
+    }
 
     // 0x1B pinComplexityPolicy — false unless a build refuses a trivial PIN. Read
     // from the features rather than from the const the encoder uses, so the two
@@ -293,21 +297,22 @@ fn str_member(key: u32) -> std::vec::Vec<std::string::String> {
     std::vec::Vec::new()
 }
 
-/// `transportsForReset` (0x1A) tells a platform where a reset can be driven. One
-/// const feeds it and `transports` (0x09): the literal below pins the value, the
-/// equality catches the two drifting apart. The spec's "no duplicates, not empty"
-/// needs no assertion of its own — either would change the list the literal pins.
-///
-/// `smart-card` is in it because the FIDO AID IS routed onto CCID: the same
-/// `process_cbor` serves both transports, so a reset driven over PC/SC is accepted
-/// and a platform trusting a usb-only list would never offer it.
+fn expected_transports() -> &'static [&'static str] {
+    if cfg!(feature = "fido-ccid") {
+        &["usb", "smart-card"]
+    } else {
+        &["usb"]
+    }
+}
+
+/// Both getInfo members must describe exactly the routes this build enables.
 #[test]
 fn transports_for_reset_matches_transports() {
     let reset = str_member(0x1A);
     assert_eq!(
         reset,
-        std::vec!["usb", "smart-card"],
-        "the FIDO applet answers on USB-HID and on the device's own PC/SC interface"
+        expected_transports(),
+        "the FIDO applet advertises only its compiled transports"
     );
     assert_eq!(
         reset,

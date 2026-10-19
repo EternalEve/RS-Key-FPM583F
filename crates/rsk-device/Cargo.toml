@@ -51,6 +51,8 @@ rsk-fs = { workspace = true, features = ["test-util"] }
 rsk-devconf = { workspace = true, features = ["test-util"] }
 
 [features]
+# CTAP2/U2F over CCID is opt-in; HID and other CCID applets remain available.
+fido-ccid = ["rsk-fido/fido-ccid"]
 # `scripts/kani.sh` only: forwards to the dependency that carries the switch.
 # What it buys, and why the firmware must never turn it on, is in
 # `crates/rsk-crypto/Cargo.toml`.

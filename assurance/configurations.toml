@@ -926,3 +926,9 @@ in `check.sh` builds `firmware` on it at all. The board loop builds `rsk-wipe`, 
 and both `BOARD=` firmware rows pin `waveshare-one`. So the column is real and \
 WHOLLY UNEXERCISED, and what is left to decide is whether the tree should build \
 it, or whether it should be a knob of `firmware-display` instead."""
+
+[[question]]
+column = "fido-ccid"
+owner = "contributor"
+settled_by = "evidence"
+text = "The opt-in FIDO AID adds a CCID route absent from default builds. Existing dual-entry host/client regressions run with this feature, but do not establish missing PIN-lock persistence, local PIN-change revocation or configuration side effects. Which P0 properties hold through the complete CCID dispatch lifecycle?"

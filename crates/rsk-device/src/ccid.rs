@@ -55,15 +55,16 @@ const _: () = assert!(rsk_openpgp::files::MAX_CHALLENGE_BYTES <= RESP_CAP - 2);
 
 const _: () = assert!(rsk_fido::bio_directory::ENUMERATION_MAX <= RESP_CAP - 2);
 
-/// Registration-order indices of the applets whose RSA keygen is fast-pathed.
+/// Registration-order indices used by the dispatcher.
 const IDX_OPENPGP: usize = 1;
 const IDX_PIV: usize = 5;
+const IDX_FIDO: usize = 7;
 
 /// The YubiKey capability bit that gates each applet, in registration order
 /// `[vendor, openpgp, management, oath, otp, piv, rescue, fido]`. `0` = always
 /// available: management (the re-enable path), vendor and rescue (recovery) must
 /// never be gated off, or `ykman config usb --disable` would be irreversible.
-/// FIDO carries two applications behind one AID, and `cap_enabled` is an ANY test,
+/// FIDO carries two applications behind one opt-in AID; `cap_enabled` is an ANY test,
 /// so its SELECT survives either being on and the applet gates the two commands
 /// apart.
 /// Refines `RSKeyAdminSurface!AdminSurfaceAlwaysReachable` — SEC-ADM-001.
@@ -259,7 +260,9 @@ impl<'a, S: Storage, R: rsk_sdk::Rng + 'static, VP: rsk_vendor::Platform>
     fn applet_enable_mask(&self) -> u32 {
         let mut mask = 0u32;
         for (i, &cap) in APPLET_CAPS.iter().enumerate() {
-            if rsk_devconf::cap_enabled(self.enabled_caps, cap) {
+            if rsk_devconf::cap_enabled(self.enabled_caps, cap)
+                && (i != IDX_FIDO || rsk_fido::consts::FIDO_CCID_ENABLED)
+            {
                 mask |= 1 << i;
             }
         }
@@ -621,3 +624,7 @@ mod tests;
 #[cfg(test)]
 #[path = "ccid_bio_tests.rs"]
 mod bio_tests;
+
+#[cfg(test)]
+#[path = "ccid_fido_switch_tests.rs"]
+mod fido_switch_tests;

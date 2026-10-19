@@ -221,10 +221,10 @@ RULES = [
     ("fido.getinfo.extensions", Superset("RS-Key extension set is a superset")),
     ("fido.getinfo.algorithms", Superset("RS-Key advertises a superset (ES384/512/256K, +ML-DSA)")),
     ("fido.getinfo.attestationFormats", Superset("attestation-format set; order-insensitive")),
-    # Both keys route the FIDO AID onto CCID, so both list `smart-card`; the radio is
-    # the only difference left. `_scalar` sorts, hence `smart-card,usb`.
+    # The default is HID-only; the optional CCID route adds `smart-card`.
+    # Neither build has a radio. `_scalar` sorts the transport set.
     ("fido.getinfo.transports",
-     ExpectDiff(r"nfc", r"^smart-card,usb$", "RS-Key has no radio; a real key also lists nfc")),
+     ExpectDiff(r"nfc", r"^(smart-card,)?usb$", "RS-Key has no radio; CCID FIDO is opt-in")),
     ("fido.getinfo.certifications",
      ExpectDiff(None, r"(?i)<missing>", "RS-Key advertises no FIDO/FIPS certification levels")),
 

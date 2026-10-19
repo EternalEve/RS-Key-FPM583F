@@ -227,7 +227,7 @@ bulk stream, ISO-7816 APDUs, CTAP2 CBOR. Defenses:
   USB *identity* (serial, strings) is cosmetic — never proof a device is genuine,
   attestation is (§3). The **enabled-applications mask is enforced**, though: a
   disabled application's applet stops answering (PIV/OpenPGP/OATH/OTP over CCID,
-  FIDO2/U2F over **both** CTAPHID and CCID, the OTP keyboard), so a hostile host
+  FIDO2/U2F over CTAPHID (also CCID with `fido-ccid`), the OTP keyboard), so a hostile host
   can turn one off.
   That is a **reversible denial-of-service**, not a confidentiality or integrity
   break — CCID Management remains available to re-enable it, and the compatibility
@@ -248,27 +248,21 @@ bulk stream, ISO-7816 APDUs, CTAP2 CBOR. Defenses:
   and OTP config writes are no-ops. See the [authorization table](guides/cli.md)
   for the complete routes. This does not rate-limit every persistent write or
   change OTP slot access-code policy, and is separate from `EF_HARDENED`.
-- **The FIDO applet answers on two transports, and the second one is easier to
-  reach.** CTAP2 and U2F are served over CCID as well as CTAPHID
-  ([protocol.md §5.2](protocol.md#52-ctap-over-ccid)), so any process that can talk
-  to `pcscd` can drive the whole CTAP surface — no exclusive HID handle, and none
-  of the platform gatekeeping a browser or the Windows WebAuthn stack applies to
-  its own FIDO path. **What that does and does not buy an attacker:** nothing a
-  credential gate would have stopped. Every operation still spends the same PIN,
-  the same pinUvAuthToken and the same physical touch, because the two transports
-  run the *same* applet over the **same `FidoState`** — one PIN/UV token, one
-  credential-management walk, and crucially **one** per-boot PIN-mismatch budget.
-  A second session state would have handed a host `PIN_MISMATCH_LIMIT` guesses per
-  transport instead of per power cycle, which is the restart-by-reboot attack
-  §6.5.5.6 exists to stop; that it is shared is enforced by construction (one
-  `&RefCell<FidoState>` reaches both) and pinned by
-  `both_transports_answer_from_one_session_state`. What it *does* buy is
-  **reachability**: a process that could not open the HID device can now open the
-  card. Treat FIDO as available to anything with card access, and use
-  `ykman config usb --disable fido2` (or `--disable u2f`) if that is not wanted —
-  the mask gates the two applications apart, over both transports. On the default
-  `0x1209:0x0001` identity most hosts never bind the CCID interface at all, so the
-  surface is absent there for an unrelated reason, not by design.
+- **The FIDO applet's second transport is opt-in.** Default builds expose
+  CTAP2/U2F through CTAPHID and refuse the FIDO AID on CCID. Enabling the
+  `fido-ccid` Cargo feature also lets a process with `pcscd` access drive the
+  FIDO applet ([protocol.md §5.2](protocol.md#52-ctap-over-ccid)). HID, the other
+  CCID applets, and their application-mask gates are independent of this option.
+  The opt-in path shares the same `FidoState`, credentials and PIN budget; the
+  existing `both_transports_answer_from_one_session_state` regression runs with
+  that feature enabled. Sharing state does not cover its full lifecycle:
+  CCID does not save the PIN soft lock for warm-reboot recovery, does not consume
+  the display's PIN-change notification to revoke old RAM tokens, and omits
+  FIDO configuration writes' live-update/reboot handling. The default-off route
+  makes these CCID FIDO paths unreachable; the opt-in feature retains the gaps
+  until separately fixed. The formal two-transport scope remains relevant to
+  opt-in builds and to smart-card applets; it does not establish those missing
+  lifecycle guarantees.
 - **The residual gap is *intent*. The trusted-display flavor closes it.** Because
   a standard key attests presence and possession, a malicious page can silently
   drive an authorized key over WebUSB to phish a real sign-in ([demonstrated

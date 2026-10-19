@@ -18,8 +18,20 @@ on a "Yubico YubiKey" reader name and so needs the opt-in
 version is `5.8.0`, which is what FIDO tooling reads back. It is a build constant,
 not the RS-Key release.
 
-FIDO2 and U2F remain available through both HID and the FIDO CCID applet.
-Assertion continuations and credential-enumeration walks belong to the entry
+FIDO2 and U2F use HID by default. The independent `fido-ccid` Cargo feature
+also exposes the FIDO AID over CCID (PC/SC); without it SELECT returns `6A82`,
+and GetInfo lists only `usb`. PIV, OpenPGP, OATH, OTP and management remain on
+CCID. To restore FIDO over CCID, add `fido-ccid` to the existing build's
+`--features` list and use the normal firmware upgrade process. This option changes no persistent records or
+key derivation, so it does not require new passkey registrations or fingerprint
+enrollment. USB interface and application-mask settings do not enable this option.
+
+The opt-in CCID FIDO path retains known lifecycle gaps: its PIN soft lock is not
+saved across a warm reboot, a screen PIN change does not immediately revoke its
+old session token, and FIDO configuration writes omit the live-update/reboot
+handling. Keep it off for daily use pending those fixes.
+
+When enabled, assertion continuations and credential-enumeration walks belong to the entry
 that opened them; changing entries requires a new authorized beginning. HID
 channels have separate walk ownership. PIN retry limits remain device-wide.
 Resetting the CCID card retires its own walks; selecting an applet does not

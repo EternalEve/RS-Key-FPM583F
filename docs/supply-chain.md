@@ -341,7 +341,7 @@ The files that decide what a release is. A digest here covers the parts the tabl
 | `.github/workflows/release-build.yml` | `37afc940723eace540fbb8dd8e330e07d2cb70eea0c706e51d20dd9e4bbd8678` |
 | `nix/firmware.nix` | `710d087c00de76dc608d138833d9b2b66c6638dcdffecdfb844f8769eb9ee406` |
 | `scripts/pt.sh` | `25f995c87c2d099eda38fde9d0ef9aaca5e21d47657a5ddfaf05908cbc2a1e7e` |
-| `scripts/firmware_identity.py` | `880bcbcfb73b368f07d38c317d3ee414097b4d7b2f427b28ee6ad719cb16533f` |
+| `scripts/firmware_identity.py` | `75d4d7cda974ae47c2b7315d11e957c895d5b30a430d98db53ce2e592c90d6b4` |
 
 The CI code that runs them, pinned by commit:
 

@@ -34,7 +34,7 @@ below end in `thumbv8m.main-none-eabihf/release/firmware`:
 The default ELF remains touch-enabled after the full gate. All images carry a
 24-byte loadable `.rsk_build` marker generated from the actual Cargo features:
 `RSKBUILD`, then little-endian u32 format version (1), feature flags (bit 0
-no-touch, bit 1 fingerprint, bit 2 display, bit 3 strict-config), Flash bytes
+no-touch, bit 1 fingerprint, bit 2 display, bit 3 strict-config, bit 4 fido-ccid), Flash bytes
 and KVMAIN bytes.
 The marker survives debug stripping, partition-table insertion and UF2 export.
 It prevents accidental mix-ups; it is not a signature or proof of provenance.
@@ -76,6 +76,7 @@ flowchart TD
 
 | Feature | Default | Effect |
 |---|---|---|
+| `fido-ccid` | off | Enable the FIDO2/U2F AID on CCID (PC/SC). HID and other CCID applets work with this off. Also adds `smart-card` to GetInfo transports. Add `fido-ccid` to the existing build's `--features` list to enable it; all packaged images leave it off. Existing credentials, PINs and fingerprint bindings survive switching this build option. See the [FIDO guide](guides/fido2.md) for the opt-in path’s known limitations. |
 | `fingerprint` | off | Experimental screenless FPM583F UART0 service on GP0 TX / GP1 RX, 57600 baud, 8N1. Reserves both pins and rejects conflicting build pin assignments. Uses fixed IRQ buffers and bounded polling of the pinned HAL's asynchronous I/O; `embedded-io-async` is the HAL's existing dependency. The host-tested codec and serialized driver use the persistent BioEnrollment directory and reset isolation. Physical compatibility awaits board acceptance. Management factory-reset aliases are disabled in this configuration. Regular builds reject combination with `display`. |
 | `no-touch` | off | Auto-confirm user presence. FIDO operations (makeCredential, getAssertion, U2F, reset, selection) and OpenPGP UIF data objects no longer require a press of the presence button (BOOTSEL by default, or `PRESENCE_PIN` when set). **Requiring a touch is the default and is not a feature**; `--features no-touch` is the explicit escape hatch for the automated suites (`tests/`, python-fido2, OpenPGP card tests), which cannot press a button and would hang on the (default) touch build. **Never ship a no-touch build.** |
 | `advertise-pqc` | off | Prepends ML-DSA-87 (COSE −50), ML-DSA-65 (−49) and ML-DSA-44 (−48) to the getInfo `algorithms` list, in descending security order. Off by default because released Firefox versions abort the *entire* getInfo parse on an unknown COSE id and report the authenticator broken. **PQC capability is on regardless of this flag**. makeCredential negotiates −49 / −48 from the request's `pubKeyCredParams`; the flag only controls advertising. |

@@ -4,8 +4,8 @@
 
 """CTAP over CCID — the FIDO applet reached as ISO 7816 APDUs over PC/SC.
 
-    nix develop -c python tests/42_fido_ccid.py
-    python tests/emu.py tests/42_fido_ccid.py     # no board
+    nix develop -c python tests/42_fido_ccid.py   # default route is closed
+    python tests/emu.py tests/42_fido_ccid.py --fido-ccid   # opt-in emulator build
 
 The framing is CTAP 2.1 §11.2.1 and the client is `python-fido2`'s
 `CtapPcscDevice`, spelled out here rather than imported: pyscard aborts under nix
@@ -27,6 +27,7 @@ would also carry two per-boot PIN-mismatch budgets, which is why they do not.
 interface at all, so a REAL board must be built `VIDPID=Yubikey5` (or the host
 must carry the `ccid-rs-key` overlay) for this to find a reader.
 """
+import argparse
 import os
 import sys
 
@@ -66,6 +67,10 @@ def ctap2(conn, payload):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--fido-ccid", action="store_true",
+                        help="expect a build with the opt-in FIDO CCID route")
+    args = parser.parse_args()
     target = find_reader()
     if not target:
         fail("no PC/SC readers — is the CCID interface bound? (see the docstring)")
@@ -73,6 +78,15 @@ def main():
     conn.connect()
 
     body, sw = chain(conn, SELECT_FIDO)
+    if not args.fido_ccid:
+        if sw != (0x6A, 0x82) or body:
+            fail(f"default FIDO AID must be absent, got {body.hex()} {sw}")
+        for command in (U2F_VERSION, [0x80, 0x10, 0, 0, 1, CTAP_GET_INFO, 0]):
+            _, status = chain(conn, command)
+            if status == (0x90, 0x00):
+                fail("a FIDO command succeeded after the refused SELECT")
+        print("FIDO CCID route is closed by default (6A82); commands are refused")
+        return
     if sw != (0x90, 0x00):
         fail(f"SELECT of the FIDO AID answered {sw[0]:02x}{sw[1]:02x}")
     if body != b"U2F_V2":

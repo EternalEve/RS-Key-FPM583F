@@ -216,7 +216,7 @@ where = "- **Device config is UNGATED on the compatibility build.** Bare Cargo, 
 [[clause]]
 id = "TM-HOST-TWO-TRANSPORTS"
 kind = "defence"
-where = "- **The FIDO applet answers on two transports, and the second one is easier to"
+where = "- **The FIDO applet's second transport is opt-in.** Default builds expose"
 
 [[clause]]
 id = "TM-HOST-INTENT"

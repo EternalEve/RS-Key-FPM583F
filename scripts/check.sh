@@ -547,6 +547,9 @@ run "clippy (strong-pin fw)"   cargo clippy -p firmware --features strong-pin --
 run "clippy (strict-config fw)"  cargo clippy -p firmware --features strict-config -- -D warnings
 run "clippy (strict-config host)" cargo clippy -p rsk-mgmt -p rsk-otp -p rsk-fido -p rsk-vendor -p rsk-device --features strict-config --target "$HOST" --all-targets -- -D warnings
 run_tests "test (strict-config)"       cargo test -p rsk-mgmt -p rsk-otp -p rsk-fido -p rsk-vendor -p rsk-device --features strict-config --target "$HOST"
+run_tests "test (fido-ccid)"          cargo test -p rsk-device -p rsk-fido --features fido-ccid --target "$HOST"
+run_tests "test (fido-ccid strict-config)" cargo test -p rsk-device -p rsk-fido --features fido-ccid,strict-config --target "$HOST"
+run "clippy (fido-ccid fw)"    cargo clippy -p firmware --features fido-ccid -- -D warnings
 # `largeblob-ext` swaps the CTAP 2.1 large-blob design for the CTAP 2.3 extension
 # (§12.4 forbids serving both). Unlike the profiles above this one runs the WHOLE
 # suite: the tests that describe the withdrawn design are cfg'd out, everything
@@ -634,6 +637,8 @@ run "display code absent from default image" sh -c '
 # The test build: no BOOTSEL presence, so the automated suites don't hang on a touch.
 run "build firmware (test, --features no-touch)" cargo build --release -p firmware --features no-touch --target-dir target/no-touch
 run "firmware identity (no-touch)" python scripts/firmware_identity.py --test-no-touch --expect no-touch target/no-touch/thumbv8m.main-none-eabihf/release/firmware
+run "build firmware (fido-ccid)" cargo build --release -p firmware --features fido-ccid --target-dir target/fido-ccid
+run "firmware identity (fido-ccid)" python scripts/firmware_identity.py --expect fido-ccid target/fido-ccid/thumbv8m.main-none-eabihf/release/firmware
 # rsk-wipe bakes its erase length AND its LED wiring in at build time, and it is
 # the signed recovery hatch: build it for every board, so a change that stops
 # `BOARD` reaching it (which once left a 16 MB board's whole KV store intact behind

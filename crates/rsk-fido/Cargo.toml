@@ -38,6 +38,8 @@ rsk-fs = { workspace = true, features = ["test-util"] }
 rsk-devconf = { workspace = true, features = ["test-util"] }
 
 [features]
+# Advertise the optional CCID FIDO route; rsk-device forwards the same switch.
+fido-ccid = []
 # Verification-only α/domain/table surface used by the emulator trace and the
 # phase-5 Kani bridge. Additive and never enabled by the shipping firmware.
 assurance-trace = []

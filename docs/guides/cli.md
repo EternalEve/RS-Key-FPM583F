@@ -74,7 +74,7 @@ and the legacy `.#firmware` package retain the compatibility policy.
 | Write path | Compatibility build | `strict-config` build |
 |---|---|---|
 | CCID Management `WRITE CONFIG` (application mask / DeviceInfo) | no confirmation | physical approval |
-| FIDO vendor `CONFIG_WRITE` (DeviceInfo, USB identity / hardware, LED block), over HID or CCID | no confirmation | approval, plus a token with `acfg` permission when a clientPIN is set |
+| FIDO vendor `CONFIG_WRITE` (DeviceInfo, USB identity / hardware, LED block), over HID or opt-in `fido-ccid` | no confirmation | approval, plus a token with `acfg` permission when a clientPIN is set |
 | Raw CTAPHID management `0x43` | no confirmation | unsupported |
 | OTP DeviceInfo `0x15`, over keyboard HID or the OTP CCID applet | no confirmation | no-op; no record or programming-sequence change |
 | Rescue CCID hardware / identity write (`rsk hw`) | physical approval | physical approval |

@@ -2,7 +2,9 @@
 // Copyright (C) 2026 RS-Key contributors
 
 use super::*;
-use crate::tests::{Env, TestRng, VendorBoard, apdu, dev_conf, select, sw};
+use crate::tests::{Env, apdu, dev_conf, select, sw};
+#[cfg(feature = "fido-ccid")]
+use crate::tests::{TestRng, VendorBoard};
 #[cfg(not(feature = "strict-config"))]
 use crate::tests::{TruncatedScan, WriteStuck};
 #[cfg(not(feature = "strict-config"))]
@@ -98,7 +100,12 @@ fn every_applet_is_selectable_on_a_fresh_device() {
     let mut ccid = env.ccid();
     for (name, aid) in AIDS {
         let res = ccid.handle_apdu(&select(aid), 0).to_vec();
-        assert_eq!(sw(&res), rsk_sdk::Sw::OK, "{name} did not select");
+        let expected = if aid == rsk_fido::consts::FIDO_AID && !cfg!(feature = "fido-ccid") {
+            rsk_sdk::Sw::FILE_NOT_FOUND
+        } else {
+            rsk_sdk::Sw::OK
+        };
+        assert_eq!(sw(&res), expected, "{name}: unexpected selection status");
     }
 }
 
@@ -653,6 +660,7 @@ fn a_card_reset_drops_the_verified_pin_too() {
 // ── FIDO over CCID ──────────────────────────────────────────────────────────
 
 /// CTAP-over-ISO7816 (CTAP 2.1 §11.2.1): `80 10` carries one CTAP2 command.
+#[cfg(feature = "fido-ccid")]
 fn ctap_msg(body: &[u8]) -> Vec<u8> {
     apdu(0x80, 0x10, 0x00, 0x00, body)
 }
@@ -660,6 +668,7 @@ fn ctap_msg(body: &[u8]) -> Vec<u8> {
 /// Drive one command the way `CtapPcscDevice._chain_apdus` does: send it, then
 /// follow `61xx` with GET RESPONSE until the body is whole. A getInfo is ~400
 /// bytes, so nothing about this member is observable without it.
+#[cfg(feature = "fido-ccid")]
 fn exchange_chained(
     ccid: &mut CcidApplets<'_, rsk_fs::storage::ram::RamStorage, TestRng, VendorBoard>,
     command: &[u8],
@@ -680,8 +689,10 @@ fn exchange_chained(
 
 /// `getInfo` — the shortest CTAP2 command there is, and the one every host sends
 /// first.
+#[cfg(feature = "fido-ccid")]
 const GET_INFO: &[u8] = &[rsk_fido::consts::CTAP_GET_INFO];
 /// `clientPIN { pinUvAuthProtocol: 2, subCommand: getKeyAgreement }`.
+#[cfg(feature = "fido-ccid")]
 const GET_KEY_AGREEMENT: &[u8] = &[
     rsk_fido::consts::CTAP_CLIENT_PIN,
     0xA2,
@@ -692,6 +703,7 @@ const GET_KEY_AGREEMENT: &[u8] = &[
 ];
 
 #[test]
+#[cfg(feature = "fido-ccid")]
 fn selecting_fido_over_ccid_answers_the_u2f_version_string() {
     // `CtapPcscDevice._select` raises unless SELECT returns 9000, and sets its
     // NMSG (CTAP1) capability on exactly this body.
@@ -705,6 +717,7 @@ fn selecting_fido_over_ccid_answers_the_u2f_version_string() {
 }
 
 #[test]
+#[cfg(feature = "fido-ccid")]
 fn a_ctap2_command_over_ccid_reaches_the_real_applet() {
     let env = Env::new();
     let mut ccid = env.ccid();
@@ -731,6 +744,7 @@ fn a_ctap2_command_over_ccid_reaches_the_real_applet() {
 /// second per-boot `PIN_MISMATCH_LIMIT` budget, which is the part that matters and
 /// the part no cheap test can see — this is its observable shadow.
 #[test]
+#[cfg(feature = "fido-ccid")]
 fn both_transports_answer_from_one_session_state() {
     let env = Env::new();
     let mut ctap = env.ctap();
@@ -753,6 +767,7 @@ fn both_transports_answer_from_one_session_state() {
 }
 
 #[test]
+#[cfg(feature = "fido-ccid")]
 fn ccid_cannot_continue_an_assertion_opened_on_hid() {
     let env = Env::new();
     let mut ctap = env.ctap();
@@ -838,6 +853,7 @@ fn ccid_cannot_continue_an_assertion_opened_on_hid() {
 }
 
 #[test]
+#[cfg(feature = "fido-ccid")]
 fn u2f_over_ccid_answers_its_version_command() {
     let env = Env::new();
     let mut ccid = env.ccid();
@@ -857,6 +873,7 @@ fn u2f_over_ccid_answers_its_version_command() {
 }
 
 #[test]
+#[cfg(feature = "fido-ccid")]
 fn mse_ownership_is_stamped_by_cbor_msg_and_ccid_and_a_refusal_spends_it() {
     let env = Env::new();
     let mut ctap = env.ctap();
@@ -935,6 +952,7 @@ fn mse_ownership_is_stamped_by_cbor_msg_and_ccid_and_a_refusal_spends_it() {
 /// separately, so disabling one must not leave the other's commands reachable
 /// behind it — the cross-AID bypass in miniature, inside a single applet.
 #[test]
+#[cfg(feature = "fido-ccid")]
 fn disabling_one_fido_application_does_not_leave_the_other_reachable() {
     for (name, cap, probe) in [
         ("fido2", rsk_devconf::CAP_FIDO2, ctap_msg(GET_INFO)),
@@ -966,6 +984,7 @@ fn disabling_one_fido_application_does_not_leave_the_other_reachable() {
 }
 
 #[test]
+#[cfg(feature = "fido-ccid")]
 fn disabling_both_fido_applications_removes_the_aid() {
     let env = Env::new();
     let mut ccid = env.ccid();

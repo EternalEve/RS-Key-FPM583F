@@ -59,6 +59,12 @@ tools/emu/target/"$HOST"/debug/rsk-emu \
 The `fido-conformance` feature forwards to `rsk-fido/fido-conformance`, which
 uses the authenticator profile intended for the upstream FIDO corpus.
 
+FIDO over the card socket is off by default, matching firmware. Build with
+`--features fido-ccid` to restore it; other card applets and HID stay available.
+The fingerprint and biometric client runners explicitly enable it to exercise
+the dual-entry path. The opt-in path's known limitations are in the
+[FIDO guide](../../docs/guides/fido2.md).
+
 For the strict management-write profile, build with `--features strict-config`:
 
 ```bash

@@ -6,7 +6,7 @@ the design does and does not defend against, see the
 
 ## The big picture
 
-A composite USB device with three interfaces, eight smart-card applets and
+A composite USB device with three interfaces, smart-card applets and
 one storage layer. Day to day everything runs on one RP2350 core. The
 second wakes only to parallelize RSA keygen (below):
 

@@ -12,7 +12,7 @@ import sys
 MAGIC = b"RSKBUILD"
 VERSION = 1
 RECORD = struct.Struct("<8sIIII")
-FEATURES = ("no-touch", "fingerprint", "display", "strict-config")
+FEATURES = ("no-touch", "fingerprint", "display", "strict-config", "fido-ccid")
 PROFILES = {"default": 0, **{name: 1 << bit for bit, name in enumerate(FEATURES)}}
 NO_TOUCH = PROFILES["no-touch"]
 STRICT_CONFIG = PROFILES["strict-config"]

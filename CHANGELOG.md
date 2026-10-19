@@ -38,6 +38,13 @@ tag: the USB `bcdDevice` build counter (bumped on every behavior change), and
 
 ## [Unreleased]
 
+- **FIDO over CCID is opt-in:** the new `fido-ccid` Cargo feature defaults off
+  in firmware and the emulator. Default builds refuse the FIDO AID with `6A82`
+  and advertise only `usb` in GetInfo. HID FIDO2/U2F and the other CCID applets
+  remain available; stored credentials, PINs and fingerprint bindings are unchanged.
+  Rebuild with `--features fido-ccid` to restore the existing dual-transport path.
+  **bcdDevice → 0x09E6.**
+
 - Daily release packages use `strict-config`; the default Nix build is
   `firmware-daily`, with explicit `firmware-compat` and experimental
   `firmware-fingerprint-2mb` alternatives. Packaging checks the actual image's

@@ -442,9 +442,9 @@ needs only the identifiers above. RS-Key implements:
   from the *Begin* if it stalls. The same 30 s applies **between the fragments of a
   `largeBlobs` set**; there an abandoned transfer answers `CTAP2_ERR_INVALID_SEQ`
   and the previously stored array is left intact. `maxMsgSize` = `7609`.
-  `transportsForReset` (`0x1A`) is `["usb", "smart-card"]` — identical to
-  `transports` (`0x09`), because a reset is reachable exactly where the applet is,
-  and §5.2 routes the FIDO AID onto CCID as well as CTAPHID. It is an array of
+  `transportsForReset` (`0x1A`) is `["usb"]` by default, or
+  `["usb", "smart-card"]` with `fido-ccid` — identical to `transports` (`0x09`),
+  because a reset is reachable exactly where the applet is (§5.2). It is an array of
   `AuthenticatorTransport` strings, not a bit field. There is no `nfc`: no radio. `pinComplexityPolicy` (`0x1B`) is `true` only on a
   build that refuses a PIN beyond the length floor — the `strong-pin` and
   `fips-profile` images block a repeated code point and a ±1 run; the default
@@ -580,7 +580,8 @@ three control bytes; RS-Key accepts exactly those and answers `6A86`
 
 ### 5.2 CTAP over CCID
 
-The FIDO applet answers on the CCID interface as well as on CTAPHID, as ISO 7816
+The FIDO AID on CCID is disabled by default: SELECT returns `6A82`.
+Build with `--features fido-ccid` to enable the following ISO 7816
 APDUs — the encoding CTAP 2.1 §11.2.1 defines for ISO7816 readers, which
 `python-fido2`'s `CtapPcscDevice` (and therefore `ykman` over PC/SC) speaks
 unchanged. PC/SC does not distinguish an NFC reader from the device's own CCID
@@ -614,7 +615,7 @@ getInfo's `maxMsgSize` reports for CTAPHID. Commands stay well inside it; a
 response that does not fit comes back as a CTAP error rather than truncated. An
 ML-DSA credential's attestation does not fit and is CTAPHID-only in practice.
 
-**Both applications are gated separately.** One AID serves CTAP2 and U2F, and
+**With `fido-ccid`, both applications are gated separately.** One AID serves CTAP2 and U2F, and
 `ykman config usb --disable fido2` / `--disable u2f` name them apart, so the
 *commands* are gated rather than the SELECT: disabling one leaves the AID
 selectable for the other and answers the disabled half `6986`. With neither

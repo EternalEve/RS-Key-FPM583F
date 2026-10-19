@@ -1,5 +1,16 @@
 # Testing
 
+FIDO over CCID is disabled by default. The host gate checks that selecting its
+AID returns `6A82` while HID and the other CCID applets remain usable. The
+`test (fido-ccid)` and `test (fido-ccid strict-config)` rows explicitly restore
+the route and run the existing dual-entry regressions. The biometric client
+runners also opt in; `tests/42_fido_ccid.py` expects the route closed unless
+passed `--fido-ccid` against an enabled build.
+
+| Mutation | Actual gate row | Observed failure |
+|---|---|---|
+| FIDO applet selection remains unconditional | `test (host)` | Both switch regressions fail: SELECT returned `9000`, expected `6A82` (131 passed, 2 failed before adding the gate). |
+
 Several layers, fastest first. The protocol and applet crates are
 hardware-agnostic on purpose (only `firmware` touches the HAL), so everything
 except board bring-up is tested and fuzzed on the host. The device is reserved

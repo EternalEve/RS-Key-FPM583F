@@ -148,6 +148,7 @@ The same 40 P0-family rows, counted the other way round: per column rather than 
 | `firmware-16mb` | package | yes | 3 | 37 |
 | `firmware-strict-config` | package | yes | 3 | 37 |
 | `firmware-fingerprint-2mb` | package | yes | 3 | 37 |
+| `fido-ccid` | feature | no | 0 | 40 |
 | `keygen-bench` | feature | no | 3 | 37 |
 | `core1-stats` | feature | no | 3 | 37 |
 | `bench` | feature | no | 3 | 37 |
