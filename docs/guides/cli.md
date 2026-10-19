@@ -114,6 +114,7 @@ configuration. Keep a usable CCID management interface when changing the mask.
 | `secure-boot` | secure-boot provisioning + key rotation **(irreversible)** | [Production](../production.md), [OTP fuses](../otp-fuses.md) |
 | `otp` | burn + lock the at-rest master key (MKEK) into OTP **(irreversible)** | [OTP fuses](../otp-fuses.md) |
 | `fido` | FIDO2 management: `set-pin`, `list-passkeys`, `attestation` | [FIDO2](fido2.md), [Attestation](attestation.md) |
+| `fingerprint` | read volatile startup/UART diagnostics (`status`, CCID) | [FIDO2](fido2.md) |
 | `led` | LED color / brightness per device state | [LED](led.md) |
 | `openpgp` | OpenPGP applet utilities (e.g. `reset` to factory PINs) | [OpenPGP card](openpgp.md) |
 | `reboot` | reboot to the app or to BOOTSEL, over CCID | — |

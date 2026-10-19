@@ -15,8 +15,10 @@ from ccid import Card
 from ceremony import RelyingParty, set_pin
 from session import Reply
 from test_authorization import assertion, assert_signed, Finger
+from transport import OPERATION_TIMEOUT
 
 PERM = ClientPin.PERMISSION
+PRESENCE_OPERATION_TIMEOUT = 35  # Includes the production 30 s presence deadline.
 
 
 def calls(emu, command):
@@ -136,7 +138,8 @@ def test_bad_wire_results_cannot_create_uv_and_pin_still_verifies(wire_emulator,
     rp.register(emu, pin)
     enroll(emu, bio(emu, pin))
     emu.script.write_text(mode + "\n")
-    with emu.confirmations(Reply.WAIT):
+    with emu.confirmations(Reply.WAIT,
+            timeout=PRESENCE_OPERATION_TIMEOUT if mode == "nofinger" else OPERATION_TIMEOUT):
         refused(code, lambda: ClientPin(emu.ctap).get_uv_token(PERM.GET_ASSERTION, rp.id))
     if mode == "nofinger":
         assert ClientPin(emu.ctap).get_uv_retries() == 8
@@ -145,6 +148,37 @@ def test_bad_wire_results_cannot_create_uv_and_pin_still_verifies(wire_emulator,
         answer, digest = assertion(emu, emu.ctap, rp, "pin-token", pin)
     assert_signed(rp, answer, digest)
     assert calls(emu, 0x0121) == before
+
+
+def test_later_finger_after_module_no_finger_completes_the_same_uv_request(wire_emulator):
+    emu = wire_emulator
+    pin = set_pin(emu)
+    rp = RelyingParty()
+    rp.register(emu, pin)
+    enroll(emu, bio(emu, pin))
+    emu.script.write_text("nofinger\n")
+    before = calls(emu, 0x0121), calls(emu, 0x0122)
+    stop = threading.Event()
+
+    def contact():
+        deadline = time.monotonic() + 15
+        while not stop.wait(0.01) and time.monotonic() < deadline:
+            if calls(emu, 0x0122) > before[1]:
+                if not stop.wait(0.25):
+                    emu.script.write_text("present\n")
+                return
+
+    thread = threading.Thread(target=contact, daemon=True)
+    thread.start()
+    try:
+        with emu.confirmations(Reply.WAIT):
+            result, digest = assertion(emu, emu.ctap, rp, "direct", pin)
+        assert_signed(rp, result, digest)
+        assert ClientPin(emu.ctap).get_uv_retries() == 8
+        assert calls(emu, 0x0121) - before[0] == 2
+    finally:
+        stop.set()
+        thread.join(timeout=1)
 
 
 def test_unknown_save_is_not_repeated_and_restarts_as_unapproved(wire_emulator):

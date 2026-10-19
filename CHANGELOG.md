@@ -38,6 +38,19 @@ tag: the USB `bcdDevice` build counter (bumped on every behavior change), and
 
 ## [Unreleased]
 
+- **Fingerprint presence window:** a module `NO_FINGER` response waits for
+  later finger contact within the original 30 s CTAP deadline. It no longer
+  ends verification after the module's shorter capture window. Mismatches and
+  communication failures remain terminal; cancellation and retry accounting are
+  unchanged. **bcdDevice → 0x09E8.**
+
+- **Fingerprint startup:** keep the UART disconnected throughout the 200 ms
+  supply startup delay, then reset/enable it before the first bootstrap query.
+  UART initialization and receive failures remain explicit and never trigger an
+  automatic power cycle. Add the non-secret, volatile vendor `15` diagnostic
+  snapshot and `rsk fingerprint status`. Persistent PINs, credentials, templates
+  and OTP settings are unchanged. **bcdDevice → 0x09E7; rsk → 0.3.38.**
+
 - **FIDO over CCID is opt-in:** the new `fido-ccid` Cargo feature defaults off
   in firmware and the emulator. Default builds refuse the FIDO AID with `6A82`
   and advertise only `usb` in GetInfo. HID FIDO2/U2F and the other CCID applets

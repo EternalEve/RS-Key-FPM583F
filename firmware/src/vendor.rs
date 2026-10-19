@@ -69,6 +69,11 @@ pub fn reboot_pending() -> bool {
 pub struct VendorPlatform;
 
 impl rsk_vendor::Platform for VendorPlatform {
+    #[cfg(all(feature = "fingerprint", not(feature = "display")))]
+    fn fingerprint_status(&self) -> Option<[u8; rsk_vendor::fingerprint::STATUS_LEN]> {
+        Some(crate::fingerprint::status::snapshot())
+    }
+
     fn led_block(&self) -> Option<[u8; rsk_led::CONF_LEN]> {
         Some(crate::led::config_block())
     }

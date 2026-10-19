@@ -1451,7 +1451,7 @@ ARM_REQUIRED = ("pass", "fail")
 #: LOWERING IT IS ALSO RED, and not here — `test_the_record_vocabulary_is_ratcheted`
 #: pins it at `>= 13`, because this number is one line and a deletion that edits it
 #: in the same diff would otherwise cost a reviewer nothing to miss.
-BOARD_ROW_FLOOR = 13
+BOARD_ROW_FLOOR = 14
 
 
 def board_rows(ids):

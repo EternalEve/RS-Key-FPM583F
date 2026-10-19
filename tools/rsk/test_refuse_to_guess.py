@@ -33,7 +33,7 @@ sys.modules.setdefault("fido2", types.ModuleType("fido2"))
 
 import pytest  # noqa: E402
 
-from rsk import (audit, backup, ccid, common, fido, hw, inventory, led, lock,  # noqa: E402
+from rsk import (audit, backup, ccid, common, fido, fingerprint, hw, inventory, led, lock,  # noqa: E402
                  offboard, openpgp, otp)
 
 PKG = pathlib.Path(__file__).parent
@@ -66,6 +66,9 @@ SITES = {
         ("att_clear", "connect_fido", "True"),
         ("att_set_rpids", "connect_fido", "True"),
         ("att_status", "connect_fido", None),
+    ],
+    "fingerprint": [
+        ("run", "ccid.connect", "True"),
     ],
     "hw": [
         ("_run_ccid", "ccid.connect", "True"),
@@ -260,6 +263,7 @@ DRIVEN = [
      ("connect_fido", True)),
     (fido, ["fido", "attestation", "clear"], ("connect_fido", True)),
     (fido, ["fido", "attestation", "status"], ("connect_fido", False)),
+    (fingerprint, ["fingerprint", "status"], ("ccid.connect", True)),
     (hw, ["hw", "--product", "x"], ("ccid.connect", True)),
     (inventory, ["inventory", "verify"], ("connect_fido", True)),
     (hw, ["hw", "--transport", "fido", "--product", "x"], ("connect_fido", True)),

@@ -43,6 +43,10 @@ impl Platform for FullPlatform {
         Some([7u8; 32])
     }
 
+    fn fingerprint_status(&self) -> Option<[u8; fingerprint::STATUS_LEN]> {
+        Some([fingerprint::STATUS_VERSION, 3, 3, 6, 2, 3])
+    }
+
     fn request_reboot(&mut self, bootsel: bool) -> bool {
         self.reboots.push((bootsel,));
         true
@@ -98,6 +102,44 @@ fn counter_starts_at_zero_and_increments() {
     }
     let (_, body) = run(&mut app, &mut fs, &apdu(INS_GET, 0, 0, &[]));
     assert_eq!(body, 3u32.to_be_bytes(), "GET reads what INCREMENT stored");
+}
+
+#[test]
+fn fingerprint_status_is_an_ungated_snapshot_or_explicitly_unsupported() {
+    let presence = RefCell::new(Declining);
+    let mut full = VendorApplet::new(FullPlatform::default(), &presence);
+    let mut bare = VendorApplet::new(BarePlatform, &presence);
+    let mut fs = Fs::new(RamStorage::default());
+    assert_eq!(
+        run(&mut full, &mut fs, &apdu(INS_FINGERPRINT_STATUS, 0, 0, &[])),
+        (Sw::OK, vec![1, 3, 3, 6, 2, 3])
+    );
+    assert_eq!(
+        run(&mut bare, &mut fs, &apdu(INS_FINGERPRINT_STATUS, 0, 0, &[])),
+        (Sw::INS_NOT_SUPPORTED, vec![])
+    );
+    for (p1, p2, data, expected) in [
+        (1, 0, &[][..], Sw::INCORRECT_P1P2),
+        (0, 1, &[][..], Sw::INCORRECT_P1P2),
+        (0, 0, &[1][..], Sw::WRONG_LENGTH),
+    ] {
+        assert_eq!(
+            run(
+                &mut full,
+                &mut fs,
+                &apdu(INS_FINGERPRINT_STATUS, p1, p2, data)
+            ),
+            (expected, vec![])
+        );
+    }
+    let mut wrong_cla = apdu(INS_FINGERPRINT_STATUS, 0, 0, &[]);
+    wrong_cla[0] = 0x80;
+    assert_eq!(
+        run(&mut full, &mut fs, &wrong_cla),
+        (Sw::CLA_NOT_SUPPORTED, vec![])
+    );
+    assert_eq!(read_counter(&mut fs), 0);
+    assert!(full.platform.reboots.is_empty());
 }
 
 #[test]

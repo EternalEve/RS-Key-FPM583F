@@ -26,6 +26,8 @@ use rsk_led::{CONF_LEN, EF_LED_CONF};
 pub use rsk_sdk::{AlwaysConfirm, Confirm, Presence, UserPresence};
 use rsk_sdk::{Apdu, Applet, ResBuf, Sw};
 
+pub mod fingerprint;
+
 #[cfg(test)]
 #[path = "tests.rs"]
 mod tests;
@@ -54,6 +56,7 @@ const INS_CORE1_STATS: u8 = 0x12;
 const INS_KEYGEN_BENCH: u8 = 0x13;
 // LATENCY MICROBENCH (measurement builds only): times one EC / KDF hot path.
 const INS_BENCH: u8 = 0x14;
+const INS_FINGERPRINT_STATUS: u8 = 0x15;
 /// REBOOT. P1: 0 = warm reboot, 1 = secure reboot to BOOTSEL.
 const INS_REBOOT: u8 = 0x1F;
 
@@ -83,6 +86,10 @@ pub trait Platform {
 
     /// The second core's 32-byte statistics block.
     fn core1_stats(&self) -> Option<[u8; 32]> {
+        None
+    }
+
+    fn fingerprint_status(&self) -> Option<[u8; fingerprint::STATUS_LEN]> {
         None
     }
 
@@ -123,6 +130,25 @@ impl<'a, P: Platform> VendorApplet<'a, P> {
     /// and a helper hides them from it.
     fn confirmed(&self, confirm: Confirm<'_>) -> bool {
         self.presence.borrow_mut().request(confirm) == Presence::Confirmed
+    }
+
+    fn fingerprint_status(&self, apdu: &Apdu, res: &mut ResBuf) -> Sw {
+        if apdu.cla != 0 {
+            return Sw::CLA_NOT_SUPPORTED;
+        }
+        if apdu.p1 != 0 || apdu.p2 != 0 {
+            return Sw::INCORRECT_P1P2;
+        }
+        if apdu.nc != 0 {
+            return Sw::WRONG_LENGTH;
+        }
+        match self.platform.fingerprint_status() {
+            Some(status) => {
+                res.extend(&status);
+                Sw::OK
+            }
+            None => Sw::INS_NOT_SUPPORTED,
+        }
     }
 }
 
@@ -206,6 +232,7 @@ impl<S: Storage, P: Platform> Applet<Fs<S>> for VendorApplet<'_, P> {
             },
             INS_KEYGEN_BENCH => self.platform.keygen_bench(apdu.p1, apdu.data, res),
             INS_BENCH => self.platform.latency_bench(apdu.p1, apdu.p2, res),
+            INS_FINGERPRINT_STATUS => self.fingerprint_status(apdu, res),
             INS_REBOOT => {
                 // Just record the request — the reset runs after this SW_OK
                 // reaches the host.

@@ -46,6 +46,20 @@ poor-quality feedback and keeps prior good samples; retry the current sample.
 The module's percentage does not decide completion.
 Hardware delivery requires board and interoperability acceptance.
 
+During verification, a module `NO_FINGER` result keeps the current request
+waiting for finger contact within its original 30 s deadline. The driver queries
+presence before restarting that module capture; it does not restart the deadline
+or retry a fingerprint mismatch or communication failure. Keep the enrolled
+finger on the sensor until the verification result appears.
+
+With the external VCC switch configured, UART remains disconnected for the
+200 ms startup delay before initialization and the first module query. Use
+`rsk fingerprint status --json` to read the last startup/UART failure over CCID.
+The snapshot contains no fingerprint or PIN data and does not start the module.
+It does not establish supply voltage or successful matching. A failure still
+isolates the service without automatic retries; PIN and backup presence remain
+available. Firmware without this diagnostic returns unsupported.
+
 Cancelling fingerprint matching or capture ends that request. Once its dispatch
 finishes, a new request can proceed without a button wait or reboot; the sensor
 must still drain the cancelled operation before starting new work. A failed

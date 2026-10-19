@@ -1081,6 +1081,22 @@ the trusted-display UI state machines, whose complexity is a separate concern.
 
 ## Experimental biometric management
 
+Startup ordering tests run in the original `check.sh` `test (host)` row. They
+exercise two supply cycles, short deadlines, failed UART initialization and an
+initialization that finishes at the deadline. No query may escape before supply
+settling or after that deadline. These are software facts, not rail measurements.
+
+| Restored mutation (2026-10-20) | Gate result | Failure direction |
+|---|---|---|
+| Enable UART immediately after `power_on`, before the boot delay | `test (host)` exits 101 | Startup, short-deadline and initialization-failure tests reject the early enable at `now < ready_at` |
+| Return `InputTimeout` immediately after a module `NO_FINGER` response | `test (host)` exits 101 | Delayed-contact, original-deadline and cancellation tests reject an early terminal result instead of pending presence |
+
+The mutations were restored. Local raw evidence is
+`target/fpm-startup-2026-10-20/mutation-gate.log` and
+`target/fpm-wait-2026-10-20/mutation-gate.log`. The diagnostic-only physical HID
+suite is `tests/55_fingerprint_status.py`; the socket shim refuses it before any
+device enumeration. It does not exercise enrollment or claim a supply test.
+
 `nix develop -c ./scripts/bio-client.sh` exercises standard BioEnrollment against
 an isolated, independently persistent module fixture using python-fido2 2.2.1.
 The emulator CI's independent `biometrics` job runs the complete biometric and

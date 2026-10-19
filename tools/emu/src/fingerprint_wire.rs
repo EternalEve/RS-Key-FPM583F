@@ -29,6 +29,7 @@ enum Mode {
     MovementSmall,
     NoMatch,
     NoFinger,
+    FingerPresent,
     Wait,
     SaveLost,
     DeleteLost,
@@ -50,6 +51,7 @@ impl Mode {
             "movement-small" => Ok(Self::MovementSmall),
             "nomatch" => Ok(Self::NoMatch),
             "nofinger" => Ok(Self::NoFinger),
+            "present" => Ok(Self::FingerPresent),
             "wait" => Ok(Self::Wait),
             "save-lost" => Ok(Self::SaveLost),
             "delete-lost" => Ok(Self::DeleteLost),
@@ -167,7 +169,9 @@ impl Wire {
                 data.push(u8::from(self.read_inventory()?.contains(slot)));
                 data.extend_from_slice(&slot.to_be_bytes());
             }
-            0x0135 if params.is_empty() => data.push(u8::from(mode == Mode::NoLift)),
+            0x0135 if params.is_empty() => {
+                data.push(u8::from(matches!(mode, Mode::NoLift | Mode::FingerPresent)));
+            }
             0x0111 if params.len() == 1 && (1..=6).contains(&params[0]) => {
                 if params[0] == 1 {
                     self.samples = 0;

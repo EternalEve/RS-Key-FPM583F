@@ -96,6 +96,7 @@ UNSUPPORTED = {
     # Faking python-fido2's own transport would leave the suite testing this shim
     # instead of a third-party client, which is the whole point of it. Under
     # `--usbip` there is nothing to fake — they run against the real one.
+    "55_fingerprint_status": "driven through python-fido2's physical HID transport",
     "61_pqc_thirdparty_client": "driven through python-fido2's HID transport",
     "65_pqc_thirdparty_client65": "driven through python-fido2's HID transport",
     # Hardware by definition.

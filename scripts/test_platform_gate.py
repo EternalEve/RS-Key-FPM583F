@@ -658,6 +658,7 @@ def test_the_checkout_derives_what_it_is_measured_at():
         "board-only:51_secure_reboot",
         "board-only:53_ccid_pinpad",
         "board-only:54_sram_residue",
+        "board-only:55_fingerprint_status",
         "board-only:90_otp_mkek_migration",
     }, kinds["board-only"]
     assert set(kinds["model"]) == {
@@ -2071,7 +2072,7 @@ def test_the_record_vocabulary_is_ratcheted():
     assert platform_gate.BOARD_RESULT_FIELDS == RESULT_FIELDS
     assert platform_gate.BOARD_SHA.pattern == r"[0-9a-f]{64}"
     assert set(platform_gate.OUTCOME_STATUS) == {"pass", "fail"}
-    assert platform_gate.BOARD_ROW_FLOOR >= 13, platform_gate.BOARD_ROW_FLOOR
+    assert platform_gate.BOARD_ROW_FLOOR >= 14, platform_gate.BOARD_ROW_FLOOR
     # The arm vocabulary is BOARD_OUTCOMES', less the one state that has no arm.
     # ARM_REQUIRED is load-bearing twice: it is the list of arms a record owes,
     # and it is what holds `pass` and `fail` out of `check_board_records`'

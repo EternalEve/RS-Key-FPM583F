@@ -32,6 +32,158 @@ fn settle<U: Stream>(driver: &mut Driver<U, Clock>) {
     panic!("shutdown did not finish within its budget");
 }
 
+struct StartingWire {
+    wire: Wire,
+    clock: Clock,
+    ready_at: u64,
+    accesses: Rc<RefCell<Vec<u64>>>,
+    uart_enabled: bool,
+    fail_enable: bool,
+    enable_delay: u64,
+}
+
+impl Stream for StartingWire {
+    fn read(&mut self, bytes: &mut [u8]) -> Poll<Result<usize, crate::fingerprint_io::Fault>> {
+        let now = self.clock.0.get();
+        self.accesses.borrow_mut().push(now);
+        if now < self.ready_at || !self.uart_enabled {
+            return Poll::Ready(Err(crate::fingerprint_io::Fault::Communication));
+        }
+        self.wire.read(bytes)
+    }
+    fn write(&mut self, bytes: &[u8]) -> Poll<Result<usize, crate::fingerprint_io::Fault>> {
+        self.wire.write(bytes)
+    }
+    fn flush(&mut self) -> Poll<Result<(), crate::fingerprint_io::Fault>> {
+        self.wire.flush()
+    }
+    fn busy(&self) -> bool {
+        self.wire.busy()
+    }
+    fn power_controlled(&self) -> bool {
+        true
+    }
+    fn power_on(&mut self) -> Result<(), crate::fingerprint_io::Fault> {
+        self.ready_at = self.clock.0.get() + BOOT_DELAY_MS;
+        self.uart_enabled = false;
+        self.wire.power_on()
+    }
+    fn enable_uart(&mut self) -> Result<(), crate::fingerprint_io::Fault> {
+        assert!(self.clock.0.get() >= self.ready_at);
+        if self.fail_enable {
+            return Err(crate::fingerprint_io::Fault::Communication);
+        }
+        self.clock.0.set(self.clock.0.get() + self.enable_delay);
+        self.uart_enabled = true;
+        Ok(())
+    }
+    fn power_off(&mut self) -> Result<(), crate::fingerprint_io::Fault> {
+        self.wire.power_off()
+    }
+}
+
+#[test]
+fn supply_startup_finishes_before_the_first_uart_access() {
+    let (base, module, clock) = driver();
+    let accesses = Rc::new(RefCell::new(Vec::new()));
+    let wire = StartingWire {
+        wire: base.stream,
+        clock: clock.clone(),
+        ready_at: 0,
+        accesses: accesses.clone(),
+        uart_enabled: false,
+        fail_enable: false,
+        enable_delay: 0,
+    };
+    let mut driver = Driver::new(wire, clock);
+    for _ in 0..2 {
+        accesses.borrow_mut().clear();
+        let started = driver.now_ms();
+        assert_eq!(
+            driver.prepare(started + 30_000),
+            Ok(()),
+            "a valid module must boot without reading its unsettled UART"
+        );
+        assert!(!accesses.borrow().is_empty());
+        assert!(
+            accesses
+                .borrow()
+                .iter()
+                .all(|t| *t >= started + BOOT_DELAY_MS)
+        );
+        assert!(module.borrow().calls(0x0203) > 0);
+        driver.release(false);
+        settle(&mut driver);
+        assert_eq!(driver.power_phase(), Phase::Off);
+    }
+}
+
+#[test]
+fn failed_uart_initialization_never_sends_or_automatically_restarts() {
+    let (base, module, clock) = driver();
+    let wire = StartingWire {
+        wire: base.stream,
+        clock: clock.clone(),
+        ready_at: 0,
+        accesses: Rc::new(RefCell::new(Vec::new())),
+        uart_enabled: false,
+        fail_enable: true,
+        enable_delay: 0,
+    };
+    let mut driver = Driver::new(wire, clock);
+    for _ in 0..2 {
+        assert_eq!(driver.prepare(30_000), Err(rsk_fido::CtapError::Other));
+        assert_eq!(driver.power_phase(), Phase::Unavailable);
+        assert!(module.borrow().commands.is_empty());
+        assert_eq!(module.borrow().cycles, 1);
+        assert_eq!(module.borrow().cuts, 0);
+        assert!(driver.stream.accesses.borrow().is_empty());
+    }
+}
+
+#[test]
+fn a_short_request_deadline_does_not_enable_uart_during_the_supply_delay() {
+    let (base, module, clock) = driver();
+    let wire = StartingWire {
+        wire: base.stream,
+        clock: clock.clone(),
+        ready_at: 0,
+        accesses: Rc::new(RefCell::new(Vec::new())),
+        uart_enabled: false,
+        fail_enable: false,
+        enable_delay: 0,
+    };
+    let mut driver = Driver::new(wire, clock);
+    assert_eq!(
+        driver.prepare(BOOT_DELAY_MS / 2),
+        Err(rsk_fido::CtapError::UserActionTimeout)
+    );
+    assert!(!driver.stream.uart_enabled);
+    assert!(driver.stream.accesses.borrow().is_empty());
+    assert!(module.borrow().commands.is_empty());
+    assert_eq!(module.borrow().cuts, 0);
+}
+
+#[test]
+fn uart_initialization_reaching_the_deadline_does_not_send_a_boot_query() {
+    let (base, module, clock) = driver();
+    let wire = StartingWire {
+        wire: base.stream,
+        clock: clock.clone(),
+        ready_at: 0,
+        accesses: Rc::new(RefCell::new(Vec::new())),
+        uart_enabled: false,
+        fail_enable: false,
+        enable_delay: BOOT_TIMEOUT_MS - BOOT_DELAY_MS,
+    };
+    let mut driver = Driver::new(wire, clock);
+    assert_eq!(driver.prepare(30_000), Err(rsk_fido::CtapError::Other));
+    assert_eq!(driver.power_phase(), Phase::Unavailable);
+    assert!(driver.stream.accesses.borrow().is_empty());
+    assert!(module.borrow().commands.is_empty());
+    assert_eq!(module.borrow().cuts, 0);
+}
+
 struct LateWire {
     wire: Wire,
     clock: Clock,

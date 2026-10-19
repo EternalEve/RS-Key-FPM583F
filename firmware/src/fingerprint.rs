@@ -14,7 +14,11 @@ use embassy_rp::{Peri, bind_interrupts};
 use embedded_io_async::{Read, Write};
 use rsk_device::fingerprint_driver::{Driver, Runtime};
 use rsk_device::fingerprint_io::{Fault, SERVICE_INTERVAL_MS, Stream};
+use rsk_vendor::fingerprint::{Stage, UartFault};
 use static_cell::StaticCell;
+
+#[path = "fingerprint_status.rs"]
+pub(crate) mod status;
 
 const BAUD: u32 = 57_600;
 const TX_BYTES: usize = 128;
@@ -43,6 +47,10 @@ pub struct Uart {
 
 impl Uart {
     fn enable(&mut self) -> Result<(), Fault> {
+        if self.active.is_some() {
+            return Ok(());
+        }
+        status::stage(Stage::UartStarting);
         rp_pac::RESETS.reset().modify(|w| w.set_uart0(false));
         const RESET_POLLS: usize = 1_024;
         for _ in 0..RESET_POLLS {
@@ -58,10 +66,12 @@ impl Uart {
                     &mut *self.rx_bytes,
                     config,
                 ));
+                status::stage(Stage::UartReady);
                 return Ok(());
             }
             cortex_m::asm::nop();
         }
+        status::uart_fault(UartFault::Reset);
         Err(Fault::Communication)
     }
 
@@ -81,24 +91,39 @@ impl Uart {
     }
 }
 
+fn uart_error(error: embassy_rp::uart::Error) -> Fault {
+    let fault = match error {
+        embassy_rp::uart::Error::Overrun => UartFault::Overrun,
+        embassy_rp::uart::Error::Break => UartFault::Break,
+        embassy_rp::uart::Error::Parity => UartFault::Parity,
+        embassy_rp::uart::Error::Framing => UartFault::Framing,
+        _ => UartFault::Unknown,
+    };
+    status::uart_fault(fault);
+    Fault::Communication
+}
+
 impl Stream for Uart {
     fn read(&mut self, bytes: &mut [u8]) -> Poll<Result<usize, Fault>> {
         let Some(uart) = self.active.as_mut() else {
+            status::uart_fault(UartFault::Inactive);
             return Poll::Ready(Err(Fault::Communication));
         };
-        poll_once(Read::read(uart, bytes)).map(|r| r.map_err(|_| Fault::Communication))
+        poll_once(Read::read(uart, bytes)).map(|r| r.map_err(uart_error))
     }
     fn write(&mut self, bytes: &[u8]) -> Poll<Result<usize, Fault>> {
         let Some(uart) = self.active.as_mut() else {
+            status::uart_fault(UartFault::Inactive);
             return Poll::Ready(Err(Fault::Communication));
         };
-        poll_once(Write::write(uart, bytes)).map(|r| r.map_err(|_| Fault::Communication))
+        poll_once(Write::write(uart, bytes)).map(|r| r.map_err(uart_error))
     }
     fn flush(&mut self) -> Poll<Result<(), Fault>> {
         let Some(uart) = self.active.as_mut() else {
+            status::uart_fault(UartFault::Inactive);
             return Poll::Ready(Err(Fault::Communication));
         };
-        poll_once(Write::flush(uart)).map(|r| r.map_err(|_| Fault::Communication))
+        poll_once(Write::flush(uart)).map(|r| r.map_err(uart_error))
     }
     fn busy(&self) -> bool {
         self.active.as_ref().is_some_and(BufferedUart::busy)
@@ -111,6 +136,10 @@ impl Stream for Uart {
             return Err(Fault::Communication);
         }
         self.power.as_mut().ok_or(Fault::Communication)?.set_low();
+        status::supply_starting();
+        Ok(())
+    }
+    fn enable_uart(&mut self) -> Result<(), Fault> {
         self.enable()
     }
     fn power_off(&mut self) -> Result<(), Fault> {
@@ -121,6 +150,7 @@ impl Stream for Uart {
         self.tx_bytes.fill(0);
         self.rx_bytes.fill(0);
         self.power.as_mut().ok_or(Fault::Communication)?.set_high();
+        status::stage(Stage::Off);
         Ok(())
     }
 }
@@ -145,6 +175,13 @@ impl Runtime for Board {
     }
     fn end(&mut self) {
         crate::presence::fingerprint_processing(false);
+    }
+    fn failed(
+        &mut self,
+        request: rsk_device::fingerprint_protocol::Request,
+        failure: rsk_fido::fingerprint::Failure,
+    ) {
+        status::driver_fault(request.command(), failure);
     }
 }
 

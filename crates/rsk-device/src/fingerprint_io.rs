@@ -28,6 +28,10 @@ pub trait Stream {
     fn power_on(&mut self) -> Result<(), Fault> {
         Ok(())
     }
+    /// Called after the boot delay, before any UART access; already enabled is OK.
+    fn enable_uart(&mut self) -> Result<(), Fault> {
+        Ok(())
+    }
     fn power_off(&mut self) -> Result<(), Fault> {
         Ok(())
     }

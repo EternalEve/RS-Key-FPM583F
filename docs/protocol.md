@@ -781,6 +781,10 @@ codes and invalid frames remain errors.
 
 With an opt-in VCC control pin, normal power-off means the service can start on
 demand, and does not change GetInfo's configured UV or management capabilities.
+UART stays disconnected during the 200 ms supply startup delay. Only after that
+delay and within the existing deadline does the adapter reset/enable UART and
+issue its bootstrap count query. UART errors remain failures; startup does not
+discard malformed command replies or retry failed writes.
 Only actual module work wakes it: inventory, verification, authorized management
 and Reset. Bootstrap and consecutive operations share the request's deadline;
 startup does not spend a UV attempt. Authentication and enrollment/token expiry
@@ -1086,11 +1090,31 @@ per device status), persisted in flash and applied immediately. Source:
 | `02` | — | — | — | counter (BE4) | GET test counter |
 | `10` | brightness `0..255` | `color \| steady \| status<<4` | `[effect[, speed]]` opt. | — | SET LED for one status |
 | `11` | `00` | `00` | — | 17-byte config block | GET LED config |
+| `15` | `00` | `00` | — | 6-byte volatile diagnostic snapshot | Fingerprint startup/UART status; `6D00` without a fingerprint adapter |
 | `1F` | `00`/`01` | `00` | — | — | REBOOT (warm / BOOTSEL). `01` is user-presence-gated (`6985` if declined; see §7) |
 
 `INS 12` (CORE1_STATS) and `INS 13` (KEYGEN_BENCH) exist only in the measurement
 builds that ask for them (`--features core1-stats` / `keygen-bench`); a shipped
 image answers `6D00`, and neither is part of the stable surface.
+
+**Fingerprint status `0x15`** is a read-only snapshot over CCID or CTAPHID_MSG.
+It neither powers the module, reads UART/OTP/Flash nor requests presence. Nonzero
+P1/P2 returns `6A86`; a request body returns `6700`. The six response bytes are
+`[version=1, adapter_stage, uart_fault, last_driver_fault, command_hi, command_lo]`.
+The command contains only its two-byte operation ID, never slot/sample/template,
+PIN, key or credential data. The snapshot is volatile and resets at MCU boot;
+a new power-on clears the previous faults. Reading does not clear it.
+
+| Field | Values |
+|---|---|
+| adapter_stage | `0` off; `1` supply starting; `2` UART starting; `3` UART ready |
+| uart_fault | `0` none; `1` reset incomplete; `2` overrun; `3` break; `4` parity; `5` framing; `6` inactive; `7` unknown UART error |
+| last_driver_fault | `0` none; `1` unavailable; `2` no match; `3` input timeout; `4` timeout; `5` declined; `6` communication |
+
+These are adapter observations, not a voltage measurement or a UV result. A
+recorded no-match need not mean the service is unavailable. The host command is
+`rsk fingerprint status [--json]` over CCID; `tests/55_fingerprint_status.py`
+checks the same snapshot over HID. Older firmware returns `6D00`.
 
 **SET LED `0x10` gating:** ungated by default (like the rest of the config surface),
 **user-presence-gated under `strict-config`** — the FIDO twin

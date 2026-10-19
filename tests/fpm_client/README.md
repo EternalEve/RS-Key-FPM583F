@@ -31,6 +31,11 @@ samples through a retry, final save and directory authorization. Save/delete
 response loss preserves the production pending/deleting recovery boundaries;
 the fixture never writes main-controller authorization records.
 
+Verification also covers a module `NO_FINGER` result followed by later contact
+in the same CTAP request: the script changes from `nofinger` to `present` only
+after the first match-result query. The response must carry UV and a valid
+signature, and successful verification must leave eight UV retries.
+
 Logs contain module command IDs, test results and owned paths. Synthetic store
 and inventory files are confined to the runner's temporary session. These are
 software vectors, not hardware captures or evidence of physical USB, touch,

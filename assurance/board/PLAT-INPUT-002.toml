@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 RS-Key contributors
+
+assumption = "PLAT-INPUT-002"
+method = "Read tests/55_fingerprint_status.py over the board's physical HID interface at stable idle checkpoints: before any module request, after a successful startup and inventory, and after a controlled UART fault on an isolated fixture. Record the switched VCC and UART independently alongside the host snapshots. Repeat the read while the adapter remains in the same stable state. The script reads the cache only; the operator supplies the independent observations and fault fixture."
+boot_config = "The fingerprint,strict-config image for RP2350-Zero-CM with 2MB Flash and 896KB KVMAIN, UART GP0/GP1, active-high touch GP2, active-low external VCC switch GP3 and continuously supplied V_TOUCH. Identify the board and exact UF2 hash in the result. Do not use no-touch, fake OTP or a display build."
+expected = "PASS = the pre-request snapshot reports off while independently observed VCC remains off across repeated reads; normal inventory succeeds with UART enabled only after the startup delay; a controlled UART fault is independently observed and reported by the matching fault code; repeated reads in a stable state preserve that fault and do not start another power cycle. FAIL = a reproducible mismatch between the snapshot and independent observations, a read that wakes the module, or a stable fault cleared by reading. INCONCLUSIVE = a valid reply without independent supply and UART observations, an uncontrolled fault, missing image identity, or a state transition during the repeated-read comparison. A successful inventory alone does not establish this criterion or biometric verification."
+outcome = "planned"
+board = ""
+stepping = ""
+firmware_sha256 = ""
+first_boot_capture = ""
+actual = ""

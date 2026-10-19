@@ -172,6 +172,16 @@ failure_direction = "security: a verify that does not reach the retry ladder is 
 covers = ["board-only:53_ccid_pinpad"]
 supports = ["SEC-LAT-002"]
 
+[[assumption]]
+id = "PLAT-INPUT-002"
+class = "input"
+statement = "The fingerprint diagnostic snapshot read over physical CTAPHID_MSG reflects the adapter's actual startup and UART fault state, and repeated reads do not wake the module or clear a recorded fault."
+discharge = "Run tests/55_fingerprint_status.py on the fingerprint build before module work and after a normal startup and a controlled UART fault. Compare the snapshots with independent switched-supply and UART observations, following assurance/board/PLAT-INPUT-002.toml. A valid six-byte reply alone checks transport and decoding, not electrical state, fault attribution or biometric verification."
+discharge_owner = "maintainer"
+status = "pending"
+failure_direction = "diagnostic: a stale or misattributed snapshot can misdirect hardware troubleshooting; its contents do not grant user verification"
+covers = ["board-only:55_fingerprint_status"]
+
 # ---- The tools the evidence is taken with ------------------------------------
 
 [[assumption]]

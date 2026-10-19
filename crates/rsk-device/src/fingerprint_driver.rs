@@ -27,6 +27,7 @@ pub trait Runtime {
     fn processing(&mut self) {}
     fn waiting(&mut self, _waiting: bool) {}
     fn end(&mut self) {}
+    fn failed(&mut self, _request: Request, _failure: Failure) {}
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -51,6 +52,7 @@ enum Step {
     Match,
     MatchResult,
     Finger,
+    FingerPresent,
     Capture(u8),
     CaptureResult,
     Save,
@@ -140,7 +142,7 @@ impl<U: Stream, C: Runtime> Driver<U, C> {
             Step::Sleep => Request::Sleep,
             Step::Match => Request::Match,
             Step::MatchResult => Request::MatchResult,
-            Step::Finger => Request::Finger,
+            Step::Finger | Step::FingerPresent => Request::Finger,
             Step::Capture(n) => Request::Capture(n),
             Step::CaptureResult => Request::CaptureResult,
             Step::Save => Request::Save(self.temporary.map_or(u16::MAX, |t| t.slot)),
@@ -157,13 +159,15 @@ impl<U: Stream, C: Runtime> Driver<U, C> {
     }
 
     fn schedule(&mut self, step: Step, delay: u64) {
-        self.runtime.waiting(matches!(step, Step::Finger));
+        self.runtime
+            .waiting(matches!(step, Step::Finger | Step::FingerPresent));
         self.step = step;
         self.exchange = None;
         self.due_ms = self.runtime.now_ms().saturating_add(delay);
     }
 
     fn fail(&mut self, failure: Failure, terminal: bool) {
+        self.runtime.failed(self.wire_request(), failure);
         self.terminal = terminal;
         self.healthy &= terminal;
         if !self.healthy {
@@ -207,7 +211,7 @@ impl<U: Stream, C: Runtime> Driver<U, C> {
         if !self.healthy || self.terminal {
             return;
         }
-        let now_ms = self.runtime.now_ms();
+        let mut now_ms = self.runtime.now_ms();
         if let Lifecycle::Active(attempt) = self.operations.state()
             && (now_ms < attempt.started_ms || now_ms >= self.deadline_ms(attempt.deadline_ms))
         {
@@ -226,6 +230,25 @@ impl<U: Stream, C: Runtime> Driver<U, C> {
             return;
         }
         if self.exchange.is_none() {
+            if matches!(self.step, Step::Boot) {
+                // RX follows the switched rail and must not sample its startup ramp.
+                if self.stream.enable_uart().is_err() {
+                    self.fail(Failure::Communication, false);
+                    return;
+                }
+                let initialized_ms = self.runtime.now_ms();
+                if initialized_ms < now_ms
+                    || initialized_ms >= self.deadline_ms(self.power.deadline_ms)
+                {
+                    self.fail(Failure::Timeout, false);
+                    return;
+                }
+                now_ms = initialized_ms;
+                self.idle_input();
+                if !self.healthy {
+                    return;
+                }
+            }
             self.last_progress = Progress {
                 sent: 0,
                 wire_complete: false,
@@ -276,6 +299,7 @@ impl<U: Stream, C: Runtime> Driver<U, C> {
                     | Step::SaveResult
                     | Step::DeleteResult
                     | Step::Finger
+                    | Step::FingerPresent
                     | Step::CountBefore
                     | Step::CountAfter
                     | Step::Slot(_)
@@ -324,6 +348,10 @@ impl<U: Stream, C: Runtime> Driver<U, C> {
                 }));
             }
             (Step::Finger, Data::Finger(true)) => self.schedule(Step::Finger, QUERY_INTERVAL_MS),
+            (Step::FingerPresent, Data::Finger(false)) => {
+                self.schedule(Step::FingerPresent, QUERY_INTERVAL_MS);
+            }
+            (Step::FingerPresent, Data::Finger(true)) => self.schedule(Step::Match, 0),
             (Step::Finger, Data::Finger(false)) => {
                 let step = if matches!(self.purpose, Purpose::Verify) {
                     Step::Match
@@ -447,20 +475,22 @@ impl<U: Stream, C: Runtime> Driver<U, C> {
                 return;
             }
         }
-        let failure =
-            if matches!(self.step, Step::MatchResult) && completion == Completion::NO_FINGER {
-                if let Lifecycle::Active(attempt) = self.operations.state() {
-                    self.operations
-                        .mark_matching(attempt, Matching::NotAttempted);
-                }
-                Failure::InputTimeout
-            } else if matches!(self.step, Step::MatchResult)
-                && matches!(completion.0, 9 | 10 | 0x0e | 0x10)
-            {
-                Failure::NoMatch
-            } else {
-                Failure::Communication
-            };
+        if matches!(self.step, Step::MatchResult) && completion == Completion::NO_FINGER {
+            if let Lifecycle::Active(attempt) = self.operations.state() {
+                self.operations
+                    .mark_matching(attempt, Matching::NotAttempted);
+            }
+            // The module's capture window can end before CTAP's presence deadline.
+            self.schedule(Step::FingerPresent, QUERY_INTERVAL_MS);
+            return;
+        }
+        let failure = if matches!(self.step, Step::MatchResult)
+            && matches!(completion.0, 9 | 10 | 0x0e | 0x10)
+        {
+            Failure::NoMatch
+        } else {
+            Failure::Communication
+        };
         self.fail(failure, true);
     }
 
@@ -588,13 +618,8 @@ impl<U: Stream, C: Runtime> Sensor for Driver<U, C> {
         if self.power.phase() == Phase::Off || !self.healthy {
             return;
         }
-        if self.power.phase() == Phase::Starting {
-            if self.exchange.is_none() {
-                self.idle_input();
-            }
-            self.pump();
-        } else if matches!(self.operations.state(), Lifecycle::Draining { .. })
-            || self.power.phase() == Phase::Stopping
+        if matches!(self.power.phase(), Phase::Starting | Phase::Stopping)
+            || matches!(self.operations.state(), Lifecycle::Draining { .. })
         {
             self.pump();
         } else if self.operations.state() == Lifecycle::Idle && self.healthy {

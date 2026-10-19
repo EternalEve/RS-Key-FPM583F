@@ -4,6 +4,103 @@
 use super::*;
 use crate::fingerprint_driver_fixture::{Clock, Wire, driver, response};
 
+#[test]
+fn no_finger_waits_for_later_contact_within_the_same_attempt() {
+    let (mut driver, module, clock) = driver();
+    boot(&mut driver);
+    module.borrow_mut().match_code = 8;
+    let attempt = driver.start(1).unwrap();
+    for _ in 0..4_000 {
+        assert!(
+            driver.poll().is_pending(),
+            "module no-finger must not terminate the host's presence window"
+        );
+        driver.wait();
+    }
+    assert!(clock.0.get() < attempt.deadline_ms);
+    assert_eq!(driver.matching(), Matching::NotAttempted);
+    assert_eq!(module.borrow().calls(0x0121), 1);
+    module.borrow_mut().finger_present = true;
+    module.borrow_mut().match_code = 0;
+    for _ in 0..2_000 {
+        if let Poll::Ready(observation) = driver.poll() {
+            assert_eq!(observation.attempt, attempt);
+            assert!(observation.result.is_ok());
+            driver.finish(attempt);
+            assert_eq!(module.borrow().calls(0x0121), 2);
+            return;
+        }
+        driver.wait();
+    }
+    panic!("later finger contact did not complete the original attempt");
+}
+
+#[test]
+fn no_finger_wait_keeps_the_original_deadline_without_reissuing_match() {
+    let (mut driver, module, clock) = driver();
+    boot(&mut driver);
+    module.borrow_mut().match_code = 8;
+    let attempt = driver.start(1).unwrap();
+    for _ in 0..30_000 {
+        assert!(driver.poll().is_pending());
+        driver.wait();
+    }
+    let commands = module.borrow().commands.len();
+    assert_eq!(clock.0.get(), attempt.deadline_ms);
+    let Poll::Ready(observation) = driver.poll() else {
+        panic!("original presence deadline was extended");
+    };
+    assert_eq!(observation.attempt, attempt);
+    assert_eq!(observation.result, Err(Failure::Timeout));
+    assert_eq!(driver.matching(), Matching::NotAttempted);
+    assert_eq!(module.borrow().calls(0x0121), 1);
+    assert_eq!(module.borrow().commands.len(), commands);
+}
+
+#[test]
+fn cancelled_no_finger_wait_does_not_start_another_match() {
+    let (mut driver, module, _) = driver();
+    boot(&mut driver);
+    module.borrow_mut().match_code = 8;
+    let attempt = driver.start(1).unwrap();
+    for _ in 0..2_000 {
+        assert!(driver.poll().is_pending());
+        if matches!(driver.step, Step::FingerPresent) && driver.exchange.is_none() {
+            driver.finish(attempt);
+            assert!(driver.ready());
+            assert_eq!(module.borrow().calls(0x0121), 1);
+            for _ in 0..500 {
+                assert!(driver.poll().is_pending());
+                driver.wait();
+            }
+            assert_eq!(module.borrow().calls(0x0121), 1);
+            return;
+        }
+        driver.wait();
+    }
+    panic!("no-finger wait was not reached");
+}
+
+#[test]
+fn a_fingerprint_mismatch_is_not_retried_as_absence() {
+    let (mut driver, module, _) = driver();
+    boot(&mut driver);
+    module.borrow_mut().match_code = 9;
+    let attempt = driver.start(1).unwrap();
+    for _ in 0..2_000 {
+        if let Poll::Ready(observation) = driver.poll() {
+            assert_eq!(observation.attempt, attempt);
+            assert_eq!(observation.result, Err(Failure::NoMatch));
+            assert_eq!(module.borrow().calls(0x0121), 1);
+            assert_eq!(module.borrow().calls(0x0135), 1);
+            driver.finish(attempt);
+            return;
+        }
+        driver.wait();
+    }
+    panic!("mismatch was hidden by another presence wait");
+}
+
 fn boot(driver: &mut Driver<Wire, Clock>) {
     for _ in 0..500 {
         driver.service_idle();
