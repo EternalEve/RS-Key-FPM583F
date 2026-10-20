@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 RS-Key contributors
+
+assumption = "PLAT-INPUT-003"
+method = "Run tests/50_user_presence_button.py --popup twice, pressing and releasing only BOOTSEL after UPNEEDED. Run --mode cancel and --mode timeout with both inputs untouched, then repeat the button check to establish recovery. Repeat the sequence for independently observed low and high TOUCHOUT levels on a separately authorized fixture; do not short a driven sensor output. Capture host results, operator actions and signal observations. These requests use authenticatorSelection only and do not create credentials or attempt a PIN."
+boot_config = "Fingerprint,strict-config for RP2350-Zero-CM, 2MB Flash, 896KB KVMAIN, BOOTSEL presence, GP2 active-high TOUCHOUT and GP3 active-low external VCC control. Record the board, stepping, bcdDevice and exact UF2 hash. No no-touch or fake-OTP features. Identify which TOUCHOUT condition each run exercised."
+expected = "PASS = both TOUCHOUT conditions preserve UPNEEDED until a fresh physical press, each observed BOOTSEL press returns CTAP 0x00, CANCEL returns 0x2D within 5 s of transmission, no-input timeout returns 0x2F at the 30 s deadline, and a subsequent prompt still requires fresh presence. FAIL = a confirmed physical press is ignored, cancellation or timeout produces no final response, or a new prompt succeeds with both inputs untouched. INCONCLUSIVE = missing image identity, missing operator timing, unobserved TOUCHOUT level, absent UPNEEDED, or an uncontrolled signal change during the check."
+outcome = "planned"
+board = ""
+stepping = ""
+firmware_sha256 = ""
+first_boot_capture = ""
+actual = ""

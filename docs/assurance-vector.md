@@ -216,6 +216,7 @@ Three spellings of "not current", which used to sit on two different pages and i
 | platform | `PLAT-OTP-001` | OTP read permissions, lock state and the chaffing layout behave as the |
 | platform | `PLAT-INPUT-001` | A PC/SC reader's `FEATURE_VERIFY_PIN_DIRECT` layer carries the PIN to  |
 | platform | `PLAT-INPUT-002` | The fingerprint diagnostic snapshot read over physical CTAPHID_MSG ref |
+| platform | `PLAT-INPUT-003` | On a fingerprint-touch build, opening a consent window leaves BOOTSEL  |
 | platform | `PLAT-TOOL-001` | A green `tools/emu` run is a protocol result, not a device result: the |
 | platform | `PLAT-TOOL-002` | `tools/emu` implements the same authorization gates as the firmware, s |
 | platform | `PLAT-TOOL-003` | Kani/CBMC is sound for the arithmetic its harnesses bound, and the sol |

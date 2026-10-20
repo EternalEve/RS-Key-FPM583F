@@ -38,6 +38,12 @@ tag: the USB `bcdDevice` build counter (bumped on every behavior change), and
 
 ## [Unreleased]
 
+- **BOOTSEL with fingerprint touch:** keep the GPIO interrupt at the presence
+  task executor's priority so opening a touch window cannot stall button
+  sampling, cancellation or the 30 s deadline. Fresh TOUCHOUT events retain
+  their existing consent-window rules. **bcdDevice → 0x09EB** (0x09E9 and
+  0x09EA were temporary diagnostic builds).
+
 - **Fingerprint presence window:** a module `NO_FINGER` response waits for
   later finger contact within the original 30 s CTAP deadline. It no longer
   ends verification after the module's shorter capture window. Mismatches and

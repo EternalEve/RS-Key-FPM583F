@@ -80,6 +80,7 @@ ATR_YUBICO_PREFIX = bytes([0x3B, 0xFD])
 # the emulator for a reason that is not a defect, so it is refused before it
 # starts. Removing an entry is a claim that the emulator grew the capability.
 UNSUPPORTED = {
+    "50_user_presence_button": "requires physical presence and its GPIO interrupt executor",
     # The emulator carries the vendor applet (`crates/rsk-vendor`), so its
     # counter, its warm reboot and the U2F/SELECT routing all run — and `--yubico`
     # gives it the Yubico card identity `30` checks. What it has no hardware for is

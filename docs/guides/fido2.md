@@ -77,7 +77,11 @@ backup presence button while diagnosing it.
 The optional GP2 TOUCHOUT input confirms only a current FIDO presence prompt;
 idle touches are ignored and do not power GP3's candidate VCC switch. Existing
 high levels and old events cannot confirm a new prompt. BOOTSEL remains the
-backup input, and other applets retain their original button path. Repeated
+backup input, including when TOUCHOUT stays low or high; cancellation and the
+30 s presence deadline remain available while waiting. A button-only check is
+`python tests/50_user_presence_button.py --popup`; its `--mode cancel` and
+`--mode timeout` checks require leaving both inputs untouched. Other applets
+retain their original button path. Repeated
 physical touches with VCC off and the external power circuit are not yet accepted
 on hardware; the configuration is described in [build.md](../build.md).
 

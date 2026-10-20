@@ -777,7 +777,7 @@ async fn main(spawner: Spawner) {
     config.max_power = 100;
     config.max_packet_size_0 = 64;
     // bcdDevice build counter; also surfaced on the trusted-display Firmware screen.
-    let device_release: u16 = 0x09E8;
+    let device_release: u16 = 0x09EB;
     config.device_release = device_release;
 
     let mut builder = Builder::new(
@@ -1276,6 +1276,9 @@ async fn main(spawner: Spawner) {
         let power: Option<Output<'static>> = None;
         #[cfg(fingerprint_touch)]
         {
+            // Let GPIO finish AtomicWaker::wake before the executor re-registers;
+            // preempting it makes register self-wake and starve the GPIO handler.
+            interrupt::IO_IRQ_BANK0.set_priority(interrupt::SWI_IRQ_1.get_priority());
             // Safety: compile-time and EF_PHY guards reserve this pin exclusively.
             let touch_pin = env_u16(env!("PK_FINGERPRINT_TOUCH_PIN")) as u8;
             let pin = unsafe { AnyPin::steal(touch_pin) };

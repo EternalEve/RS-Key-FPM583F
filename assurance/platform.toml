@@ -182,6 +182,16 @@ status = "pending"
 failure_direction = "diagnostic: a stale or misattributed snapshot can misdirect hardware troubleshooting; its contents do not grant user verification"
 covers = ["board-only:55_fingerprint_status"]
 
+[[assumption]]
+id = "PLAT-INPUT-003"
+class = "input"
+statement = "On a fingerprint-touch build, opening a consent window leaves BOOTSEL sampling, CTAPHID cancellation and the presence deadline live, including while TOUCHOUT remains low or high."
+discharge = "Run the press, cancel and timeout modes of tests/50_user_presence_button.py over physical USB, following assurance/board/PLAT-INPUT-003.toml. Repeat with independently observed low and high TOUCHOUT levels on an authorized fixture. Host state-machine tests and emulator auto-presence do not exercise the GPIO interrupt priority or its interaction with the task executor."
+discharge_owner = "maintainer"
+status = "pending"
+failure_direction = "availability: a GPIO wake that cannot complete leaves the worker streaming UPNEEDED without sampling BOOTSEL, honoring cancellation or reaching its deadline"
+covers = ["board-only:50_user_presence_button"]
+
 # ---- The tools the evidence is taken with ------------------------------------
 
 [[assumption]]
