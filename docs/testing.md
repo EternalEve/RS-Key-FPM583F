@@ -1081,6 +1081,16 @@ the trusted-display UI state machines, whose complexity is a separate concern.
 
 ## Experimental biometric management
 
+Physical UP checks use `tests/50_user_presence_button.py`: `--repeat 2 --popup`
+for BOOTSEL, or `--input touch --repeat 2 --popup` for TOUCHOUT. Leave both
+inputs untouched until each action prompt, and throughout `--mode cancel` and
+`--mode timeout`; repeat the press check after those requests to check recovery.
+The default 30 s device presence timeout is required. Input attribution and
+TOUCHOUT's low/high level remain operator/instrument observations, not USB facts.
+The host table in `scripts/test_user_presence.py` checks the instrument's timed
+reports, quiet interval, cancellation and repeated-request failure handling;
+it does not emulate the GPIO scheduler or establish physical touch reliability.
+
 Startup ordering tests run in the original `check.sh` `test (host)` row. They
 exercise two supply cycles, short deadlines, failed UART initialization and an
 initialization that finishes at the deadline. No query may escape before supply

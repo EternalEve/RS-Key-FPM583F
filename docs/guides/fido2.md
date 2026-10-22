@@ -79,9 +79,14 @@ idle touches are ignored and do not power GP3's candidate VCC switch. Existing
 high levels and old events cannot confirm a new prompt. BOOTSEL remains the
 backup input, including when TOUCHOUT stays low or high; cancellation and the
 30 s presence deadline remain available while waiting. A button-only check is
-`python tests/50_user_presence_button.py --popup`; its `--mode cancel` and
-`--mode timeout` checks require leaving both inputs untouched. Other applets
-retain their original button path. Repeated
+`python tests/50_user_presence_button.py --repeat 2 --popup`; use
+`--input touch --repeat 2 --popup` for the sensor instead. Keep both inputs
+untouched until each action prompt: the script first checks a one-second quiet
+interval. `--input` records the operator's chosen source; USB cannot identify
+which physical input was used. The `--mode cancel` and `--mode timeout` checks
+require leaving both inputs untouched; repeat the press check afterwards to
+check recovery. The test uses Selection only, without changing PINs or creating
+credentials. Other applets retain their original button path. Repeated
 physical touches with VCC off and the external power circuit are not yet accepted
 on hardware; the configuration is described in [build.md](../build.md).
 

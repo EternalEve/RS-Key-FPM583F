@@ -108,6 +108,7 @@ NAMED = {
 #: with `pytest scripts` green. Measured on the newer one: truncated to its SPDX
 #: line, `python -m pytest scripts -q` was rc 0 until this dict existed.
 BOARD_TABLES = {
+    "../tests/50_user_presence_button.py": "test_user_presence.py",
     "../tests/54_sram_residue.py": "test_sram_residue_dump.py",
     "../tests/29_reset_power_cut.py": "test_reset_power_cut.py",
 }
@@ -151,7 +152,7 @@ TABLE_FLOOR = 5
 #: What it still does not cover: a case gutted rather than deleted. `assert True`
 #: counts here exactly as the case it replaced did, and nothing in this file reads
 #: a case's body.
-SUITE_CASES = 2677
+SUITE_CASES = 2686
 
 
 def check_sh():

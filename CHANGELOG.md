@@ -38,6 +38,11 @@ tag: the USB `bcdDevice` build counter (bumped on every behavior change), and
 
 ## [Unreleased]
 
+- **Presence checks:** add separate BOOTSEL/TOUCHOUT instructions and repeated
+  Selection requests, with a quiet interval before each fresh-input prompt.
+  Cancellation is sent on schedule even if keepalives stop. These host tests
+  leave the existing `0x09EB` firmware fix and persistent device state unchanged.
+
 - **BOOTSEL with fingerprint touch:** keep the GPIO interrupt at the presence
   task executor's priority so opening a touch window cannot stall button
   sampling, cancellation or the 30 s deadline. Fresh TOUCHOUT events retain
