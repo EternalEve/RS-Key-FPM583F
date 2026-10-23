@@ -271,7 +271,7 @@ impl Stream for Wire {
 }
 
 #[derive(Clone, Default)]
-pub(crate) struct Clock(pub Rc<Cell<u64>>, pub Rc<Cell<bool>>);
+pub(crate) struct Clock(pub Rc<Cell<u64>>, pub Rc<Cell<bool>>, pub Rc<Cell<bool>>);
 impl Runtime for Clock {
     fn now_ms(&self) -> u64 {
         self.0.get()
@@ -281,6 +281,12 @@ impl Runtime for Clock {
     }
     fn wait(&mut self) {
         self.0.set(self.0.get() + 1);
+    }
+    fn processing(&mut self) {
+        self.2.set(true);
+    }
+    fn end(&mut self) {
+        self.2.set(false);
     }
 }
 

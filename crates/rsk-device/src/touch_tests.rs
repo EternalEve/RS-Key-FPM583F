@@ -5,6 +5,33 @@ use super::*;
 use crate::presence::{SCOPE_NONE, SCOPE_OTP};
 
 #[test]
+fn a_cold_sensor_cannot_open_presence_before_initialization() {
+    let touch = Touch::new_disabled();
+    for scope in [SCOPE_FIDO, SCOPE_CCID] {
+        touch.close(0);
+        assert!(
+            touch.open(scope).is_none(),
+            "an uninitialized sensor must refuse a presence window"
+        );
+        assert!(!touch.released(0));
+        assert!(!touch.record(0));
+        assert!(!touch.take(0));
+    }
+    touch.enable();
+    let window = touch.open(SCOPE_FIDO).unwrap();
+    assert_eq!(window, FLAGS + 1);
+    assert!(!touch.record(window));
+    assert!(touch.released(window));
+    assert!(touch.record(window));
+    touch.enable();
+    assert!(
+        touch.take(window),
+        "duplicate initialization must not erase consent"
+    );
+    assert!(!touch.take(window));
+}
+
+#[test]
 fn old_idle_duplicate_and_cross_transport_events_do_not_confirm_a_new_window() {
     let touch = Touch::new();
     assert!(!touch.record(0));

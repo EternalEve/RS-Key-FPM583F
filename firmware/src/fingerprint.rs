@@ -209,5 +209,15 @@ pub fn bridge(
     } else {
         stream.enable().expect("UART0 reset did not complete");
     }
-    Driver::new(stream, Board)
+    let driver = Driver::new(stream, Board);
+    #[cfg(all(fingerprint_touch, fingerprint_power))]
+    let driver = {
+        let mut driver = driver;
+        // Cold TOUCHOUT is not presence until the first startup and shutdown succeed.
+        if driver.initialize_touch().is_ok() {
+            crate::fingerprint_touch::initialized();
+        }
+        driver
+    };
+    driver
 }

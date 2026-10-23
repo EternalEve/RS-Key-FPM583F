@@ -752,6 +752,33 @@ async fn main(spawner: Spawner) {
     let fs_ref = FS.init(RefCell::new(fs));
     let rng_ref = RNG_CELL.init(RefCell::new(rng));
 
+    #[cfg(all(feature = "fingerprint", not(feature = "display")))]
+    let create_fingerprint_power = || -> Option<embassy_rp::gpio::Output<'static>> {
+        #[cfg(fingerprint_power)]
+        {
+            use embassy_rp::gpio::{AnyPin, Level, Output};
+            // Safety: compile-time and EF_PHY guards reserve this pin exclusively.
+            let power_pin = env_u16(env!("PK_FINGERPRINT_POWER_PIN")) as u8;
+            let pin = unsafe { AnyPin::steal(power_pin) };
+            Some(Output::new(pin, Level::High))
+        }
+        #[cfg(not(fingerprint_power))]
+        {
+            None
+        }
+    };
+    // Startup must finish before USB attach, rather than consume a host deadline.
+    #[cfg(all(feature = "fingerprint", fingerprint_touch, fingerprint_power))]
+    let sensor = {
+        static SENSOR: StaticCell<RefCell<fingerprint::Bridge>> = StaticCell::new();
+        SENSOR.init(RefCell::new(fingerprint::bridge(
+            p.UART0,
+            p.PIN_0,
+            p.PIN_1,
+            create_fingerprint_power(),
+        )))
+    };
+
     let driver = UsbDriver::new(p.USB, Irqs);
     Timer::after_millis(200).await;
 
@@ -777,7 +804,7 @@ async fn main(spawner: Spawner) {
     config.max_power = 100;
     config.max_packet_size_0 = 64;
     // bcdDevice build counter; also surfaced on the trusted-display Firmware screen.
-    let device_release: u16 = 0x09EB;
+    let device_release: u16 = 0x09EC;
     config.device_release = device_release;
 
     let mut builder = Builder::new(
@@ -1260,20 +1287,8 @@ async fn main(spawner: Spawner) {
     );
     #[cfg(all(feature = "fingerprint", not(feature = "display")))]
     {
-        #[cfg(any(fingerprint_power, fingerprint_touch))]
+        #[cfg(fingerprint_touch)]
         use embassy_rp::gpio::AnyPin;
-        #[cfg(fingerprint_power)]
-        use embassy_rp::gpio::Level;
-        use embassy_rp::gpio::Output;
-        #[cfg(fingerprint_power)]
-        let power = {
-            // Safety: compile-time and EF_PHY guards reserve this pin exclusively.
-            let power_pin = env_u16(env!("PK_FINGERPRINT_POWER_PIN")) as u8;
-            let pin = unsafe { AnyPin::steal(power_pin) };
-            Some(Output::new(pin, Level::High))
-        };
-        #[cfg(not(fingerprint_power))]
-        let power: Option<Output<'static>> = None;
         #[cfg(fingerprint_touch)]
         {
             // Let GPIO finish AtomicWaker::wake before the executor re-registers;
@@ -1290,12 +1305,18 @@ async fn main(spawner: Spawner) {
                 .unwrap(),
             );
         }
-        static SENSOR: StaticCell<RefCell<fingerprint::Bridge>> = StaticCell::new();
         static BINDINGS: StaticCell<RefCell<rsk_fido::bio_directory::Directory>> =
             StaticCell::new();
-        let sensor = SENSOR.init(RefCell::new(fingerprint::bridge(
-            p.UART0, p.PIN_0, p.PIN_1, power,
-        )));
+        #[cfg(not(all(fingerprint_touch, fingerprint_power)))]
+        let sensor = {
+            static SENSOR: StaticCell<RefCell<fingerprint::Bridge>> = StaticCell::new();
+            SENSOR.init(RefCell::new(fingerprint::bridge(
+                p.UART0,
+                p.PIN_0,
+                p.PIN_1,
+                create_fingerprint_power(),
+            )))
+        };
         let bindings = BINDINGS.init(RefCell::new(rsk_fido::bio_directory::Directory));
         worker.set_fingerprint(sensor, bindings);
     }

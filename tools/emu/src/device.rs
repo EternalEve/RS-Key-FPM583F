@@ -8,7 +8,7 @@
 //! firmware runs, not a second implementation of them. What is left here is this
 //! build's half: the store, the DRBG, the presence prompt, and the [`Hooks`] that
 //! answer for hardware it does not have. The worker's own sequencing (refresh the
-//! capability set when the dirty latch is up, run a queued reboot only after the
+//! capability set after dispatch, run a queued reboot only after the
 //! response is out) is mirrored from `firmware/src/worker.rs` and is the one thing
 //! still written twice.
 //!
@@ -859,11 +859,10 @@ async fn serve<PR: rsk_sdk::UserPresence + 'static>(
         // A disconnected client is not an error: it just stopped listening.
         let _ = req.reply.send(out);
 
-        // The worker's own sequencing, mirrored: a config write flips the dirty
-        // latch and every gate has to see the new set before the next request.
-        if rsk_devconf::take_dev_conf_dirty() {
-            ccid.refresh_enabled();
-        }
+        // In-process devices share the dirty latch; another may consume it.
+        // Every instance must refresh its own gates before its next request.
+        let _ = rsk_devconf::take_dev_conf_dirty();
+        ccid.refresh_enabled();
         // Both reboot paths — the vendor applet's INS_REBOOT and the rescue
         // applet's twin — land in one queue on the device, and both run only after
         // the response is out. A warm reboot drops RAM state and leaves the attach

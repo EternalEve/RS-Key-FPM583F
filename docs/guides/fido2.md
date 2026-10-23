@@ -65,9 +65,17 @@ finishes, a new request can proceed without a button wait or reboot; the sensor
 must still drain the cancelled operation before starting new work. A failed
 drain leaves the sensor unavailable rather than accepting a late result.
 
-An opt-in switched-supply build keeps module VCC off until fingerprint work or
-inventory needs it. GetInfo, PIN and UP-only requests continue normally while
-it is off. Standard enrollment holds power through all six captures; cancelling,
+With both the external VCC switch and GP2 TOUCHOUT configured, startup first
+queries the module, confirms ordinary sleep and disconnects UART before removing
+VCC. This finishes before USB attaches. GP2 cannot open a presence window until
+that sequence succeeds; failure leaves GP2 disabled for this boot, with BOOTSEL
+and PIN still available. The sequence does not enroll, match or delete templates.
+The power-off transition after ordinary sleep still needs hardware acceptance.
+
+After this startup sequence, an opt-in switched-supply build keeps module VCC
+off until fingerprint work or inventory needs it. GetInfo, PIN and UP-only
+requests continue normally while it is off. Standard enrollment holds power
+through all six captures; cancelling,
 timing out or sending a different CTAP business command ends that session; GetInfo preserves
 it so a second standard client can continue enrollment. Persistent
 pending records remain available for authorized cleanup. Failed startup or

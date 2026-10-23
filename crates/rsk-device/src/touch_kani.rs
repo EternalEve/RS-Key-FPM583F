@@ -5,7 +5,14 @@ use super::*;
 
 #[kani::proof]
 fn a_closed_or_consumed_pulse_cannot_confirm_a_new_window() {
-    let touch = Touch::new();
+    let touch = Touch::new_disabled();
+    let old_window: u32 = kani::any();
+    touch.close(old_window);
+    assert!(touch.open(SCOPE_FIDO).is_none());
+    assert!(!touch.released(old_window));
+    assert!(!touch.record(old_window));
+    assert!(!touch.take(old_window));
+    touch.enable();
     let first = touch.open(SCOPE_FIDO).unwrap();
     assert_eq!(first, FLAGS + 1);
     assert_eq!(touch.state.load(Ordering::Acquire), first | WAIT_LOW);

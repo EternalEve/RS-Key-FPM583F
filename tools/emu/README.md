@@ -87,6 +87,10 @@ configuration command is unavailable too.
 
 ## Running the on-device suites against it
 
+Each emulated device reloads its own enabled-application mask after dispatch.
+This keeps disabled HID applications closed during parallel in-process device
+tests, even when another instance consumes the shared configuration notification.
+
 ```bash
 python tests/emu.py tests/11_fido_makecredential.py
 python tests/emu.py tests/34_openpgp_rsa.py

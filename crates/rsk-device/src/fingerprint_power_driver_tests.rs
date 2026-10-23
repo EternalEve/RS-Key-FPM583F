@@ -32,6 +32,104 @@ fn settle<U: Stream>(driver: &mut Driver<U, Clock>) {
     panic!("shutdown did not finish within its budget");
 }
 
+#[test]
+fn touch_initialization_queries_and_sleeps_before_enabling_presence() {
+    let (mut driver, module, clock) = driver();
+    let touch = crate::touch::Touch::new_disabled();
+    module.borrow_mut().slots[7] = true;
+    assert!(touch.open(crate::presence::SCOPE_FIDO).is_none());
+    assert_eq!(driver.initialize_touch(), Ok(()));
+    assert!(!clock.2.get());
+    assert_eq!(driver.power_phase(), Phase::Off);
+    assert!(!module.borrow().powered);
+    assert_eq!(module.borrow().cycles, 1);
+    assert_eq!(module.borrow().cuts, 1);
+    assert_eq!(
+        module.borrow().commands,
+        [(0x0203, vec![]), (0x020c, vec![0])]
+    );
+    assert!(module.borrow().slots[7]);
+    touch.enable();
+    let window = touch.open(crate::presence::SCOPE_FIDO).unwrap();
+    assert!(!touch.record(window));
+    assert!(touch.released(window));
+    assert!(touch.record(window));
+    assert!(touch.take(window));
+    clock.0.set(0);
+    assert_eq!(driver.prepare(30_000), Ok(()));
+    driver.release(false);
+    settle(&mut driver);
+    assert_eq!(driver.power_phase(), Phase::Off);
+    assert_eq!(module.borrow().cycles, 2);
+    assert!(module.borrow().slots[7]);
+}
+
+#[test]
+fn failed_touch_initialization_cannot_enable_presence_or_retry_the_module() {
+    for (command, corrupt) in [(0x020c, false), (0x0203, false), (0x0203, true)] {
+        let (mut driver, module, clock) = driver();
+        if corrupt {
+            module.borrow_mut().corrupted = Some(command);
+        } else {
+            module.borrow_mut().drop_command = Some(command);
+        }
+        let touch = crate::touch::Touch::new_disabled();
+        if driver.initialize_touch().is_ok() {
+            touch.enable();
+        }
+        assert!(!clock.2.get(), "startup must clear its processing state");
+        assert!(touch.open(crate::presence::SCOPE_FIDO).is_none());
+        assert_eq!(driver.power_phase(), Phase::Unavailable);
+        assert!(driver.request_deadline_ms.is_none());
+        assert!(clock.0.get() <= BOOT_TIMEOUT_MS + STOP_TIMEOUT_MS);
+        clock.0.set(0);
+        for _ in 0..20 {
+            driver.service_idle();
+        }
+        assert_eq!(module.borrow().cycles, 1);
+        assert_eq!(module.borrow().cuts, 0);
+        assert_eq!(module.borrow().calls(command), 1);
+        assert_eq!(
+            driver.initialize_touch(),
+            Err(rsk_fido::CtapError::NotAllowed)
+        );
+        assert_eq!(module.borrow().cycles, 1);
+    }
+}
+
+#[test]
+fn touch_initialization_preserves_an_existing_business_hold() {
+    let (mut driver, module, _) = driver();
+    driver.prepare(30_000).unwrap();
+    let deadline = driver.request_deadline_ms;
+    assert_eq!(
+        driver.initialize_touch(),
+        Err(rsk_fido::CtapError::NotAllowed)
+    );
+    assert_eq!(driver.request_deadline_ms, deadline);
+    driver.service_idle();
+    assert_eq!(driver.power_phase(), Phase::Running);
+    assert_eq!(module.borrow().cuts, 0);
+    assert_eq!(module.borrow().calls(0x020c), 0);
+    driver.release(false);
+    settle(&mut driver);
+    assert_eq!(module.borrow().cuts, 1);
+}
+
+#[test]
+fn cancelled_touch_initialization_does_not_start_the_module() {
+    let (mut driver, module, clock) = driver();
+    clock.1.set(true);
+    assert_eq!(
+        driver.initialize_touch(),
+        Err(rsk_fido::CtapError::KeepAliveCancel)
+    );
+    assert_eq!(driver.power_phase(), Phase::Off);
+    assert!(driver.request_deadline_ms.is_none());
+    assert_eq!(module.borrow().cycles, 0);
+    assert!(module.borrow().commands.is_empty());
+}
+
 struct StartingWire {
     wire: Wire,
     clock: Clock,

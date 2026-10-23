@@ -107,6 +107,8 @@ UNCHECKED = {
     ".png": "binary",
     ".jpg": "binary",
     ".gif": "binary",
+    ".eprj2": "binary (native PCB project stored as SQLite; a text header corrupts it)",
+    ".epro2": "binary (native PCB project ZIP container; a text header corrupts it)",
     # An evidence bundle's raw artifacts. A header cannot go in one: the log is
     # the unedited output of a run and `scripts/bundle_gate.py` holds its byte
     # count AND its sha256, so writing into it would falsify the artifact this

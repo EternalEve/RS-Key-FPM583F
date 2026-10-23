@@ -9,8 +9,16 @@ use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use embassy_sync::signal::Signal;
 use rsk_device::touch::Touch;
 
+#[cfg(fingerprint_power)]
+static TOUCH: Touch = Touch::new_disabled();
+#[cfg(not(fingerprint_power))]
 static TOUCH: Touch = Touch::new();
 static REARM: Signal<CriticalSectionRawMutex, Option<u32>> = Signal::new();
+
+#[cfg(fingerprint_power)]
+pub fn initialized() {
+    TOUCH.enable();
+}
 
 pub fn open(scope: u8) -> Option<u32> {
     let window = TOUCH.open(scope);

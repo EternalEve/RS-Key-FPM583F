@@ -80,6 +80,10 @@ the host enumerates a mute device and times out. That is the "blink red / not
 recognised until several replugs" report that motivated attaching to the bus
 only after everything else is ready.
 
+The opt-in switched fingerprint-touch build also completes its initial Count,
+ordinary sleep and UART-safe power-off before attaching. GP2 presence stays
+disabled unless that sequence succeeds; BOOTSEL remains independent.
+
 ![Boot sequence — bootrom secure-boot verify, then a provision-and-recover phase (OTP keys, KV mount, phy record, TRNG seed, seal migrations, at-rest scrub) that completes before the USB pull-up, then attach-and-serve (build, spawn usb_task, transports live, worker dispatches applets)](images/boot-flow.svg)
 
 ## Memory model

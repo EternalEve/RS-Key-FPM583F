@@ -4,7 +4,7 @@
 //! A pulse belongs to one explicitly armed FIDO window, never the next request.
 
 use crate::presence::{SCOPE_CCID, SCOPE_FIDO};
-use core::sync::atomic::{AtomicU32, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
 const FLAGS: u32 = 7;
 const WAIT_LOW: u32 = 1;
@@ -15,6 +15,7 @@ const SPENT: u32 = 4;
 pub struct Touch {
     next: AtomicU32,
     state: AtomicU32,
+    available: AtomicBool,
 }
 
 impl Default for Touch {
@@ -25,13 +26,29 @@ impl Default for Touch {
 
 impl Touch {
     pub const fn new() -> Self {
+        Self::with_availability(true)
+    }
+
+    pub const fn new_disabled() -> Self {
+        Self::with_availability(false)
+    }
+
+    const fn with_availability(available: bool) -> Self {
         Self {
             next: AtomicU32::new(0),
             state: AtomicU32::new(0),
+            available: AtomicBool::new(available),
         }
     }
 
+    pub fn enable(&self) {
+        self.available.store(true, Ordering::Release);
+    }
+
     pub fn open(&self, scope: u8) -> Option<u32> {
+        if !self.available.load(Ordering::Acquire) {
+            return None;
+        }
         self.state.store(0, Ordering::Release);
         if !matches!(scope, SCOPE_FIDO | SCOPE_CCID) {
             return None;

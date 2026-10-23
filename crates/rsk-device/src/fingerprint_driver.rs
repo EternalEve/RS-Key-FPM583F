@@ -14,7 +14,7 @@ use crate::fingerprint_exchange::Exchange;
 pub use crate::fingerprint_exchange::{Failure as WireFailure, Progress};
 use crate::fingerprint_io::{STEP_BYTES, Stream};
 pub use crate::fingerprint_power::BOOT_TIMEOUT_MS;
-use crate::fingerprint_power::{Phase, Power};
+use crate::fingerprint_power::{Phase, Power, STOP_TIMEOUT_MS};
 use crate::fingerprint_protocol::{Completion, Data, ENROLL_SAMPLES, Error, Reply, Request};
 
 pub const BOOT_DELAY_MS: u64 = 200;
@@ -134,6 +134,46 @@ impl<U: Stream, C: Runtime> Driver<U, C> {
 
     pub fn power_phase(&self) -> Phase {
         self.power.phase()
+    }
+
+    pub fn initialize_touch(&mut self) -> Result<(), rsk_fido::CtapError> {
+        use rsk_fido::CtapError;
+
+        if !self.healthy
+            || self.power.phase() != Phase::Off
+            || self.operations.state() != Lifecycle::Idle
+            || self.request_deadline_ms.is_some()
+            || self.temporary.is_some()
+        {
+            return Err(CtapError::NotAllowed);
+        }
+        let deadline = self.runtime.now_ms().saturating_add(BOOT_TIMEOUT_MS);
+        let started = self.prepare(deadline);
+        self.release(false);
+        started?;
+        let stop_started = self.runtime.now_ms();
+        let stop_deadline = stop_started.saturating_add(STOP_TIMEOUT_MS);
+        let result = loop {
+            let now = self.runtime.now_ms();
+            if now < stop_started || now >= stop_deadline {
+                self.fail(Failure::Timeout, false);
+                break Err(CtapError::Other);
+            }
+            if self.runtime.cancelled() {
+                self.fail(Failure::Unavailable, false);
+                break Err(CtapError::KeepAliveCancel);
+            }
+            self.service_idle();
+            if !self.healthy {
+                break Err(CtapError::Other);
+            }
+            if self.power.phase() == Phase::Off {
+                break Ok(());
+            }
+            self.runtime.wait();
+        };
+        self.runtime.end();
+        result
     }
 
     fn wire_request(&self) -> Request {

@@ -38,6 +38,16 @@ tag: the USB `bcdDevice` build counter (bumped on every behavior change), and
 
 ## [Unreleased]
 
+- **Fingerprint touch (bcdDevice 0x09EC):** when GP2 touch and the external VCC
+  switch are both configured, initialize the module before USB attach and enable touch only after
+  a successful Count, ordinary sleep and UART-safe power-off. Failed startup keeps
+  GP2 disabled while BOOTSEL and PIN remain available. The final sleep/power-off
+  sequence still requires hardware acceptance.
+
+- **emu:** keep disabled HID applications closed when several emulated devices
+  run in one process. Each instance refreshes its own configuration even if
+  another device consumes the shared configuration-change notification.
+
 - **Presence checks:** add separate BOOTSEL/TOUCHOUT instructions and repeated
   Selection requests, with a quiet interval before each fresh-input prompt.
   Cancellation is sent on schedule even if keepalives stop. These host tests

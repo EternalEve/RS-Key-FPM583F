@@ -75,6 +75,17 @@ def test_clean_tree_is_green(tree):
     assert tree.problems() == []
 
 
+@pytest.mark.parametrize("suffix,header", [(".eprj2", b"SQLite format 3\0"),
+                                          (".epro2", b"PK\x03\x04")])
+def test_native_pcb_containers_do_not_require_corrupting_text_headers(tree, suffix, header):
+    path = tree.root / "pcb" / f"board{suffix}"
+    path.parent.mkdir()
+    path.write_bytes(header)
+    assert tree.problems() == []
+    tree.write("crates/rsk-a/src/extra.rs", "pub fn extra() {}\n")
+    assert only(tree.problems(), "crates/rsk-a/src/extra.rs has no")
+
+
 def test_this_checkout_is_green():
     """The control the fixture cannot be: the tree this rule was written for."""
     assert spdx_gate.audit(spdx_gate.ROOT)[0] == []
