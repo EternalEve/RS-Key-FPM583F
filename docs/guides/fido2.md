@@ -66,7 +66,8 @@ must still drain the cancelled operation before starting new work. A failed
 drain leaves the sensor unavailable rather than accepting a late result.
 
 With both the external VCC switch and GP2 TOUCHOUT configured, startup first
-queries the module, confirms ordinary sleep and disconnects UART before removing
+queries the module and waits for a successful no-finger report, then confirms
+ordinary sleep and disconnects UART before removing
 VCC. This finishes before USB attaches. GP2 cannot open a presence window until
 that sequence succeeds; failure leaves GP2 disabled for this boot, with BOOTSEL
 and PIN still available. The sequence does not enroll, match or delete templates.
@@ -78,7 +79,7 @@ GP2 presence. These trials predate the automatic re-sleep candidate; they do not
 establish normal presence acceptance.
 
 The `0x09EE` candidate observes TOUCHOUT even outside a confirmation window. Once
-the finger is removed, the worker repeats Count, ordinary sleep and UART-safe
+TOUCHOUT returns low, the worker repeats Count, ordinary sleep and UART-safe
 power-off before accepting another fresh touch. A held input does not repeatedly
 start the module. Edges during maintenance do not request another power cycle;
 after shutdown, the input must be observed low before a new rising edge can count.
@@ -103,6 +104,23 @@ a request, so use this measurement image only for diagnosis. It leaves the
 controller transitions unchanged; reproducing the failure with tracing enabled
 remains a hardware check. The old
 six-byte `rsk fingerprint status` response remains unchanged.
+
+The `0x09F5` candidate first polls `01 35` until the module reports no finger,
+for at most 30 s, before sending ordinary sleep. An error is not absence; this
+query does not match a template or supply consent. It then waits for configured
+TOUCHOUT to read low **after** ordinary sleep is acknowledged and **before** UART
+isolation and VCC removal.
+Sleep retains its 3 s bound, followed by a separate 4 s wait for low. Hardware
+traces from `0x09F3` showed a ~3.1 s high pulse exceeding its shared 3 s bound.
+The low-before-cut check alone in `0x09F4` did not restore touch after a hold.
+A high input does not trigger another sleep command or grant consent; if it stays high past
+the deadline, the module remains powered and GP2 is disabled until restart.
+BOOTSEL remains available. This follows the manufacturer's
+[low-before-power-off guidance](https://ask.hlktech.com/question/276268.html);
+it does not establish physical finger removal. The `0x09F5` on-board Selection
+run passed three held-input/new-touch pairs and each following independent
+request, as well as ordinary touch, BOOTSEL, cancellation and normal timeout.
+These checks cover one board and do not measure the module's internal state.
 
 After this startup sequence, an opt-in switched-supply build keeps module VCC
 off until fingerprint work, inventory or released-touch maintenance needs it.

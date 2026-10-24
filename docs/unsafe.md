@@ -197,7 +197,9 @@ The optional fingerprint VCC switch and TOUCHOUT input are the two additional
 number-selected owners in `main.rs`. Build assertions reject UART0, each other,
 presence, user LED and LED power/data collisions; the `EF_PHY` LED filter also
 protects them and the fixed Pimoroni pins. The VCC `Output` moves into the one
-UART service; the TOUCHOUT `Input` moves into one interrupt-executor task.
+UART service; the TOUCHOUT `Input` is initialized before startup shutdown and
+then moves into one interrupt-executor task. Shutdown only reads its SIO level;
+it does not create another pin owner or change the input configuration.
 
 The UART service adds no unsafe site. It retains UART0, GP0/GP1 and the two
 once-initialized static buffers. Before dropping `BufferedUart`, core0 interrupts

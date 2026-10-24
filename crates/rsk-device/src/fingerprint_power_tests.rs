@@ -4,6 +4,23 @@
 use super::*;
 
 #[test]
+fn only_starting_and_stopping_expire_on_their_deadline() {
+    let mut power = Power::new(true, 0);
+    assert!(!power.expired(u64::MAX));
+    assert!(power.wake(1, 100));
+    assert!(!power.expired(99));
+    assert!(power.expired(100));
+    assert!(power.started());
+    assert!(!power.expired(u64::MAX));
+    power.release(false);
+    assert!(power.stop(2, true));
+    assert!(!power.expired(power.deadline_ms - 1));
+    assert!(power.expired(power.deadline_ms));
+    power.fail();
+    assert!(!power.expired(u64::MAX));
+}
+
+#[test]
 fn only_a_released_drained_running_module_can_stop() {
     for enrollment in [true, false] {
         for drained in [true, false] {
@@ -30,6 +47,7 @@ fn cycles_preserve_deadlines_and_faults_cannot_restart() {
         assert!(power.started());
         power.release(false);
         assert!(power.stop(now + 1, true));
+        assert_eq!(power.deadline_ms, now + 1 + FINGER_ABSENCE_TIMEOUT_MS);
         assert!(!power.wake(now + 2, now + 1_000));
         power.release(false);
         assert!(power.stopped());

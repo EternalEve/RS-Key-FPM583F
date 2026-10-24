@@ -38,6 +38,20 @@ tag: the USB `bcdDevice` build counter (bumped on every behavior change), and
 
 ## [Unreleased]
 
+- **Fix FPM583F touch after a long hold (bcdDevice 0x09F5):** restore fresh-touch
+  confirmation after a finger stays on the module during maintenance. Before
+  ordinary sleep, query `01 35` until the module reports no finger, within 30 s.
+  After a successful sleep reply, wait for TOUCHOUT low before isolating UART
+  and cutting main VCC. Sleep has a 3 s deadline and the low wait a separate
+  4 s deadline; neither polling nor maintenance grants presence or extends a
+  host request. Initialize TOUCHOUT before startup maintenance. A shutdown
+  failure leaves power on and disables GP2 for the boot; BOOTSEL remains usable.
+  Hardware regression passed three held-input/new-touch pairs and all three
+  following independent requests, ordinary touch, BOOTSEL, cancellation and
+  normal timeout. All 163 driver-library tests and the non-emulator check rows
+  passed; emulator runtime tests were omitted at the maintainer's request.
+  Persistent layouts and commands are unchanged. Completed 2026-10-25; see the
+  [validation record](RSKEY-FPM583F-SHUTDOWN-09F5-VALIDATION-2026-10-24.md).
 - **FPM583F hardware diagnosis (2026-10-24, bcdDevice 0x09F0):** the authorized
   code-partition update and independent readback passed. Two ordinary touches,
   BOOTSEL, cancellation and normal timeout passed; a touch after a pre-window
@@ -46,8 +60,9 @@ tag: the USB `bcdDevice` build counter (bumped on every behavior change), and
   in Ready at low level, with no recorded edge or consumption. Follow-up live
   sampling returned low/Ready in all 814 samples, including 459 during two
   12-second holds; the largest sampling gap was 0.728 s, so short transitions
-  remain unexcluded. The long-hold failure is unresolved; these observations do
-  not establish physical release or replace signal and supply measurements.
+  remain unexcluded. The long-hold failure remained unresolved at 0x09F0;
+  the completed fix is recorded under 0x09F5 above. These observations do not
+  establish physical release or replace signal and supply measurements.
   See the [validation record](RSKEY-FPM583F-TOUCH-TRACE-09F0-VALIDATION-2026-10-24.md).
 - **Cryptographic dependency security update (bcdDevice 0x09F0; TUI 0.3.14):**
   update `crypto-bigint` to 0.7.6 and its required `ctutils` to 0.4.5 for

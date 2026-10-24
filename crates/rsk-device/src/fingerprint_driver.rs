@@ -14,7 +14,9 @@ use crate::fingerprint_exchange::Exchange;
 pub use crate::fingerprint_exchange::{Failure as WireFailure, Progress};
 use crate::fingerprint_io::{STEP_BYTES, Stream};
 pub use crate::fingerprint_power::BOOT_TIMEOUT_MS;
-use crate::fingerprint_power::{Phase, Power, STOP_TIMEOUT_MS};
+use crate::fingerprint_power::{
+    Phase, Power, SHUTDOWN_TIMEOUT_MS, STOP_TIMEOUT_MS, TOUCH_LOW_TIMEOUT_MS,
+};
 use crate::fingerprint_protocol::{Completion, Data, ENROLL_SAMPLES, Error, Reply, Request};
 
 pub const BOOT_DELAY_MS: u64 = 200;
@@ -49,7 +51,9 @@ enum Purpose {
 #[derive(Clone, Copy)]
 enum Step {
     Boot,
+    SleepFinger,
     Sleep,
+    PowerOff,
     Match,
     MatchResult,
     Finger,
@@ -153,7 +157,7 @@ impl<U: Stream, C: Runtime> Driver<U, C> {
         self.release(false);
         started?;
         let stop_started = self.runtime.now_ms();
-        let stop_deadline = stop_started.saturating_add(STOP_TIMEOUT_MS);
+        let stop_deadline = stop_started.saturating_add(SHUTDOWN_TIMEOUT_MS);
         let result = loop {
             let now = self.runtime.now_ms();
             if now < stop_started || now >= stop_deadline {
@@ -214,10 +218,10 @@ impl<U: Stream, C: Runtime> Driver<U, C> {
     fn wire_request(&self) -> Request {
         match self.step {
             Step::Boot | Step::CountBefore | Step::CountAfter => Request::Count,
-            Step::Sleep => Request::Sleep,
+            Step::Sleep | Step::PowerOff => Request::Sleep,
             Step::Match => Request::Match,
             Step::MatchResult => Request::MatchResult,
-            Step::Finger | Step::FingerPresent => Request::Finger,
+            Step::Finger | Step::FingerPresent | Step::SleepFinger => Request::Finger,
             Step::Capture(n) => Request::Capture(n),
             Step::CaptureResult => Request::CaptureResult,
             Step::Save => Request::Save(self.temporary.map_or(u16::MAX, |t| t.slot)),
@@ -241,6 +245,16 @@ impl<U: Stream, C: Runtime> Driver<U, C> {
         self.step = step;
         self.exchange = None;
         self.due_ms = self.runtime.now_ms().saturating_add(delay);
+    }
+
+    fn advance_shutdown(&mut self, step: Step, timeout_ms: u64) {
+        let now = self.runtime.now_ms();
+        if now >= self.power.deadline_ms {
+            self.fail(Failure::Timeout, false);
+            return;
+        }
+        self.power.deadline_ms = now.saturating_add(timeout_ms);
+        self.schedule(step, 0);
     }
 
     fn fail(&mut self, failure: Failure, terminal: bool) {
@@ -284,6 +298,20 @@ impl<U: Stream, C: Runtime> Driver<U, C> {
         self.runtime.end();
     }
 
+    fn poll_power_off(&mut self) {
+        match self.stream.poll_power_off() {
+            Poll::Pending => {}
+            Poll::Ready(Err(fault)) => self.wire_fault(WireFailure::Transport(fault)),
+            Poll::Ready(Ok(())) => {
+                self.temporary = None;
+                self.power.stopped();
+                if !matches!(self.purpose, Purpose::Touch) {
+                    self.runtime.end();
+                }
+            }
+        }
+    }
+
     fn pump(&mut self) {
         if !self.healthy || self.terminal {
             return;
@@ -296,14 +324,20 @@ impl<U: Stream, C: Runtime> Driver<U, C> {
             return;
         }
         self.operations.expire_drain(now_ms);
-        if self.operations.state() == Lifecycle::Unavailable
-            || (matches!(self.power.phase(), Phase::Starting | Phase::Stopping)
-                && now_ms >= self.power.deadline_ms)
-        {
-            self.fail(Failure::Unavailable, false);
+        if self.operations.state() == Lifecycle::Unavailable || self.power.expired(now_ms) {
+            let failure = if matches!(self.step, Step::SleepFinger | Step::PowerOff) {
+                Failure::Timeout
+            } else {
+                Failure::Unavailable
+            };
+            self.fail(failure, false);
             return;
         }
         if now_ms < self.due_ms {
+            return;
+        }
+        if matches!(self.step, Step::PowerOff) {
+            self.poll_power_off();
             return;
         }
         if self.exchange.is_none() {
@@ -375,6 +409,7 @@ impl<U: Stream, C: Runtime> Driver<U, C> {
                     | Step::DeleteResult
                     | Step::Finger
                     | Step::FingerPresent
+                    | Step::SleepFinger
                     | Step::CountBefore
                     | Step::CountAfter
                     | Step::Slot(_)
@@ -395,15 +430,13 @@ impl<U: Stream, C: Runtime> Driver<U, C> {
                 self.terminal = false;
             }
             (Step::Sleep, Data::None) => {
-                if self.stream.power_off().is_err() {
-                    self.fail(Failure::Communication, false);
-                    return;
-                }
-                self.temporary = None;
-                self.power.stopped();
-                if !matches!(self.purpose, Purpose::Touch) {
-                    self.runtime.end();
-                }
+                self.advance_shutdown(Step::PowerOff, TOUCH_LOW_TIMEOUT_MS);
+            }
+            (Step::SleepFinger, Data::Finger(true)) => {
+                self.schedule(Step::SleepFinger, QUERY_INTERVAL_MS);
+            }
+            (Step::SleepFinger, Data::Finger(false)) => {
+                self.advance_shutdown(Step::Sleep, STOP_TIMEOUT_MS);
             }
             (Step::Match, Data::None) => self.schedule(Step::MatchResult, QUERY_INTERVAL_MS),
             (Step::MatchResult, Data::Match { matched, slot, .. }) => {
@@ -532,7 +565,7 @@ impl<U: Stream, C: Runtime> Driver<U, C> {
             progress: self.last_progress,
             failure: WireFailure::Module(completion),
         });
-        if matches!(self.step, Step::Boot | Step::Sleep) {
+        if matches!(self.step, Step::Boot | Step::SleepFinger | Step::Sleep) {
             self.fail(Failure::Communication, false);
             return;
         }
@@ -706,7 +739,7 @@ impl<U: Stream, C: Runtime> Sensor for Driver<U, C> {
                     self.purpose = Purpose::Sleep;
                     self.runtime.processing();
                 }
-                self.schedule(Step::Sleep, 0);
+                self.schedule(Step::SleepFinger, 0);
             }
         }
     }
@@ -848,6 +881,10 @@ mod tests;
 #[cfg(test)]
 #[path = "fingerprint_power_driver_tests.rs"]
 mod power_tests;
+
+#[cfg(test)]
+#[path = "fingerprint_shutdown_tests.rs"]
+mod shutdown_tests;
 
 #[cfg(test)]
 #[path = "fingerprint_presence_tests.rs"]

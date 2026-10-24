@@ -87,6 +87,11 @@ edges are observed continuously, but only a fresh edge in an armed window grants
 presence. After release, the worker repeats that sequence before rearming; idle
 touches request maintenance without consent. Maintenance-period edges do not queue
 another cycle; shutdown must be followed by a low observation before rearming.
+The configured TOUCHOUT input is initialized before this startup sequence.
+Before sleep, `01 35` must report no finger within a 30 s query budget. After a
+sleep ACK, the driver polls for low before UART isolation and power-off;
+this wait has a separate 4 s bound after the 3 s sleep-command bound and cannot
+grant presence or extend a host request's deadline.
 Short driver borrows let presence
 waits advance maintenance without another UART owner or a new request deadline.
 

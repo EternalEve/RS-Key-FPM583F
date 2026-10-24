@@ -10,6 +10,33 @@ use std::rc::Rc;
 
 type TestDriver = RefCell<Driver<Wire, Clock>>;
 
+#[test]
+fn shutdown_wait_cannot_rearm_or_confirm_and_timeout_disables_touch() {
+    let (driver, module, _, touch) = driver();
+    module.borrow_mut().touch_high = true;
+    touch.observe(None, true);
+    touch.observe(None, false);
+    let window = touch.open(SCOPE_FIDO).unwrap();
+    for _ in 0..500 {
+        touch.service(&mut driver.borrow_mut());
+        driver.borrow_mut().wait();
+    }
+    assert!(matches!(touch.phase(), Phase::Running));
+    assert_eq!(driver.borrow().power_phase(), PowerPhase::Stopping);
+    assert_eq!(module.borrow().cuts, 1, "only the startup cycle cut power");
+    touch.observe(Some(window), true);
+    touch.observe(Some(window), false);
+    assert!(!touch.take(window));
+    for _ in 0..crate::fingerprint_power::SHUTDOWN_TIMEOUT_MS {
+        touch.service(&mut driver.borrow_mut());
+        driver.borrow_mut().wait();
+    }
+    assert!(matches!(touch.phase(), Phase::Disabled));
+    assert!(touch.open(SCOPE_FIDO).is_none());
+    assert_eq!(module.borrow().cuts, 1);
+    assert_eq!(module.borrow().cycles, 2);
+}
+
 fn driver() -> (TestDriver, Rc<RefCell<Module>>, Clock, Rearm) {
     let module = Rc::new(RefCell::new(Module {
         controlled: true,

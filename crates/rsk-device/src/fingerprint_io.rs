@@ -32,8 +32,10 @@ pub trait Stream {
     fn enable_uart(&mut self) -> Result<(), Fault> {
         Ok(())
     }
-    fn power_off(&mut self) -> Result<(), Fault> {
-        Ok(())
+    /// After Sleep is acknowledged, wait for TOUCHOUT low before isolating UART.
+    /// Pending preserves power; the driver bounds this wait separately from Sleep.
+    fn poll_power_off(&mut self) -> Poll<Result<(), Fault>> {
+        Poll::Ready(Err(Fault::Communication))
     }
 }
 

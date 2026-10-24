@@ -22,7 +22,7 @@ fn driver() -> (Driver<Wire, Clock>, Rc<RefCell<Module>>, Clock) {
 }
 
 fn settle<U: Stream>(driver: &mut Driver<U, Clock>) {
-    for _ in 0..4_000 {
+    for _ in 0..SHUTDOWN_TIMEOUT_MS + 1 {
         driver.service_idle();
         if matches!(driver.power_phase(), Phase::Off | Phase::Unavailable) {
             return;
@@ -46,7 +46,7 @@ fn touch_initialization_queries_and_sleeps_before_enabling_presence() {
     assert_eq!(module.borrow().cuts, 1);
     assert_eq!(
         module.borrow().commands,
-        [(0x0203, vec![]), (0x020c, vec![0])]
+        [(0x0203, vec![]), (0x0135, vec![]), (0x020c, vec![0])]
     );
     assert!(module.borrow().slots[7]);
     touch.enable();
@@ -175,8 +175,8 @@ impl Stream for StartingWire {
         self.uart_enabled = true;
         Ok(())
     }
-    fn power_off(&mut self) -> Result<(), crate::fingerprint_io::Fault> {
-        self.wire.power_off()
+    fn poll_power_off(&mut self) -> Poll<Result<(), crate::fingerprint_io::Fault>> {
+        self.wire.poll_power_off()
     }
 }
 
@@ -286,13 +286,19 @@ struct LateWire {
     wire: Wire,
     clock: Clock,
     late: Option<(u16, u64)>,
+    late_at_boundary: bool,
 }
 
 impl Stream for LateWire {
     fn read(&mut self, bytes: &mut [u8]) -> Poll<Result<usize, crate::fingerprint_io::Fault>> {
         let result = self.wire.read(bytes);
+        let complete = if self.late_at_boundary {
+            matches!(result, Poll::Pending)
+        } else {
+            matches!(result, Poll::Ready(Ok(_)))
+        };
         if let Some((command, deadline)) = self.late
-            && matches!(result, Poll::Ready(Ok(_)))
+            && complete
             && self.wire.0.borrow().rx.is_empty()
             && self
                 .wire
@@ -322,8 +328,8 @@ impl Stream for LateWire {
     fn power_on(&mut self) -> Result<(), crate::fingerprint_io::Fault> {
         self.wire.power_on()
     }
-    fn power_off(&mut self) -> Result<(), crate::fingerprint_io::Fault> {
-        self.wire.power_off()
+    fn poll_power_off(&mut self) -> Poll<Result<(), crate::fingerprint_io::Fault>> {
+        self.wire.poll_power_off()
     }
 }
 
@@ -335,15 +341,21 @@ fn a_reply_finishing_on_the_startup_or_shutdown_deadline_is_not_accepted() {
             wire: driver.stream,
             clock: clock.clone(),
             late: (!sleep).then_some((0x0203, BOOT_TIMEOUT_MS)),
+            late_at_boundary: sleep,
         };
         let mut driver = Driver::new(wire, clock);
         if sleep {
             driver.prepare(10_000).unwrap();
-            driver.stream.late = Some((
-                0x020c,
-                driver.now_ms() + crate::fingerprint_power::STOP_TIMEOUT_MS,
-            ));
             driver.release(false);
+            for _ in 0..1_000 {
+                driver.service_idle();
+                if matches!(driver.step, Step::Sleep) {
+                    break;
+                }
+                driver.wait();
+            }
+            assert!(matches!(driver.step, Step::Sleep));
+            driver.stream.late = Some((0x020c, driver.power.deadline_ms));
             settle(&mut driver);
         } else {
             assert_eq!(
@@ -360,6 +372,28 @@ fn a_reply_finishing_on_the_startup_or_shutdown_deadline_is_not_accepted() {
         );
         assert_eq!(module.borrow().cycles, 1);
     }
+}
+
+#[test]
+fn a_finger_absence_reply_on_its_deadline_cannot_start_sleep() {
+    let (base, module, clock) = driver();
+    let wire = LateWire {
+        wire: base.stream,
+        clock: clock.clone(),
+        late: None,
+        late_at_boundary: true,
+    };
+    let mut driver = Driver::new(wire, clock);
+    driver.prepare(10_000).unwrap();
+    driver.stream.late = Some((
+        0x0135,
+        driver.now_ms() + crate::fingerprint_power::FINGER_ABSENCE_TIMEOUT_MS,
+    ));
+    driver.release(false);
+    settle(&mut driver);
+    assert_eq!(driver.power_phase(), Phase::Unavailable);
+    assert_eq!(module.borrow().calls(0x020c), 0);
+    assert_eq!(module.borrow().cuts, 0);
 }
 
 #[test]
@@ -543,7 +577,9 @@ fn startup_deadline_cancellation_and_no_lift_are_bounded_without_matching() {
     driver.finish(attempt);
     driver.release(false);
     settle(&mut driver);
-    assert_eq!(module.borrow().cuts, 1);
+    assert_eq!(driver.power_phase(), Phase::Unavailable);
+    assert_eq!(module.borrow().cuts, 0);
+    assert_eq!(module.borrow().calls(0x020c), 0);
 }
 
 #[test]

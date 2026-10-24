@@ -307,9 +307,9 @@ impl Stream for Wire {
         eprintln!("fpm-power: on");
         Ok(())
     }
-    fn power_off(&mut self) -> Result<(), Fault> {
+    fn poll_power_off(&mut self) -> Poll<Result<(), Fault>> {
         if !self.powered || !self.asleep || !self.rx.is_empty() || !self.tx.is_empty() {
-            return Err(Fault::Communication);
+            return Poll::Ready(Err(Fault::Communication));
         }
         self.powered = false;
         self.samples = 0;
@@ -318,7 +318,7 @@ impl Stream for Wire {
         self.save_slot = 0;
         self.interrupted = false;
         eprintln!("fpm-power: off");
-        Ok(())
+        Poll::Ready(Ok(()))
     }
     fn read(&mut self, bytes: &mut [u8]) -> Poll<Result<usize, Fault>> {
         if !self.powered {

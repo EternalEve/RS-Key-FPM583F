@@ -40,6 +40,7 @@ pub(crate) struct Module {
     pub save_code: u32,
     pub delete_code: u32,
     pub finger_present: bool,
+    pub touch_high: bool,
     pub count_override: Option<u16>,
     pub corrupted: Option<u16>,
     pub active: u16,
@@ -70,6 +71,7 @@ impl Default for Module {
             save_code: 0,
             delete_code: 0,
             finger_present: false,
+            touch_high: false,
             count_override: None,
             corrupted: None,
             active: 0,
@@ -218,17 +220,20 @@ impl Stream for Wire {
         module.rx.push_back(0x55);
         Ok(())
     }
-    fn power_off(&mut self) -> Result<(), Fault> {
+    fn poll_power_off(&mut self) -> Poll<Result<(), Fault>> {
         let mut module = self.0.borrow_mut();
         assert!(module.powered);
         assert!(module.tx.is_empty() && module.rx.is_empty());
         assert!(!module.busy_wire);
         assert_eq!(module.commands.last().unwrap().0, 0x020c);
+        if module.touch_high {
+            return Poll::Pending;
+        }
         module.powered = false;
         module.cuts += 1;
         module.good_samples = 0;
         module.active = 0;
-        Ok(())
+        Poll::Ready(Ok(()))
     }
     fn read(&mut self, bytes: &mut [u8]) -> Poll<Result<usize, Fault>> {
         let mut module = self.0.borrow_mut();

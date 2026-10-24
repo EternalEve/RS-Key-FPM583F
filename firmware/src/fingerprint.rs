@@ -142,16 +142,27 @@ impl Stream for Uart {
     fn enable_uart(&mut self) -> Result<(), Fault> {
         self.enable()
     }
-    fn power_off(&mut self) -> Result<(), Fault> {
+    fn poll_power_off(&mut self) -> Poll<Result<(), Fault>> {
         if self.busy() {
-            return Err(Fault::Communication);
+            return Poll::Ready(Err(Fault::Communication));
+        }
+        #[cfg(fingerprint_touch)]
+        {
+            let pin = crate::env_u16(env!("PK_FINGERPRINT_TOUCH_PIN"));
+            // Sleep ACK alone does not establish the low level needed for wake.
+            if rp_pac::SIO.gpio_in((pin / 32) as usize).read() & (1 << (pin % 32)) != 0 {
+                return Poll::Pending;
+            }
         }
         self.disable();
         self.tx_bytes.fill(0);
         self.rx_bytes.fill(0);
-        self.power.as_mut().ok_or(Fault::Communication)?.set_high();
+        let Some(power) = self.power.as_mut() else {
+            return Poll::Ready(Err(Fault::Communication));
+        };
+        power.set_high();
         status::stage(Stage::Off);
-        Ok(())
+        Poll::Ready(Ok(()))
     }
 }
 

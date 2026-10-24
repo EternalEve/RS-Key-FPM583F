@@ -797,9 +797,16 @@ check authentication, permissions and RP scope before preparing inventory; valid
 tokens still require the original inventory reconciliation and a fresh check
 after its elapsed time. Invalid parameters do not wake a normally-off service.
 
-Shutdown runs only after business holds and old exchanges end. Ordinary sleep
-and its reply have a 3 s bound. Unknown terminal state, missing reply or residual
-bytes leave the service unavailable and powered, without automatic power cycling
+Shutdown runs only after business holds and old exchanges end. The driver first
+polls `01 35` every 200 ms until a successful reply reports no finger, within
+30 s. Busy/present replies do not renew that deadline; errors do not mean absence.
+No template is matched or modified. Ordinary sleep
+and its reply have a 3 s bound. After a timely successful reply, waiting for
+configured TOUCHOUT low has a separate 4 s bound; neither is renewed by polling.
+Only after that low observation does the adapter isolate UART and cut main VCC;
+waiting does not send another command or grant presence. Unknown terminal state,
+missing reply, residual bytes or a TOUCHOUT wait timeout leave the service
+unavailable and powered, without automatic power cycling
 or reissuing writes. GetInfo and PIN with backup presence remain usable.
 Optional TOUCHOUT only supplies UP in a current FIDO ceremony: it must first be
 low after arming, then present a new rising edge. One event is consumed once;

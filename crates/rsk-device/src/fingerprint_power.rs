@@ -5,6 +5,11 @@
 
 pub const BOOT_TIMEOUT_MS: u64 = 3_000;
 pub const STOP_TIMEOUT_MS: u64 = 3_000;
+pub const FINGER_ABSENCE_TIMEOUT_MS: u64 = 30_000;
+// FPM583F hardware traces include ~3.1 s TOUCHOUT pulses after Sleep ACK.
+pub const TOUCH_LOW_TIMEOUT_MS: u64 = 4_000;
+pub const SHUTDOWN_TIMEOUT_MS: u64 =
+    FINGER_ABSENCE_TIMEOUT_MS + STOP_TIMEOUT_MS + TOUCH_LOW_TIMEOUT_MS;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Phase {
@@ -40,6 +45,10 @@ impl Power {
         self.phase
     }
 
+    pub(crate) fn expired(&self, now_ms: u64) -> bool {
+        matches!(self.phase, Phase::Starting | Phase::Stopping) && now_ms >= self.deadline_ms
+    }
+
     pub fn wake(&mut self, now_ms: u64, deadline_ms: u64) -> bool {
         self.held = true;
         if self.phase != Phase::Off || now_ms >= deadline_ms {
@@ -67,7 +76,7 @@ impl Power {
             return false;
         }
         self.phase = Phase::Stopping;
-        self.deadline_ms = now_ms.saturating_add(STOP_TIMEOUT_MS);
+        self.deadline_ms = now_ms.saturating_add(FINGER_ABSENCE_TIMEOUT_MS);
         true
     }
 

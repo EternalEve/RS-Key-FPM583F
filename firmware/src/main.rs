@@ -775,6 +775,14 @@ async fn main(spawner: Spawner) {
             None
         }
     };
+    #[cfg(all(feature = "fingerprint", fingerprint_touch))]
+    let fingerprint_touch_input = {
+        use embassy_rp::gpio::{AnyPin, Input, Pull};
+        // Safety: compile-time and EF_PHY guards reserve this pin exclusively.
+        let touch_pin = env_u16(env!("PK_FINGERPRINT_TOUCH_PIN")) as u8;
+        let pin = unsafe { AnyPin::steal(touch_pin) };
+        Input::new(pin, Pull::None)
+    };
     // Startup must finish before USB attach, rather than consume a host deadline.
     #[cfg(all(feature = "fingerprint", fingerprint_touch, fingerprint_power))]
     let sensor = {
@@ -812,7 +820,7 @@ async fn main(spawner: Spawner) {
     config.max_power = 100;
     config.max_packet_size_0 = 64;
     // bcdDevice build counter; also surfaced on the trusted-display Firmware screen.
-    let device_release: u16 = 0x09F0;
+    let device_release: u16 = 0x09F5;
     config.device_release = device_release;
 
     let mut builder = Builder::new(
@@ -1296,22 +1304,11 @@ async fn main(spawner: Spawner) {
     #[cfg(all(feature = "fingerprint", not(feature = "display")))]
     {
         #[cfg(fingerprint_touch)]
-        use embassy_rp::gpio::AnyPin;
-        #[cfg(fingerprint_touch)]
         {
             // Let GPIO finish AtomicWaker::wake before the executor re-registers;
             // preempting it makes register self-wake and starve the GPIO handler.
             interrupt::IO_IRQ_BANK0.set_priority(interrupt::SWI_IRQ_1.get_priority());
-            // Safety: compile-time and EF_PHY guards reserve this pin exclusively.
-            let touch_pin = env_u16(env!("PK_FINGERPRINT_TOUCH_PIN")) as u8;
-            let pin = unsafe { AnyPin::steal(touch_pin) };
-            hp.spawn(
-                fingerprint_touch::task(embassy_rp::gpio::Input::new(
-                    pin,
-                    embassy_rp::gpio::Pull::None,
-                ))
-                .unwrap(),
-            );
+            hp.spawn(fingerprint_touch::task(fingerprint_touch_input).unwrap());
         }
         static BINDINGS: StaticCell<RefCell<rsk_fido::bio_directory::Directory>> =
             StaticCell::new();
