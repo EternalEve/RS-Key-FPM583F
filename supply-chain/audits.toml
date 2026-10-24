@@ -1,6 +1,25 @@
 
 # cargo-vet audits file
 
+[[audits.crypto-bigint]]
+who = "Codex (automated source-delta review)"
+criteria = "safe-to-deploy"
+delta = "0.7.5 -> 0.7.6"
+notes = """
+Reviewed the published source/manifests and Rust delta for RUSTSEC-2026-0387.
+Subtraction, zero counts and Montgomery carry propagation use the reviewed
+ctutils primitives; UintRef equality uses ct_eq and boxed inversion retains
+CtOption selection. Reviewed the accompanying exact-division, repeated-square,
+Karatsuba carry, mixed-precision GCD, safegcd bound and shared square-root fixes.
+The existing boxed square-root API uses a bounded scratch buffer; fixed-width
+operations remain stack-based. No new unsafe site, build script, runtime I/O
+or runtime crate was introduced; required ctutils 0.4.5 is separately reviewed.
+All 901 upstream unit, differential/property and doc tests pass with all features.
+This is an automated delta review over the exempted 0.7.5 baseline, not an
+external cryptographic audit or proof of RP2350 constant-time execution.
+Upstream release: https://github.com/RustCrypto/crypto-bigint/pull/1365.
+"""
+
 [[audits.ctutils]]
 who = "Codex (automated source-delta review)"
 criteria = "safe-to-deploy"
@@ -17,4 +36,22 @@ regressions and thumbv8m builds. This is an automated delta review over the
 existing exempted 0.4.2 baseline, not an external audit or a hardware timing proof.
 Upstream fixes: https://github.com/RustCrypto/utils/pull/1567 and
 https://github.com/RustCrypto/utils/pull/1568.
+"""
+
+[[audits.ctutils]]
+who = "Codex (automated source-delta review)"
+criteria = "safe-to-deploy"
+delta = "0.4.4 -> 0.4.5"
+notes = """
+Reviewed the complete published Rust delta and manifests. Existing comparison
+macros move into shared primitives, with Thumb-1 barriers before narrowing and
+composing Choice values. New borrow, overflow and zero-count helpers preserve
+integer semantics through masks; 64-bit zero counts split on 32-bit targets and
+RV32 wide addition uses fixed halves. No new unsafe, dependency, allocation,
+build script or I/O. All 206 upstream all-feature unit/property tests pass;
+two upstream doc examples remain ignored. This is an automated delta review,
+not an external audit or RP2350 timing proof.
+Upstream changes: https://github.com/RustCrypto/utils/pull/1570,
+https://github.com/RustCrypto/utils/pull/1571 and
+https://github.com/RustCrypto/utils/pull/1572.
 """

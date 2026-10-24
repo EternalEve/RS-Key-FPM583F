@@ -9,6 +9,12 @@ shell out to `rsk` or any other process. It lives in its own workspace
 (`tools/tui`), separate from the firmware, and links the host PC/SC and HID
 stacks.
 
+Version 0.3.14 uses P-256 0.14 for native backup channels and checkpoint
+verification, removing the older `crypto-bigint` backend affected by
+[RUSTSEC-2026-0387](https://github.com/RustCrypto/crypto-bigint/pull/1365).
+The coordinate and shared-secret formats are unchanged; RFC 5903 §8.1 checks
+the ECDH path, including rejection of invalid peer points.
+
 It is a companion to the `rsk` CLI, not a replacement: the cockpit covers the
 safe, day-to-day reads and a few in-band actions (LED, seed backup, reboot,
 audit, identity verify). Irreversible production rituals (secure-boot staging,

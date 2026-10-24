@@ -94,7 +94,7 @@ only its first confirmation: while untouched, the adapter repeatedly returned fr
 UART-ready to supply-starting. That failure motivated masking maintenance edges;
 it does not establish recovery from a held input.
 
-The `0x09EF` measurement candidate adds `fingerprint-touch-trace`, explicitly off
+The `0x09F0` measurement candidate retains `fingerprint-touch-trace`, explicitly off
 in normal images. `rsk fingerprint trace --json` reads retained GPIO observations,
 controller phases and consent-window states after a request ends, including a
 live GP2 level. The fixed RAM buffer overwrites its oldest entries; reads neither

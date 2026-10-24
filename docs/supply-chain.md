@@ -449,10 +449,11 @@ nix develop -c cargo vet              # what's audited vs exempted
 nix develop -c cargo vet suggest      # diffs to review next
 ```
 
-The `ctutils` 0.4.2 → 0.4.4 security update has an explicitly labelled automated
-source-delta review in `audits.toml`, including upstream unit/property tests. Its
-0.4.2 baseline remains exempted; this is not an external cryptographic audit or
-an RP2350 timing proof.
+The `ctutils` 0.4.2 → 0.4.4 → 0.4.5 and `crypto-bigint` 0.7.5 → 0.7.6 updates
+have explicitly labelled automated source-delta reviews in `audits.toml`, including
+upstream unit/property tests. The original baselines remain exempted; these are
+not external cryptographic audits or RP2350 timing proofs. The latter update
+addresses [RUSTSEC-2026-0387](https://github.com/RustCrypto/crypto-bigint/pull/1365).
 
 The host `tools/tui` workspace is separate and not yet under cargo-vet. It is
 covered by Dependabot and `cargo-deny`.

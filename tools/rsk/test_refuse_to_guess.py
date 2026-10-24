@@ -33,8 +33,8 @@ sys.modules.setdefault("fido2", types.ModuleType("fido2"))
 
 import pytest  # noqa: E402
 
-from rsk import (audit, backup, ccid, common, fido, fingerprint, hw, inventory, led, lock,  # noqa: E402
-                 offboard, openpgp, otp)
+from rsk import (audit, backup, ccid, common, fido, fingerprint, fingerprint_trace, hw,  # noqa: E402
+                 inventory, led, lock, offboard, openpgp, otp)
 
 PKG = pathlib.Path(__file__).parent
 
@@ -68,6 +68,9 @@ SITES = {
         ("att_status", "connect_fido", None),
     ],
     "fingerprint": [
+        ("run", "ccid.connect", "True"),
+    ],
+    "fingerprint_trace": [
         ("run", "ccid.connect", "True"),
     ],
     "hw": [
@@ -240,7 +243,8 @@ def _parse(mod, argv):
     """Real defaults and real subcommand wiring, without importing `__main__`
     (which pulls in the modules that abort here)."""
     p = argparse.ArgumentParser(prog="rsk")
-    mod.register(p.add_subparsers(dest="group", required=True))
+    register = fingerprint.register if mod is fingerprint_trace else mod.register
+    register(p.add_subparsers(dest="group", required=True))
     return p.parse_args(argv)
 
 
@@ -264,6 +268,7 @@ DRIVEN = [
     (fido, ["fido", "attestation", "clear"], ("connect_fido", True)),
     (fido, ["fido", "attestation", "status"], ("connect_fido", False)),
     (fingerprint, ["fingerprint", "status"], ("ccid.connect", True)),
+    (fingerprint_trace, ["fingerprint", "trace"], ("ccid.connect", True)),
     (hw, ["hw", "--product", "x"], ("ccid.connect", True)),
     (inventory, ["inventory", "verify"], ("connect_fido", True)),
     (hw, ["hw", "--transport", "fido", "--product", "x"], ("connect_fido", True)),

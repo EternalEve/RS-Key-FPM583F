@@ -4,6 +4,39 @@
 use super::*;
 
 #[test]
+fn ecdh_matches_rfc5903_and_rejects_invalid_points() {
+    fn bytes(value: &str) -> [u8; 32] {
+        std::array::from_fn(|i| u8::from_str_radix(&value[2 * i..2 * i + 2], 16).unwrap())
+    }
+
+    // RFC 5903 §8.1 fixes both the SEC1 coordinates and the shared x-coordinate.
+    let sk = SecretKey::from_slice(&bytes(
+        "C88F01F510D9AC3F70A292DAA2316DE544E9AAB8AFE84049C62A9C57862D1433",
+    ))
+    .unwrap();
+    let px = bytes("D12DFB5289C8D4F81208B70270398C342296970A0BCCB74C736FC7554494BF63");
+    let py = bytes("56FBF3CA366CC23E8157854C13C58D6AAC23F046ADA30F8353E74F33039872AB");
+    assert_eq!(
+        ecdh_raw(&sk, &px, &py),
+        Some(bytes(
+            "D6840F6B42F6EDAFD13116E0E12565202FEF8E9ECE7DCE03812464D04B9442DE"
+        ))
+    );
+    assert!(ecdh_raw(&sk, &[0; 32], &[0; 32]).is_none());
+    assert!(ecdh_raw(&sk, &[0xFF; 32], &py).is_none());
+
+    let (generated, x, y) = ecdh_pub();
+    let public = sk.public_key().to_sec1_point(false);
+    let expected = ecdh_raw(
+        &generated,
+        public.x().unwrap().as_slice().try_into().unwrap(),
+        public.y().unwrap().as_slice().try_into().unwrap(),
+    );
+    assert!(expected.is_some());
+    assert_eq!(ecdh_raw(&sk, &x, &y), expected);
+}
+
+#[test]
 fn ber_find_walks_top_level_tlvs() {
     // 4F (short) · 5F52 (2-byte tag) · C4 (short): ber_find must step over the
     // 2-byte-tag object to reach C4, and match the 2-byte tag itself.

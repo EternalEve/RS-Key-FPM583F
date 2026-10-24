@@ -38,6 +38,22 @@ tag: the USB `bcdDevice` build counter (bumped on every behavior change), and
 
 ## [Unreleased]
 
+- **FPM583F hardware diagnosis (2026-10-24, bcdDevice 0x09F0):** the authorized
+  code-partition update and independent readback passed. Two ordinary touches,
+  BOOTSEL, cancellation and normal timeout passed; a touch after a pre-window
+  hold and a later independent request both timed out. Eleven trace captures
+  retain 63 consistent observations without overflow: both failed windows armed
+  in Ready at low level, with no recorded edge or consumption. Follow-up live
+  sampling returned low/Ready in all 814 samples, including 459 during two
+  12-second holds; the largest sampling gap was 0.728 s, so short transitions
+  remain unexcluded. The long-hold failure is unresolved; these observations do
+  not establish physical release or replace signal and supply measurements.
+  See the [validation record](RSKEY-FPM583F-TOUCH-TRACE-09F0-VALIDATION-2026-10-24.md).
+- **Cryptographic dependency security update (bcdDevice 0x09F0; TUI 0.3.14):**
+  update `crypto-bigint` to 0.7.6 and its required `ctutils` to 0.4.5 for
+  RUSTSEC-2026-0387. Align the TUI's native P-256 operations with the firmware's
+  0.14 ecosystem, removing its affected 0.5.5 backend; retain SEC1 coordinates
+  and raw ECDH shared-secret encoding, checked against RFC 5903 §8.1.
 - **Fingerprint touch diagnosis (bcdDevice 0x09EF; rsk 0.3.39):** add the explicit
   `fingerprint-touch-trace` measurement feature and read-only vendor `0x16` pages.
   Retain 128 GPIO/window/controller observations in fixed RAM, including timestamps
