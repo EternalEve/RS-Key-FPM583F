@@ -62,6 +62,7 @@ enum Step {
     CaptureResult,
     Save,
     SaveResult,
+    DeleteCheck(u16),
     Delete,
     DeleteResult,
     CountBefore,
@@ -231,7 +232,7 @@ impl<U: Stream, C: Runtime> Driver<U, C> {
                 _ => Request::Clear,
             },
             Step::DeleteResult => Request::DeleteResult,
-            Step::Slot(slot) => Request::Slot(slot),
+            Step::DeleteCheck(slot) | Step::Slot(slot) => Request::Slot(slot),
             Step::Cancel => Request::Cancel,
             Step::CancelledResult(request) => request,
         }
@@ -412,6 +413,7 @@ impl<U: Stream, C: Runtime> Driver<U, C> {
                     | Step::SleepFinger
                     | Step::CountBefore
                     | Step::CountAfter
+                    | Step::DeleteCheck(_)
                     | Step::Slot(_)
             ) {
                 self.schedule(self.step, QUERY_INTERVAL_MS);
@@ -478,6 +480,17 @@ impl<U: Stream, C: Runtime> Driver<U, C> {
             {
                 self.temporary = None;
                 self.sample(Feedback::Good, 0, true);
+            }
+            (Step::DeleteCheck(_), Data::Slot { present, .. }) => {
+                // Unsaved or already-removed slots need inventory confirmation, not deletion.
+                self.schedule(
+                    if present {
+                        Step::Delete
+                    } else {
+                        Step::CountBefore
+                    },
+                    0,
+                );
             }
             (Step::Delete, Data::None) => self.schedule(Step::DeleteResult, QUERY_INTERVAL_MS),
             (Step::DeleteResult, Data::None) => self.schedule(Step::CountBefore, 0),
@@ -815,7 +828,7 @@ impl<U: Stream, C: Runtime> Sensor for Driver<U, C> {
     fn start_management(&mut self, channel: u32, command: Command) -> Result<Attempt, Failure> {
         let step = match command {
             Command::Inventory => Step::CountBefore,
-            Command::Delete { slot } if slot < MODULE_SLOTS as u16 => Step::Delete,
+            Command::Delete { slot } if slot < MODULE_SLOTS as u16 => Step::DeleteCheck(slot),
             Command::Clear => Step::Delete,
             Command::Capture {
                 slot,
@@ -877,6 +890,14 @@ impl<U: Stream, C: Runtime> Sensor for Driver<U, C> {
 #[cfg(test)]
 #[path = "fingerprint_driver_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "fingerprint_delete_tests.rs"]
+mod delete_tests;
+
+#[cfg(test)]
+#[path = "fingerprint_cleanup_tests.rs"]
+mod cleanup_tests;
 
 #[cfg(test)]
 #[path = "fingerprint_power_driver_tests.rs"]

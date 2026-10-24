@@ -156,6 +156,12 @@ the existing passkeys and PIN. Deleting the last template leaves PIN plus fresh
 button presence available; only a successful standard CTAP Reset clears FIDO
 credentials. A template saved during a failed enrollment remains isolated and
 can be enumerated and removed with authorized standard management after restart.
+From `0x09F6`, authorized cleanup also handles unsaved or already-removed module
+slots: it checks the target slot and confirms the full inventory before retiring
+the entry. This includes `Deleting` entries retained by an older image after a
+failed cleanup. Occupied templates still require targeted deletion; failed reads,
+inconsistent inventory and module delete errors remain failures. The record
+format is unchanged, and cleanup does not reset the PIN or existing passkeys.
 Unknown inventory or unsupported record versions require an explicit legal Reset.
 
 Missing or malformed biometric retry records keep fingerprint verification

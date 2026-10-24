@@ -38,6 +38,14 @@ tag: the USB `bcdDevice` build counter (bumped on every behavior change), and
 
 ## [Unreleased]
 
+- **Fix incomplete fingerprint cleanup (bcdDevice 0x09F6):** check the target
+  module slot before deletion. If it is already empty, confirm the full inventory
+  before retiring its management entry, without sending a delete to an absent
+  template. This also recovers `Deleting` entries left by older firmware.
+  Occupied slots still use targeted deletion; query failures, inconsistent
+  inventory and actual delete failures remain errors. PINs, other templates,
+  passkeys and persistent record formats are unchanged. Hardware acceptance of
+  the updated image remains pending.
 - **Fix FPM583F touch after a long hold (bcdDevice 0x09F5):** restore fresh-touch
   confirmation after a finger stays on the module during maintenance. Before
   ordinary sleep, query `01 35` until the module reports no finger, within 30 s.
