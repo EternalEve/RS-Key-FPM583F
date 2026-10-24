@@ -178,3 +178,41 @@ fn a_fresh_cancel_before_prepare_survives_runtime_end_and_blocks_module_io() {
     assert!(!clock.arbiter.cancellable_for(SCOPE_FIDO));
     assert_eq!(clock.module.borrow().commands.len(), before);
 }
+
+#[test]
+fn background_touch_sleep_preserves_the_active_requests_presence_and_cancel_flags() {
+    let clock = BoardClock::default();
+    {
+        let mut module = clock.module.borrow_mut();
+        module.controlled = true;
+        module.powered = false;
+        module.rx.clear();
+    }
+    let mut driver = Driver::new(Wire(clock.module.clone()), clock.clone());
+    driver.initialize_touch().unwrap();
+    let touch = crate::fingerprint_touch::Rearm::new();
+    touch.enable();
+    clock.arbiter.set_wait_scope(SCOPE_FIDO);
+    clock.arbiter.set_cancellable(true);
+    clock.arbiter.set_up_pending(true);
+    touch.observe(None, true);
+    touch.observe(None, false);
+    let mut completed = false;
+    for _ in 0..4_000 {
+        completed = touch.service(&mut driver);
+        assert!(clock.arbiter.pending_for(SCOPE_FIDO));
+        assert!(clock.arbiter.cancellable_for(SCOPE_FIDO));
+        clock.arbiter.request_cancel();
+        assert!(clock.arbiter.cancel_requested());
+        if completed {
+            break;
+        }
+        driver.wait();
+    }
+    assert!(
+        completed,
+        "cancelling a host request must not strand background sleep"
+    );
+    assert_eq!(driver.power_phase(), Phase::Off);
+    assert!(clock.arbiter.cancel_requested());
+}

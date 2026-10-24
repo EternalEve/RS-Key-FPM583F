@@ -186,6 +186,8 @@ impl Runtime for Board {
 }
 
 pub type Bridge = Driver<Uart, Board>;
+#[cfg(all(fingerprint_touch, fingerprint_power))]
+pub type Service = rsk_device::fingerprint_service::Service<'static, Uart, Board>;
 
 pub fn bridge(
     uart: Peri<'static, UART0>,

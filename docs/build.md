@@ -28,19 +28,21 @@ below end in `thumbv8m.main-none-eabihf/release/firmware`:
 | 16 MB touch | `target/16mb/` |
 | Fingerprint candidate | `target/fingerprint/` |
 | Fingerprint strict-config candidate | `target/strict-fingerprint/` |
+| Fingerprint touch measurement | `target/fingerprint-touch-trace/` |
 | Display | `target/display/` |
 | No-touch test | `target/no-touch/` |
 
 The default ELF remains touch-enabled after the full gate. All images carry a
 24-byte loadable `.rsk_build` marker generated from the actual Cargo features:
 `RSKBUILD`, then little-endian u32 format version (1), feature flags (bit 0
-no-touch, bit 1 fingerprint, bit 2 display, bit 3 strict-config, bit 4 fido-ccid), Flash bytes
+no-touch, bit 1 fingerprint, bit 2 display, bit 3 strict-config, bit 4 fido-ccid,
+bit 5 fingerprint-touch-trace), Flash bytes
 and KVMAIN bytes.
 The marker survives debug stripping, partition-table insertion and UF2 export.
 It prevents accidental mix-ups; it is not a signature or proof of provenance.
 
 `scripts/pt.sh` checks this marker before producing a packaged ELF. Normal
-packaging refuses no-touch images, including renamed ones, and missing,
+packaging refuses no-touch and touch-measurement images, including renamed ones, and missing,
 malformed or unknown markers. Older unmarked ELFs must be rebuilt from source.
 The Nix packages and CI pass `--config-policy strict` or `--config-policy compat`
 to check the requested policy against the actual image, even after renaming.
@@ -54,6 +56,16 @@ nix develop -c picotool uf2 convert firmware-no-touch.elf -t elf firmware-no-tou
 ```
 
 The `firmware-no-touch*` Nix packages select this test-only policy explicitly.
+
+The diagnostic `fingerprint-touch-trace` feature requires configured TOUCHOUT and
+switched VCC. Its distinct marker and `--test-fingerprint-touch-trace` packaging
+opt-in keep the idle physical-input observations out of a normal image:
+
+```sh
+nix develop -c env FLASH_SIZE=2M KVMAIN=896K FINGERPRINT_TOUCH_PIN=2 FINGERPRINT_POWER_PIN=3 cargo build --release -p firmware --features fingerprint-touch-trace,strict-config --target-dir target/fingerprint-touch-trace
+nix develop -c scripts/pt.sh --test-fingerprint-touch-trace --config-policy strict target/fingerprint-touch-trace/thumbv8m.main-none-eabihf/release/firmware firmware-touch-trace.elf
+```
+
 Custom `mkFirmware` builds using no-touch must set `testNoTouch = true` too.
 Release publication retains its no-touch filename check and checks the packaged
 ELF's marker before copying its UF2 into the release assets.
@@ -108,7 +120,7 @@ flowchart TD
 | `PRESENCE_ACTIVE_HIGH` | `0` | `0` / `1` | GPIO presence-button polarity, only meaningful with a GPIO `PRESENCE_PIN`. `0` (default) = active-low: button to ground, internal pull-up, a press reads **low**. `1` = active-high: internal pull-down, a press reads **high**, for a capacitive touch sensor or a button to VCC. Ignored for the BOOTSEL default. |
 | `WAKE_PIN` | `25` | `none` or `0..=29` | **`display` builds only.** The button that wakes the panel from display sleep. Default `25` is the Waveshare RP2350-Touch-LCD-2.8's **BAT_PWR** button. `none` makes wake touch-only (no button); any other GPIO selects a different button. A value in the LCD/touch range (`10..=18`) is rejected at compile time. The display-sleep timeout itself is set on-device (Settings → Display sleep). |
 | `FINGERPRINT_POWER_PIN` | `none` | `none` or `0..=29` | **`fingerprint` only.** Active-low external VCC switch; HIGH keeps the module off. Unset retains constant supply. V_TOUCH remains independently supplied. GP3 is the unvalidated RP2350-Zero-CM candidate. |
-| `FINGERPRINT_TOUCH_PIN` | `none` | `none` or `0..=29` | **`fingerprint` only.** Active-high TOUCHOUT pulse, without internal pulls; only fresh FIDO ceremony windows collect it. GP2 is the unvalidated candidate. BOOTSEL/`PRESENCE_PIN` remains the separate backup and other applets' presence input. |
+| `FINGERPRINT_TOUCH_PIN` | `none` | `none` or `0..=29` | **`fingerprint` only.** Active-high TOUCHOUT pulse, without internal pulls; only fresh FIDO ceremony windows collect consent. With switched VCC, released idle touches also request ordinary-sleep maintenance. GP2 is the unvalidated candidate. BOOTSEL/`PRESENCE_PIN` remains the separate backup and other applets' presence input. |
 | `WAKE_ACTIVE_HIGH` | `0` | `0` / `1` | Wake-button polarity (`display` builds, with a GPIO `WAKE_PIN`). `0` (default) = active-low (internal pull-up, press reads **low**, e.g. BAT_PWR to ground); `1` = active-high (internal pull-down). |
 | `LED_KIND` | `ws2812` | `ws2812` / `gpio` / `pimoroni` / `none` | The LED driver backend, and the **boot default**. A non-`none` build compiles all three so the driver/pin/order are runtime-switchable via `rsk hw` / PicoForge (see below). `ws2812` = a single addressable RGB on `LED_PIN` (the Waveshare default). `gpio` = a plain on/off LED on `LED_PIN`. Hue/brightness collapse to lit/unlit, but the blink *pattern* still distinguishes statuses. `pimoroni` = a 3-pin PWM RGB (Pimoroni Tiny 2350: R=GPIO18, G=GPIO19, B=GPIO20, common-anode). `none` = no indicator (the status engine still runs; nothing renders it, and the phy LED fields are ignored). |
 | `LED_ORDER` | `rgb` | `rgb` / `grb` | WS2812 wire byte order (`ws2812` backend only). The Waveshare RP2350-One is unusually `rgb` (the default); standard WS2812B parts (e.g. the TenStar RP2350-USB) are `grb`. If a `ws2812` board comes up with red and green swapped (blue fine), flip this to `grb`. |

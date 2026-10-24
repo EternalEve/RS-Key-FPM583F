@@ -38,11 +38,43 @@ tag: the USB `bcdDevice` build counter (bumped on every behavior change), and
 
 ## [Unreleased]
 
+- **Fingerprint touch diagnosis (bcdDevice 0x09EF; rsk 0.3.39):** add the explicit
+  `fingerprint-touch-trace` measurement feature and read-only vendor `0x16` pages.
+  Retain 128 GPIO/window/controller observations in fixed RAM, including timestamps
+  and sequence bounds; reads never drain the buffer or operate the module. Normal
+  images return `6D00`. Packaging requires explicit measurement opt-in, preserved
+  in the loadable build marker. `rsk fingerprint trace` reads the pages and refuses
+  mixed generations. Persistent records are unchanged. This diagnoses the 0x09EE
+  long-held-input failure; it does not claim to fix it.
+- **Fingerprint touch (bcdDevice 0x09EE):** after TOUCHOUT is released, automatically
+  run Count, ordinary sleep and UART-safe power-off before accepting a fresh touch.
+  Observe idle touches for maintenance without granting consent. Maintenance shares
+  the worker with enrollment/matching, preserves cancellation and presence deadlines,
+  and disables GP2 after a module failure without automatic power retries. Persistent
+  records and PINs are unchanged. Ignore maintenance-period edges and require low
+  after shutdown before rearming: the 0x09ED hardware trial confirmed only the first
+  touch and repeatedly restarted maintenance while untouched. The 0x09EE trial
+  passed ten consecutive touches and idle-touch isolation, but a held input before
+  the window left both that request and a later fresh touch timing out. BOOTSEL,
+  cancellation and normal timeout remained usable; full acceptance did not pass.
+- **Security dependencies:** update `ctutils` from 0.4.2 to 0.4.4 in all four
+  workspace lockfiles for RUSTSEC-2026-0385 (constant-time masks and 32-bit `u128`
+  comparisons). TUI → 0.3.13; Embassy and toolchain pins are unchanged.
+
+- **FPM583F hardware diagnosis (2026-10-23):** record two startup-only trials
+  that captured only the first of three touches, and an isolated `0x09F1` trial
+  that captured all three when Count, ordinary sleep and UART-safe power-off
+  were repeated between touches. Quiet windows in the latter trial had no high
+  samples and met the sampling-gap requirement. GP2 remained excluded from
+  operation confirmation; automatic re-sleep and normal presence acceptance
+  remain pending. See the [test record](RSKEY-FPM583F-TOUCH-REARM-TEST-RECORD-2026-10-23.md).
+
 - **Fingerprint touch (bcdDevice 0x09EC):** when GP2 touch and the external VCC
   switch are both configured, initialize the module before USB attach and enable touch only after
   a successful Count, ordinary sleep and UART-safe power-off. Failed startup keeps
-  GP2 disabled while BOOTSEL and PIN remain available. The final sleep/power-off
-  sequence still requires hardware acceptance.
+  GP2 disabled while BOOTSEL and PIN remain available. Hardware follow-up found
+  startup initialization alone insufficient for repeated touch; this candidate
+  remains undeployed pending automatic re-sleep and normal presence acceptance.
 
 - **emu:** keep disabled HID applications closed when several emulated devices
   run in one process. Each instance refreshes its own configuration even if

@@ -327,6 +327,7 @@ fn main() {
         "DISPLAY",
         "STRICT_CONFIG",
         "FIDO_CCID",
+        "FINGERPRINT_TOUCH_TRACE",
     ];
     let flags = features
         .iter()

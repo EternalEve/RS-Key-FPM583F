@@ -51,6 +51,14 @@ mod display;
 mod fingerprint;
 #[cfg(all(feature = "fingerprint", fingerprint_touch))]
 mod fingerprint_touch;
+#[cfg(feature = "fingerprint-touch-trace")]
+mod fingerprint_touch_trace;
+#[cfg(all(
+    feature = "fingerprint-touch-trace",
+    not(doc),
+    not(all(fingerprint_touch, fingerprint_power))
+))]
+compile_error!("fingerprint-touch-trace requires TOUCHOUT and switched VCC");
 mod flash_storage;
 #[cfg(all(feature = "fingerprint", feature = "display", not(doc)))]
 compile_error!("fingerprint currently requires a board without the display feature");
@@ -804,7 +812,7 @@ async fn main(spawner: Spawner) {
     config.max_power = 100;
     config.max_packet_size_0 = 64;
     // bcdDevice build counter; also surfaced on the trusted-display Firmware screen.
-    let device_release: u16 = 0x09EC;
+    let device_release: u16 = 0x09EF;
     config.device_release = device_release;
 
     let mut builder = Builder::new(
@@ -1318,6 +1326,12 @@ async fn main(spawner: Spawner) {
             )))
         };
         let bindings = BINDINGS.init(RefCell::new(rsk_fido::bio_directory::Directory));
+        #[cfg(all(fingerprint_touch, fingerprint_power))]
+        let sensor = {
+            static SERVICE: StaticCell<RefCell<fingerprint::Service>> = StaticCell::new();
+            presence_ref.borrow_mut().set_fingerprint(sensor);
+            SERVICE.init(RefCell::new(fingerprint::Service::new(sensor)))
+        };
         worker.set_fingerprint(sensor, bindings);
     }
     spawner.spawn(worker_task(worker).unwrap());

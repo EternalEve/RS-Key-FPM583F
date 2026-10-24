@@ -5,6 +5,27 @@ use super::*;
 use crate::presence::{SCOPE_NONE, SCOPE_OTP};
 
 #[test]
+fn diagnostic_reads_preserve_each_consent_state() {
+    let touch = Touch::new_disabled();
+    assert_eq!(touch.snapshot(), (0, State::Disabled));
+    touch.enable();
+    assert_eq!(touch.snapshot(), (0, State::Closed));
+    let window = touch.open(SCOPE_FIDO).unwrap();
+    assert_eq!(touch.snapshot(), (window, State::WaitLow));
+    assert!(!touch.take(window));
+    assert!(touch.released(window));
+    assert_eq!(touch.snapshot(), (window, State::Armed));
+    assert!(!touch.take(window));
+    assert!(touch.record(window));
+    assert_eq!(touch.snapshot(), (window, State::Event));
+    assert!(touch.take(window));
+    assert_eq!(touch.snapshot(), (window, State::Spent));
+    assert!(!touch.take(window));
+    touch.close(window);
+    assert_eq!(touch.snapshot(), (0, State::Closed));
+}
+
+#[test]
 fn a_cold_sensor_cannot_open_presence_before_initialization() {
     let touch = Touch::new_disabled();
     for scope in [SCOPE_FIDO, SCOPE_CCID] {

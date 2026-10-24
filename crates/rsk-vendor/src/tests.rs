@@ -47,6 +47,19 @@ impl Platform for FullPlatform {
         Some([fingerprint::STATUS_VERSION, 3, 3, 6, 2, 3])
     }
 
+    fn fingerprint_trace(&self, page: u8) -> Option<[u8; fingerprint_trace::PAGE_LEN]> {
+        fingerprint_trace::Trace::new().page(
+            page,
+            fingerprint_trace::Snapshot {
+                phase: 1,
+                consent: 0,
+                level: fingerprint_trace::Level::Low,
+                window: 0,
+                adapter_stage: 0,
+            },
+        )
+    }
+
     fn request_reboot(&mut self, bootsel: bool) -> bool {
         self.reboots.push((bootsel,));
         true
@@ -133,6 +146,55 @@ fn fingerprint_status_is_an_ungated_snapshot_or_explicitly_unsupported() {
         );
     }
     let mut wrong_cla = apdu(INS_FINGERPRINT_STATUS, 0, 0, &[]);
+    wrong_cla[0] = 0x80;
+    assert_eq!(
+        run(&mut full, &mut fs, &wrong_cla),
+        (Sw::CLA_NOT_SUPPORTED, vec![])
+    );
+    assert_eq!(read_counter(&mut fs), 0);
+    assert!(full.platform.reboots.is_empty());
+}
+
+#[test]
+fn touch_trace_reads_are_bounded_ungated_and_unsupported_without_measurement() {
+    let presence = RefCell::new(Declining);
+    let mut full = VendorApplet::new(FullPlatform::default(), &presence);
+    let mut bare = VendorApplet::new(BarePlatform, &presence);
+    let mut fs = Fs::new(RamStorage::default());
+    for page in [0, fingerprint_trace::PAGES as u8 - 1] {
+        let (sw, data) = run(
+            &mut full,
+            &mut fs,
+            &apdu(INS_FINGERPRINT_TRACE, page, 0, &[]),
+        );
+        assert_eq!(sw, Sw::OK);
+        assert_eq!(data.len(), fingerprint_trace::PAGE_LEN);
+        assert_eq!(&data[..4], &[1, 0, 0, 0]);
+    }
+    assert_eq!(
+        run(&mut bare, &mut fs, &apdu(INS_FINGERPRINT_TRACE, 0, 0, &[])),
+        (Sw::INS_NOT_SUPPORTED, vec![])
+    );
+    for (p1, p2, data, expected) in [
+        (
+            fingerprint_trace::PAGES as u8,
+            0,
+            &[][..],
+            Sw::INCORRECT_P1P2,
+        ),
+        (0, 1, &[][..], Sw::INCORRECT_P1P2),
+        (0, 0, &[1][..], Sw::WRONG_LENGTH),
+    ] {
+        assert_eq!(
+            run(
+                &mut full,
+                &mut fs,
+                &apdu(INS_FINGERPRINT_TRACE, p1, p2, data)
+            ),
+            (expected, vec![])
+        );
+    }
+    let mut wrong_cla = apdu(INS_FINGERPRINT_TRACE, 0, 0, &[]);
     wrong_cla[0] = 0x80;
     assert_eq!(
         run(&mut full, &mut fs, &wrong_cla),

@@ -70,11 +70,43 @@ queries the module, confirms ordinary sleep and disconnects UART before removing
 VCC. This finishes before USB attaches. GP2 cannot open a presence window until
 that sequence succeeds; failure leaves GP2 disabled for this boot, with BOOTSEL
 and PIN still available. The sequence does not enroll, match or delete templates.
-The power-off transition after ordinary sleep still needs hardware acceptance.
+Hardware trials on 2026-10-23 captured only the first of three touches after
+startup-only initialization. Repeating Count, ordinary sleep and UART-safe
+power-off between touches restored three responses in an isolated diagnostic
+trial, with no high samples in its quiet windows. That diagnostic never granted
+GP2 presence. These trials predate the automatic re-sleep candidate; they do not
+establish normal presence acceptance.
+
+The `0x09EE` candidate observes TOUCHOUT even outside a confirmation window. Once
+the finger is removed, the worker repeats Count, ordinary sleep and UART-safe
+power-off before accepting another fresh touch. A held input does not repeatedly
+start the module. Edges during maintenance do not request another power cycle;
+after shutdown, the input must be observed low before a new rising edge can count.
+Enrollment and matching retain exclusive UART ownership;
+maintenance waits for their release and drain. During a presence wait it advances
+in bounded steps without extending the deadline or clearing cancellation. Failure
+disables GP2 for the boot, while BOOTSEL and PIN remain available. The `0x09EE`
+hardware trial passed ten consecutive touches and idle-touch isolation, but holding
+the input before a request left that request and a later fresh touch timing out.
+BOOTSEL, cancellation and normal timeout passed independently; full acceptance
+did not pass. The `0x09ED` trial passed
+only its first confirmation: while untouched, the adapter repeatedly returned from
+UART-ready to supply-starting. That failure motivated masking maintenance edges;
+it does not establish recovery from a held input.
+
+The `0x09EF` measurement candidate adds `fingerprint-touch-trace`, explicitly off
+in normal images. `rsk fingerprint trace --json` reads retained GPIO observations,
+controller phases and consent-window states after a request ends, including a
+live GP2 level. The fixed RAM buffer overwrites its oldest entries; reads neither
+clear it nor run UART or power commands. It records physical activity even outside
+a request, so use this measurement image only for diagnosis. It leaves the
+controller transitions unchanged; reproducing the failure with tracing enabled
+remains a hardware check. The old
+six-byte `rsk fingerprint status` response remains unchanged.
 
 After this startup sequence, an opt-in switched-supply build keeps module VCC
-off until fingerprint work or inventory needs it. GetInfo, PIN and UP-only
-requests continue normally while it is off. Standard enrollment holds power
+off until fingerprint work, inventory or released-touch maintenance needs it.
+GetInfo, PIN and UP-only requests continue normally while it is off. Standard enrollment holds power
 through all six captures; cancelling,
 timing out or sending a different CTAP business command ends that session; GetInfo preserves
 it so a second standard client can continue enrollment. Persistent
@@ -83,7 +115,8 @@ uncertain shutdown does not restart the sensor automatically; use PIN and the
 backup presence button while diagnosing it.
 
 The optional GP2 TOUCHOUT input confirms only a current FIDO presence prompt;
-idle touches are ignored and do not power GP3's candidate VCC switch. Existing
+idle touches grant no consent; in the switched-supply candidate their release
+requests the same automatic sleep maintenance as a touch inside a prompt. Existing
 high levels and old events cannot confirm a new prompt. BOOTSEL remains the
 backup input, including when TOUCHOUT stays low or high; cancellation and the
 30 s presence deadline remain available while waiting. A button-only check is

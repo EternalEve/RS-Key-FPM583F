@@ -39,6 +39,8 @@ mod fingerprint_exchange;
 pub mod fingerprint_io;
 pub mod fingerprint_power;
 pub mod fingerprint_protocol;
+pub mod fingerprint_service;
+pub mod fingerprint_touch;
 pub mod presence;
 pub mod touch;
 

@@ -108,6 +108,8 @@ pub struct ButtonPresence {
     button: Button,
     #[cfg_attr(feature = "no-touch", allow(dead_code))]
     latch: ButtonWait,
+    #[cfg(all(fingerprint_touch, fingerprint_power))]
+    sensor: Option<&'static core::cell::RefCell<crate::fingerprint::Bridge>>,
 }
 
 /// The presence source: the BOOTSEL hardware button, or a GPIO button (the bool is
@@ -151,6 +153,8 @@ struct WaitBoard<'a> {
     touch: bool,
     #[cfg(fingerprint_touch)]
     window: Option<u32>,
+    #[cfg(all(fingerprint_touch, fingerprint_power))]
+    sensor: Option<&'static core::cell::RefCell<crate::fingerprint::Bridge>>,
 }
 
 #[cfg(all(not(feature = "no-touch"), not(feature = "display")))]
@@ -164,6 +168,10 @@ impl Board for WaitBoard<'_> {
     }
 
     fn block_for_ms(&mut self, ms: u64) {
+        #[cfg(all(fingerprint_touch, fingerprint_power))]
+        if let Some(sensor) = self.sensor {
+            crate::fingerprint_touch::service(sensor);
+        }
         block_for(Duration::from_millis(ms));
     }
     #[cfg(fingerprint_touch)]
@@ -202,6 +210,8 @@ impl ButtonPresence {
         Self {
             button: Button::Bootsel(bootsel),
             latch: ButtonWait::new(),
+            #[cfg(all(fingerprint_touch, fingerprint_power))]
+            sensor: None,
         }
     }
 
@@ -224,6 +234,23 @@ impl ButtonPresence {
         Self {
             button: Button::Gpio(input, active_high),
             latch: ButtonWait::new(),
+            #[cfg(all(fingerprint_touch, fingerprint_power))]
+            sensor: None,
+        }
+    }
+
+    #[cfg(all(fingerprint_touch, fingerprint_power))]
+    pub fn set_fingerprint(
+        &mut self,
+        sensor: &'static core::cell::RefCell<crate::fingerprint::Bridge>,
+    ) {
+        self.sensor = Some(sensor);
+    }
+
+    #[cfg(all(fingerprint_touch, fingerprint_power))]
+    pub fn service_fingerprint_touch(&mut self) {
+        if let Some(sensor) = self.sensor {
+            crate::fingerprint_touch::service(sensor);
         }
     }
 
@@ -253,6 +280,8 @@ impl ButtonPresence {
             touch: ceremony,
             #[cfg(fingerprint_touch)]
             window: None,
+            #[cfg(all(fingerprint_touch, fingerprint_power))]
+            sensor: self.sensor,
         };
         let result = self.latch.wait(&ARBITER, &mut board);
         crate::led::set_status(saved);

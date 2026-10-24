@@ -340,8 +340,8 @@ The files that decide what a release is. A digest here covers the parts the tabl
 | `.github/workflows/release.yml` | `943eae75595831de403c51f1468be0d255b182a20fb155ab9a9eca956c54270f` |
 | `.github/workflows/release-build.yml` | `37afc940723eace540fbb8dd8e330e07d2cb70eea0c706e51d20dd9e4bbd8678` |
 | `nix/firmware.nix` | `710d087c00de76dc608d138833d9b2b66c6638dcdffecdfb844f8769eb9ee406` |
-| `scripts/pt.sh` | `25f995c87c2d099eda38fde9d0ef9aaca5e21d47657a5ddfaf05908cbc2a1e7e` |
-| `scripts/firmware_identity.py` | `75d4d7cda974ae47c2b7315d11e957c895d5b30a430d98db53ce2e592c90d6b4` |
+| `scripts/pt.sh` | `bb5a02941c954f1323b074dc05ef5a485967770eea0ee9520f40b3769b1a3436` |
+| `scripts/firmware_identity.py` | `91591c86fcd2139e87fcf65c6f940d20424af860bdf909bd8aaa93526172ca82` |
 
 The CI code that runs them, pinned by commit:
 
@@ -429,7 +429,7 @@ answers a different question (*has anyone actually reviewed this crate's code?*)
 by requiring every dependency to be covered by a recorded audit.
 
 The audit set lives in [`supply-chain/`](https://github.com/TheMaxMur/RS-Key/tree/main/supply-chain):
-imported audits from Mozilla, Google, ISRG and Zcash, plus our own
+imported audits from Mozilla, Google, ISRG and Zcash, plus local delta audits and
 `exemptions` for everything they don't cover. The gate runs in `check.sh`:
 
 ```sh
@@ -448,6 +448,11 @@ exemption list:
 nix develop -c cargo vet              # what's audited vs exempted
 nix develop -c cargo vet suggest      # diffs to review next
 ```
+
+The `ctutils` 0.4.2 → 0.4.4 security update has an explicitly labelled automated
+source-delta review in `audits.toml`, including upstream unit/property tests. Its
+0.4.2 baseline remains exempted; this is not an external cryptographic audit or
+an RP2350 timing proof.
 
 The host `tools/tui` workspace is separate and not yet under cargo-vet. It is
 covered by Dependabot and `cargo-deny`.

@@ -7,10 +7,21 @@ use crate::presence::{SCOPE_CCID, SCOPE_FIDO};
 use core::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
 const FLAGS: u32 = 7;
-const WAIT_LOW: u32 = 1;
-const ARMED: u32 = 2;
-const EVENT: u32 = 3;
-const SPENT: u32 = 4;
+const WAIT_LOW: u32 = State::WaitLow as u32;
+const ARMED: u32 = State::Armed as u32;
+const EVENT: u32 = State::Event as u32;
+const SPENT: u32 = State::Spent as u32;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u8)]
+pub enum State {
+    Closed = 0,
+    WaitLow = 1,
+    Armed = 2,
+    Event = 3,
+    Spent = 4,
+    Disabled = 5,
+}
 
 pub struct Touch {
     next: AtomicU32,
@@ -43,6 +54,32 @@ impl Touch {
 
     pub fn enable(&self) {
         self.available.store(true, Ordering::Release);
+    }
+
+    pub fn disable(&self) {
+        self.available.store(false, Ordering::Release);
+        self.state.store(0, Ordering::Release);
+    }
+
+    pub fn window(&self) -> Option<u32> {
+        let window = self.state.load(Ordering::Acquire) & !FLAGS;
+        (window != 0).then_some(window)
+    }
+
+    pub fn snapshot(&self) -> (u32, State) {
+        let state = self.state.load(Ordering::Acquire);
+        let consent = if !self.available.load(Ordering::Acquire) {
+            State::Disabled
+        } else {
+            match state & FLAGS {
+                WAIT_LOW => State::WaitLow,
+                ARMED => State::Armed,
+                EVENT => State::Event,
+                SPENT => State::Spent,
+                _ => State::Closed,
+            }
+        };
+        (state & !FLAGS, consent)
     }
 
     pub fn open(&self, scope: u8) -> Option<u32> {

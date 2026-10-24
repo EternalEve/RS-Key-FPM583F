@@ -1700,7 +1700,7 @@ replace = """
 """
 slice = ["cargo", "test", "-p", "rsk-display"]
 expect = "gap"
-note = "GAP, and the row exists to say so. The trusted-display factory wipe queues the reboot that rebuilds every applet from `new()` — the model folds the two into the single `FactoryWipe` step — and with `request_reboot` dropped all 127 `rsk-display` tests stay GREEN: nothing asserts that a completed wipe asks for the reboot, so a wipe that left every in-RAM status standing over freshly-defaulted verifiers would ship. The CCID half is `firmware/src/worker.rs:416-417`, which no host slice reaches at all — a firmware-compiling patch is classified `build-broke`, not a kill — so the display path is the only half a slice can measure, and it is the half that is open."
+note = "GAP, and the row exists to say so. The trusted-display factory wipe queues the reboot that rebuilds every applet from `new()` — the model folds the two into the single `FactoryWipe` step — and with `request_reboot` dropped all 127 `rsk-display` tests stay GREEN: nothing asserts that a completed wipe asks for the reboot, so a wipe that left every in-RAM status standing over freshly-defaulted verifiers would ship. The CCID half is `firmware/src/worker.rs:418-419`, which no host slice reaches at all — a firmware-compiling patch is classified `build-broke`, not a kill — so the display path is the only half a slice can measure, and it is the half that is open."
 
 [comutant.BugCodelessOathIsAStatus]
 status = "patch"

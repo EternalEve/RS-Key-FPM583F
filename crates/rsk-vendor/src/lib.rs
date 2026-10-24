@@ -27,6 +27,7 @@ pub use rsk_sdk::{AlwaysConfirm, Confirm, Presence, UserPresence};
 use rsk_sdk::{Apdu, Applet, ResBuf, Sw};
 
 pub mod fingerprint;
+pub mod fingerprint_trace;
 
 #[cfg(test)]
 #[path = "tests.rs"]
@@ -57,6 +58,7 @@ const INS_KEYGEN_BENCH: u8 = 0x13;
 // LATENCY MICROBENCH (measurement builds only): times one EC / KDF hot path.
 const INS_BENCH: u8 = 0x14;
 const INS_FINGERPRINT_STATUS: u8 = 0x15;
+const INS_FINGERPRINT_TRACE: u8 = 0x16;
 /// REBOOT. P1: 0 = warm reboot, 1 = secure reboot to BOOTSEL.
 const INS_REBOOT: u8 = 0x1F;
 
@@ -90,6 +92,10 @@ pub trait Platform {
     }
 
     fn fingerprint_status(&self) -> Option<[u8; fingerprint::STATUS_LEN]> {
+        None
+    }
+
+    fn fingerprint_trace(&self, _page: u8) -> Option<[u8; fingerprint_trace::PAGE_LEN]> {
         None
     }
 
@@ -145,6 +151,25 @@ impl<'a, P: Platform> VendorApplet<'a, P> {
         match self.platform.fingerprint_status() {
             Some(status) => {
                 res.extend(&status);
+                Sw::OK
+            }
+            None => Sw::INS_NOT_SUPPORTED,
+        }
+    }
+
+    fn fingerprint_trace(&self, apdu: &Apdu, res: &mut ResBuf) -> Sw {
+        if apdu.cla != 0 {
+            return Sw::CLA_NOT_SUPPORTED;
+        }
+        if apdu.p1 as usize >= fingerprint_trace::PAGES || apdu.p2 != 0 {
+            return Sw::INCORRECT_P1P2;
+        }
+        if apdu.nc != 0 {
+            return Sw::WRONG_LENGTH;
+        }
+        match self.platform.fingerprint_trace(apdu.p1) {
+            Some(page) => {
+                res.extend(&page);
                 Sw::OK
             }
             None => Sw::INS_NOT_SUPPORTED,
@@ -233,6 +258,7 @@ impl<S: Storage, P: Platform> Applet<Fs<S>> for VendorApplet<'_, P> {
             INS_KEYGEN_BENCH => self.platform.keygen_bench(apdu.p1, apdu.data, res),
             INS_BENCH => self.platform.latency_bench(apdu.p1, apdu.p2, res),
             INS_FINGERPRINT_STATUS => self.fingerprint_status(apdu, res),
+            INS_FINGERPRINT_TRACE => self.fingerprint_trace(apdu, res),
             INS_REBOOT => {
                 // Just record the request — the reset runs after this SW_OK
                 // reaches the host.

@@ -74,6 +74,11 @@ impl rsk_vendor::Platform for VendorPlatform {
         Some(crate::fingerprint::status::snapshot())
     }
 
+    #[cfg(feature = "fingerprint-touch-trace")]
+    fn fingerprint_trace(&self, page: u8) -> Option<[u8; rsk_vendor::fingerprint_trace::PAGE_LEN]> {
+        crate::fingerprint_touch_trace::page(page)
+    }
+
     fn led_block(&self) -> Option<[u8; rsk_led::CONF_LEN]> {
         Some(crate::led::config_block())
     }

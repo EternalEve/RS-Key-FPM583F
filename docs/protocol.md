@@ -803,8 +803,15 @@ bytes leave the service unavailable and powered, without automatic power cycling
 or reissuing writes. GetInfo and PIN with backup presence remain usable.
 Optional TOUCHOUT only supplies UP in a current FIDO ceremony: it must first be
 low after arming, then present a new rising edge. One event is consumed once;
-outside-window, stale or repeat events cannot approve another request and never
-start VCC or supply UV. Physical pulse/contact semantics still require validation;
+outside-window, stale or repeat events cannot approve another request or supply
+UV. With switched VCC, release after any touch schedules Count, ordinary sleep
+and UART-safe power-off on the worker before rearming. This includes idle touches
+without granting consent; held inputs do not start repeated cycles. Edges during
+maintenance are ignored rather than queued for another cycle. After shutdown the
+input must be observed low before a new rising edge can grant presence. Enrollment
+and matching defer maintenance until released and drained. A failed cycle disables
+GP2 for the boot without an automatic restart. Physical pulse/contact semantics
+and repeated-touch presence still require hardware validation;
 fingerprint matching retains the existing `01 35` finger-absence guard at cold
 startup and during continuations.
 
@@ -1091,6 +1098,7 @@ per device status), persisted in flash and applied immediately. Source:
 | `10` | brightness `0..255` | `color \| steady \| status<<4` | `[effect[, speed]]` opt. | — | SET LED for one status |
 | `11` | `00` | `00` | — | 17-byte config block | GET LED config |
 | `15` | `00` | `00` | — | 6-byte volatile diagnostic snapshot | Fingerprint startup/UART status; `6D00` without a fingerprint adapter |
+| `16` | page `0..63` | `00` | — | 52-byte volatile touch trace page | Measurement image only; normal images return `6D00` |
 | `1F` | `00`/`01` | `00` | — | — | REBOOT (warm / BOOTSEL). `01` is user-presence-gated (`6985` if declined; see §7) |
 
 `INS 12` (CORE1_STATS) and `INS 13` (KEYGEN_BENCH) exist only in the measurement
@@ -1115,6 +1123,44 @@ These are adapter observations, not a voltage measurement or a UV result. A
 recorded no-match need not mean the service is unavailable. The host command is
 `rsk fingerprint status [--json]` over CCID; `tests/55_fingerprint_status.py`
 checks the same snapshot over HID. Older firmware returns `6D00`.
+
+**Touch trace `0x16`** exists only with `fingerprint-touch-trace` (measurement-only,
+never a production image). It is ungated, exposes idle physical activity and contains
+no PIN, credential or template data. A read samples only the SIO input and volatile
+state; it does not append, drain, clear, start UART, switch power or change consent.
+CLA other than zero returns `6E00`, P1 outside `0..63` or nonzero P2 returns `6A86`,
+and a request body returns `6700`. Persistent layouts and `0x15` are unchanged.
+
+Each page has a 20-byte header and two 16-byte observation slots, all integers LE:
+
+| Header bytes | Meaning |
+| --- | --- |
+| `0` | format version `1` |
+| `1` | valid records on this page, `0..2` |
+| `2..3` | retained records, `0..128` |
+| `4..7`, `8..11` | oldest retained sequence, next sequence (exclusive) |
+| `12..15` | live input level, controller phase, consent state, adapter stage |
+| `16..19` | live window generation, zero when closed |
+
+Record bytes `0..3` are sequence, `4..7` milliseconds since boot, `8..11` window,
+and `12..15` event, controller phase, observed level and consent state. Sequences
+and milliseconds wrap modulo 2^32. Levels are `0` low, `1` high, `2` unknown before
+GPIO configuration. Controller phases are `0` cold, `1` ready, `2` high, `3` pending,
+`4` running, `5` settling, `6` disabled. Consent states are `0` closed, `1` wait-low,
+`2` armed, `3` event, `4` spent, `5` disabled. Adapter stages match `0x15`.
+Events are `1` initialized, `2` GPIO resample, `3` GPIO edge wake, `4` window open,
+`5` window close, `6` successful consumption, `7` observed maintenance phase change.
+The record's window is the captured observation argument for GPIO events, the
+closed/consumed generation for close/taken, and the current generation otherwise;
+zero means no associated window. The live header always carries the current one.
+
+P1 indexes pairs from oldest to newest. Unused slots are zero. The ring overwrites
+its oldest entry when full and resets at MCU boot; reads never freeze it. A reader
+must verify the same retained count and sequence bounds across pages, or discard
+the mixed result. The live header belongs to that page's read, not the whole dump.
+These are software observations, not an oscilloscope trace: IRQ delivery can merge
+edges, and a phase can change between its operation and recording. The live level
+also lets a reader distinguish the present SIO input from the last edge observed.
 
 **SET LED `0x10` gating:** ungated by default (like the rest of the config surface),
 **user-presence-gated under `strict-config`** — the FIDO twin

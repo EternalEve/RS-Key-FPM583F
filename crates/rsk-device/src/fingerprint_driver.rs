@@ -41,6 +41,7 @@ pub struct Diagnostic {
 enum Purpose {
     Boot,
     Sleep,
+    Touch,
     Verify,
     Management(Command),
 }
@@ -176,6 +177,40 @@ impl<U: Stream, C: Runtime> Driver<U, C> {
         result
     }
 
+    pub(crate) fn touch_idle(&self) -> bool {
+        self.healthy
+            && self.power.phase() == Phase::Off
+            && self.operations.state() == Lifecycle::Idle
+            && self.request_deadline_ms.is_none()
+            && self.temporary.is_none()
+    }
+
+    pub(crate) fn touch_running(&self) -> bool {
+        matches!(self.purpose, Purpose::Touch) && self.power.phase() != Phase::Off
+    }
+
+    pub(crate) fn start_touch_cycle(&mut self) {
+        self.purpose = Purpose::Touch;
+        let now = self.runtime.now_ms();
+        self.terminal = false;
+        self.schedule(Step::Boot, BOOT_DELAY_MS);
+        if !self.power.wake(now, now.saturating_add(BOOT_TIMEOUT_MS)) {
+            self.fail(Failure::Timeout, false);
+            return;
+        }
+        self.power.release(false);
+        if self.stream.power_on().is_err() {
+            self.fail(Failure::Communication, false);
+        }
+    }
+
+    fn boot_deadline_ms(&self) -> u64 {
+        match self.purpose {
+            Purpose::Touch => self.power.deadline_ms,
+            _ => self.deadline_ms(self.power.deadline_ms),
+        }
+    }
+
     fn wire_request(&self) -> Request {
         match self.step {
             Step::Boot | Step::CountBefore | Step::CountAfter => Request::Count,
@@ -199,8 +234,10 @@ impl<U: Stream, C: Runtime> Driver<U, C> {
     }
 
     fn schedule(&mut self, step: Step, delay: u64) {
-        self.runtime
-            .waiting(matches!(step, Step::Finger | Step::FingerPresent));
+        if !matches!(self.purpose, Purpose::Touch) {
+            self.runtime
+                .waiting(matches!(step, Step::Finger | Step::FingerPresent));
+        }
         self.step = step;
         self.exchange = None;
         self.due_ms = self.runtime.now_ms().saturating_add(delay);
@@ -218,7 +255,7 @@ impl<U: Stream, C: Runtime> Driver<U, C> {
         self.outcome = match self.purpose {
             Purpose::Verify => Some(Outcome::Verify(Err(failure))),
             Purpose::Management(_) => Some(Outcome::Management(Err(failure))),
-            Purpose::Boot | Purpose::Sleep => None,
+            Purpose::Boot | Purpose::Sleep | Purpose::Touch => None,
         };
         if matches!(self.operations.state(), Lifecycle::Draining { .. }) && terminal {
             self.complete_drain();
@@ -277,9 +314,7 @@ impl<U: Stream, C: Runtime> Driver<U, C> {
                     return;
                 }
                 let initialized_ms = self.runtime.now_ms();
-                if initialized_ms < now_ms
-                    || initialized_ms >= self.deadline_ms(self.power.deadline_ms)
-                {
+                if initialized_ms < now_ms || initialized_ms >= self.boot_deadline_ms() {
                     self.fail(Failure::Timeout, false);
                     return;
                 }
@@ -366,7 +401,9 @@ impl<U: Stream, C: Runtime> Driver<U, C> {
                 }
                 self.temporary = None;
                 self.power.stopped();
-                self.runtime.end();
+                if !matches!(self.purpose, Purpose::Touch) {
+                    self.runtime.end();
+                }
             }
             (Step::Match, Data::None) => self.schedule(Step::MatchResult, QUERY_INTERVAL_MS),
             (Step::MatchResult, Data::Match { matched, slot, .. }) => {
@@ -665,8 +702,10 @@ impl<U: Stream, C: Runtime> Sensor for Driver<U, C> {
         } else if self.operations.state() == Lifecycle::Idle && self.healthy {
             self.idle_input();
             if self.healthy && self.power.stop(self.runtime.now_ms(), true) {
-                self.purpose = Purpose::Sleep;
-                self.runtime.processing();
+                if !matches!(self.purpose, Purpose::Touch) {
+                    self.purpose = Purpose::Sleep;
+                    self.runtime.processing();
+                }
                 self.schedule(Step::Sleep, 0);
             }
         }
@@ -680,19 +719,28 @@ impl<U: Stream, C: Runtime> Sensor for Driver<U, C> {
             loop {
                 let now_ms = self.runtime.now_ms();
                 if self.runtime.cancelled() {
-                    if self.power.phase() == Phase::Starting {
+                    if self.power.phase() == Phase::Starting
+                        && !matches!(self.purpose, Purpose::Touch)
+                    {
                         self.fail(Failure::Unavailable, false);
                     }
                     return Err(rsk_fido::CtapError::KeepAliveCancel);
                 }
                 if now_ms < start || now_ms >= deadline_ms {
-                    if self.power.phase() == Phase::Starting {
+                    if self.power.phase() == Phase::Starting
+                        && !matches!(self.purpose, Purpose::Touch)
+                    {
                         self.fail(Failure::Timeout, false);
                     }
                     return Err(rsk_fido::CtapError::UserActionTimeout);
                 }
                 if !self.healthy {
                     return Err(rsk_fido::CtapError::Other);
+                }
+                if matches!(self.purpose, Purpose::Touch) && self.power.phase() != Phase::Off {
+                    self.service_idle();
+                    self.runtime.wait();
+                    continue;
                 }
                 if self.power.wake(now_ms, deadline_ms) {
                     if self.stream.power_on().is_err() {

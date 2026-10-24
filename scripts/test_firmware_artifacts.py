@@ -21,6 +21,7 @@ BUILD_ROWS = (
     "build firmware (16M)",
     "build firmware (fingerprint)",
     "build firmware (fingerprint strict-config)",
+    "build firmware (fingerprint touch trace)",
     "build firmware (display)",
     "build firmware (test, --features no-touch)",
     "build firmware (fido-ccid)",
@@ -29,6 +30,7 @@ ELF = pathlib.Path("thumbv8m.main-none-eabihf/release/firmware")
 DEFAULT = ROOT / "target" / ELF
 NO_TOUCH = ROOT / "target/no-touch" / ELF
 STRICT = ROOT / "target/strict-fingerprint" / ELF
+TOUCH_TRACE = ROOT / "target/fingerprint-touch-trace" / ELF
 
 
 def gate_row(name):
@@ -97,6 +99,8 @@ def test_default_image_packages_and_retains_its_marker(tmp_path):
 @pytest.mark.parametrize("name,function,directory", [
     ("firmware size budget", "firmware_size_budget", "target"),
     ("firmware stack floor", "firmware_stack_floor", "target"),
+    ("firmware size budget (fingerprint touch trace)", "firmware_size_budget", "target/fingerprint-touch-trace"),
+    ("firmware stack floor (fingerprint touch trace)", "firmware_stack_floor", "target/fingerprint-touch-trace"),
     ("no debug vendor command in the image", "debug_vendor_commands_absent", "target"),
     ("partition table fences the store", "partition_table_fences_the_store", "target"),
     ("sealed image retires its unsigned IMAGE_DEF", "release_image_retires_its_unsigned_image_def", "target"),
@@ -145,7 +149,7 @@ def test_packaging_checks_policy_inside_a_renamed_image(tmp_path, source, policy
         assert "management-write policy does not match" in done.stderr
 
 
-@pytest.mark.parametrize("field,value", [(0, b"UNKNOWN!"), (1, 2), (2, 32), (2, 6), (3, 0), (4, 0)])
+@pytest.mark.parametrize("field,value", [(0, b"UNKNOWN!"), (1, 2), (2, 64), (2, 32), (2, 6), (3, 0), (4, 0)])
 def test_unrecognized_marker_is_refused_by_the_packaging_entry_point(tmp_path, field, value):
     values = list(firmware_identity.RECORD.unpack(subprocess.run(
         ["arm-none-eabi-objcopy", "-O", "binary", "--only-section=.rsk_build", str(DEFAULT), "/dev/stdout"],
@@ -161,7 +165,8 @@ def test_unrecognized_marker_is_refused_by_the_packaging_entry_point(tmp_path, f
     assert done.returncode == 1, done.stdout + done.stderr
     assert "firmware-identity:" in done.stderr
     assert any(message in done.stderr for message in ("unrecognized .rsk_build marker",
-               "incompatible fingerprint/display marker", "invalid flash geometry"))
+               "incompatible fingerprint/display marker", "touch trace marker requires fingerprint",
+               "invalid flash geometry"))
 
 
 def test_test_packaging_requires_explicit_matching_no_touch_policy(tmp_path):
@@ -172,6 +177,30 @@ def test_test_packaging_requires_explicit_matching_no_touch_policy(tmp_path):
     done = package(DEFAULT, tmp_path / "mismatch.elf", "--test-no-touch")
     assert done.returncode == 1, done.stdout + done.stderr
     assert "expected a no-touch test image" in done.stderr
+
+
+def test_measurement_image_packaging_requires_explicit_matching_opt_in(tmp_path):
+    renamed = tmp_path / "renamed-release.elf"
+    shutil.copyfile(TOUCH_TRACE, renamed)
+    out = tmp_path / "packaged.elf"
+    refused = package(renamed, out)
+    assert refused.returncode == 1 and "measurement image refused" in refused.stderr
+    assert not out.exists()
+    accepted = package(renamed, out, "--test-fingerprint-touch-trace", "--config-policy", "strict")
+    assert accepted.returncode == 0, accepted.stdout + accepted.stderr
+    assert firmware_identity.read_marker(out) == firmware_identity.read_marker(TOUCH_TRACE)
+    mismatch = package(DEFAULT, tmp_path / "mismatch.elf", "--test-fingerprint-touch-trace")
+    assert mismatch.returncode == 1 and "expected a fingerprint touch measurement image" in mismatch.stderr
+
+
+def test_touch_recording_ram_exists_only_in_the_explicit_measurement_image():
+    symbol = "firmware::fingerprint_touch_trace::TRACE"
+    for elf in [DEFAULT, STRICT, TOUCH_TRACE]:
+        output = subprocess.check_output(["arm-none-eabi-nm", "-S", "-C", str(elf)], text=True)
+        matches = [line.split() for line in output.splitlines() if symbol in line]
+        assert bool(matches) == (elf == TOUCH_TRACE), (elf, matches)
+        if matches:
+            assert len(matches) == 1 and 2048 <= int(matches[0][1], 16) <= 2080
 
 
 def test_actual_gate_row_rejects_no_touch_and_missing_markers(tmp_path):
@@ -196,6 +225,7 @@ def test_actual_gate_row_rejects_no_touch_and_missing_markers(tmp_path):
     ("target/16mb", "default", (16 * 1024 * 1024, 1408 * 1024)),
     ("target/fingerprint", "fingerprint", (2 * 1024 * 1024, 896 * 1024)),
     ("target/strict-fingerprint", "fingerprint", (2 * 1024 * 1024, 896 * 1024)),
+    ("target/fingerprint-touch-trace", "fingerprint", (2 * 1024 * 1024, 896 * 1024)),
     ("target/display", "display", (16 * 1024 * 1024, 1408 * 1024)),
     ("target/no-touch", "no-touch", (4 * 1024 * 1024, 1408 * 1024)),
     ("target/fido-ccid", "fido-ccid", (4 * 1024 * 1024, 1408 * 1024)),
@@ -203,8 +233,10 @@ def test_actual_gate_row_rejects_no_touch_and_missing_markers(tmp_path):
 def test_gate_artifacts_match_their_build_configuration(directory, profile, geometry):
     flags, flash_size, kvmain = firmware_identity.read_marker(ROOT / directory / ELF)
     expected = firmware_identity.PROFILES[profile]
-    if directory == "target/strict-fingerprint":
+    if directory in {"target/strict-fingerprint", "target/fingerprint-touch-trace"}:
         expected |= firmware_identity.STRICT_CONFIG
+    if directory == "target/fingerprint-touch-trace":
+        expected |= firmware_identity.FINGERPRINT_TOUCH_TRACE
     assert flags == expected
     assert (flash_size, kvmain) == geometry
 

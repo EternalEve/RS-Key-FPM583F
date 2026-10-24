@@ -570,6 +570,7 @@ run_tests "test (bench)"             cargo test -p rsk-fido --features bench --t
 # so nothing would notice `core1::stats` rotting against the atomics it packs.
 run "clippy (core1-stats fw)"  cargo clippy -p firmware --features core1-stats -- -D warnings
 run "clippy (fingerprint firmware)" env "${FINGERPRINT_BUILD_ENV[@]}" cargo clippy --release -p firmware --target thumbv8m.main-none-eabihf --features fingerprint -- -D warnings
+run "clippy (fingerprint touch trace)" env "${FINGERPRINT_BUILD_ENV[@]}" cargo clippy --release -p firmware --target thumbv8m.main-none-eabihf --features fingerprint-touch-trace,strict-config -- -D warnings
 # The display path (panel driver + touch) is `LED_KIND=none`-only, so the default
 # embedded clippy above never lints it — gate it explicitly, like the fips firmware.
 run "clippy (display firmware)" env LED_KIND=none cargo clippy -p firmware --features display -- -D warnings
@@ -611,6 +612,10 @@ run "build firmware (fingerprint)" env "${FINGERPRINT_BUILD_ENV[@]}" cargo build
 run "build firmware (fingerprint strict-config)" env "${FINGERPRINT_BUILD_ENV[@]}" cargo build --release -p firmware --target thumbv8m.main-none-eabihf --features fingerprint,strict-config --target-dir target/strict-fingerprint
 run "firmware identity (fingerprint strict-config)" python scripts/firmware_identity.py --config-policy strict target/strict-fingerprint/thumbv8m.main-none-eabihf/release/firmware
 run "firmware identity (fingerprint)" python scripts/firmware_identity.py --expect fingerprint target/fingerprint/thumbv8m.main-none-eabihf/release/firmware
+run "build firmware (fingerprint touch trace)" env "${FINGERPRINT_BUILD_ENV[@]}" cargo build --release -p firmware --target thumbv8m.main-none-eabihf --features fingerprint-touch-trace,strict-config --target-dir target/fingerprint-touch-trace
+run "firmware identity (fingerprint touch trace)" python scripts/firmware_identity.py --test-fingerprint-touch-trace --config-policy strict target/fingerprint-touch-trace/thumbv8m.main-none-eabihf/release/firmware
+run "firmware size budget (fingerprint touch trace)" firmware_size_budget target/fingerprint-touch-trace/thumbv8m.main-none-eabihf/release/firmware
+run "firmware stack floor (fingerprint touch trace)" firmware_stack_floor target/fingerprint-touch-trace/thumbv8m.main-none-eabihf/release/firmware
 # The trusted-display flavor must keep building from the same tree. Built
 # `LED_KIND=none` (the panel replaces the addressable LED and its backlight uses
 # GPIO16 — the compile_error guard in main.rs enforces this), and before the

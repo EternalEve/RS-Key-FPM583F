@@ -82,22 +82,25 @@ def run_biometric_command(tmp_path, runner_status, signal=False, tee_status=0):
 
 
 @pytest.mark.parametrize("verb", ["clippy", "build"])
-def test_candidate_rows_compile_the_real_fingerprint_configuration(tmp_path, verb):
-    name = "clippy (fingerprint firmware)" if verb == "clippy" else "build firmware (fingerprint)"
+@pytest.mark.parametrize("trace", [False, True])
+def test_candidate_rows_compile_the_real_fingerprint_configuration(tmp_path, verb, trace):
+    name = (f"{verb if verb == 'clippy' else 'build firmware'} (fingerprint touch trace)" if trace
+            else "clippy (fingerprint firmware)" if verb == "clippy" else "build firmware (fingerprint)")
     done = run_row(tmp_path, name, 0)
     assert done.returncode == 0, done.stdout + done.stderr
     args = [line.removeprefix("arg=") for line in done.stdout.splitlines()
             if line.startswith("arg=")]
     assert args == [verb, "--release", "-p", "firmware", "--target",
-                    "thumbv8m.main-none-eabihf", "--features", "fingerprint",
-                    *(["--target-dir", "target/fingerprint"] if verb == "build" else []),
+                    "thumbv8m.main-none-eabihf", "--features", "fingerprint-touch-trace,strict-config" if trace else "fingerprint",
+                    *(["--target-dir", "target/fingerprint-touch-trace" if trace else "target/fingerprint"] if verb == "build" else []),
                     *(["--", "-D", "warnings"] if verb == "clippy" else [])]
     for setting in ("FLASH_SIZE=2M", "KVMAIN=896K", "FINGERPRINT_TOUCH_PIN=2",
                     "FINGERPRINT_POWER_PIN=3"):
         assert setting in done.stdout.splitlines()
 
 
-@pytest.mark.parametrize("name", ["clippy (fingerprint firmware)", "build firmware (fingerprint)"])
+@pytest.mark.parametrize("name", ["clippy (fingerprint firmware)", "build firmware (fingerprint)",
+                                  "clippy (fingerprint touch trace)", "build firmware (fingerprint touch trace)"])
 def test_candidate_row_failure_stops_the_gate(tmp_path, name):
     done = run_row(tmp_path, name, 47)
     assert done.returncode == 47, done.stdout + done.stderr
@@ -194,3 +197,20 @@ def test_biometric_ci_records_a_term_sent_to_its_own_wrapper(tmp_path):
     assert done.returncode == 143, done.stdout + done.stderr
     assert "outer_signal=TERM" in metadata and "outer_status=143" in metadata
     assert "R4 synthetic client result" in output
+
+
+def test_switched_touch_maintenance_runs_in_idle_and_presence_waits():
+    def code(path):
+        return '\n'.join(line for line in (ROOT / path).read_text().splitlines()
+                         if not line.lstrip().startswith('//'))
+
+    worker = code('firmware/src/worker.rs')
+    presence = code('firmware/src/presence.rs')
+    main = code('firmware/src/main.rs')
+    touch = code('firmware/src/fingerprint_touch.rs')
+    assert re.search(r'pub async fn run\([\s\S]*?service_fingerprint_touch\(\)', worker)
+    assert re.search(r'fn block_for_ms\([^}]*?fingerprint_touch::service\(sensor\)', presence)
+    assert 'presence_ref.borrow_mut().set_fingerprint(sensor)' in main
+    assert 'fingerprint::Service::new(sensor)' in main
+    assert 'input.wait_for_any_edge()' in touch
+    assert 'TOUCH.service(&mut sensor.borrow_mut())' in touch

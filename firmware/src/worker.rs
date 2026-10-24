@@ -383,6 +383,8 @@ impl<'a> Worker<'a> {
             if END_ENROLLMENT.swap(false, core::sync::atomic::Ordering::AcqRel) {
                 self.ctap.end_enrollment(None);
             }
+            #[cfg(all(fingerprint_touch, fingerprint_power))]
+            self.presence.borrow_mut().service_fingerprint_touch();
             self.ctap.service_fingerprint();
             match select3(
                 REQ.wait(),

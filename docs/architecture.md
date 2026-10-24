@@ -82,7 +82,20 @@ only after everything else is ready.
 
 The opt-in switched fingerprint-touch build also completes its initial Count,
 ordinary sleep and UART-safe power-off before attaching. GP2 presence stays
-disabled unless that sequence succeeds; BOOTSEL remains independent.
+disabled unless that sequence succeeds; BOOTSEL remains independent. TOUCHOUT
+edges are observed continuously, but only a fresh edge in an armed window grants
+presence. After release, the worker repeats that sequence before rearming; idle
+touches request maintenance without consent. Maintenance-period edges do not queue
+another cycle; shutdown must be followed by a low observation before rearming.
+Short driver borrows let presence
+waits advance maintenance without another UART owner or a new request deadline.
+
+The explicit `fingerprint-touch-trace` measurement build retains 128 observations
+in a 2048-byte static ring plus at most 32 bytes of metadata, with no allocation.
+Short critical sections serialize IRQ/thread observations and page copies; no UART
+or power operation runs under that lock. Pages are read after a blocking presence
+request and do not drain the ring. Sequence bounds detect mixed generations across
+pages. Normal images allocate no ring and do not expose idle-touch observations.
 
 ![Boot sequence — bootrom secure-boot verify, then a provision-and-recover phase (OTP keys, KV mount, phy record, TRNG seed, seal migrations, at-rest scrub) that completes before the USB pull-up, then attach-and-serve (build, spawn usb_task, transports live, worker dispatches applets)](images/boot-flow.svg)
 

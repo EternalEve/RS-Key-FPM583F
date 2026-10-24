@@ -76,11 +76,16 @@ def status_fields(status):
 
 
 def register(sub):
+    from .fingerprint_trace import run as trace_run
+
     p = sub.add_parser("fingerprint", help="fingerprint startup diagnostics")
     commands = p.add_subparsers(dest="cmd", required=True)
     status = commands.add_parser("status", help="read the volatile diagnostic snapshot (CCID)")
     status.add_argument("--json", action="store_true", help="emit JSON")
     status.set_defaults(func=run)
+    trace = commands.add_parser("trace", help="read volatile touch observations (measurement image only)")
+    trace.add_argument("--json", action="store_true", help="emit JSON")
+    trace.set_defaults(func=trace_run)
 
 
 def run(args):

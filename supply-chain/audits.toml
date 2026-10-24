@@ -1,4 +1,20 @@
 
 # cargo-vet audits file
 
-[audits]
+[[audits.ctutils]]
+who = "Codex (automated source-delta review)"
+criteria = "safe-to-deploy"
+delta = "0.4.2 -> 0.4.4"
+notes = """
+Reviewed the crates.io source delta, including manifests and tests, for the
+RUSTSEC-2026-0385 patch. Mask generation now uses the existing black_box barrier;
+32-bit u128 ordering combines opaque high/low u64 predicates and preserves the
+comparison semantics. Const conversions and signed casts preserve values.
+No new unsafe code, build script, I/O, allocation path or runtime dependency;
+the existing optional subtle version already satisfies the raised requirement.
+The published crate's all-feature unit/property tests pass, as do RS-Key host
+regressions and thumbv8m builds. This is an automated delta review over the
+existing exempted 0.4.2 baseline, not an external audit or a hardware timing proof.
+Upstream fixes: https://github.com/RustCrypto/utils/pull/1567 and
+https://github.com/RustCrypto/utils/pull/1568.
+"""

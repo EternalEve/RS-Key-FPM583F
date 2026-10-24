@@ -12,10 +12,11 @@ import sys
 MAGIC = b"RSKBUILD"
 VERSION = 1
 RECORD = struct.Struct("<8sIIII")
-FEATURES = ("no-touch", "fingerprint", "display", "strict-config", "fido-ccid")
+FEATURES = ("no-touch", "fingerprint", "display", "strict-config", "fido-ccid", "fingerprint-touch-trace")
 PROFILES = {"default": 0, **{name: 1 << bit for bit, name in enumerate(FEATURES)}}
 NO_TOUCH = PROFILES["no-touch"]
 STRICT_CONFIG = PROFILES["strict-config"]
+FINGERPRINT_TOUCH_TRACE = PROFILES["fingerprint-touch-trace"]
 
 
 def read_marker(elf):
@@ -30,6 +31,8 @@ def read_marker(elf):
         raise ValueError("unrecognized .rsk_build marker")
     if flags & PROFILES["fingerprint"] and flags & PROFILES["display"]:
         raise ValueError("incompatible fingerprint/display marker")
+    if flags & FINGERPRINT_TOUCH_TRACE and not flags & PROFILES["fingerprint"]:
+        raise ValueError("touch trace marker requires fingerprint")
     if not flash_size or not 0 < kvmain < flash_size:
         raise ValueError("invalid flash geometry in .rsk_build marker")
     return flags, flash_size, kvmain
@@ -39,6 +42,8 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--test-no-touch", action="store_true",
                         help="require a no-touch test image instead of a touch image")
+    parser.add_argument("--test-fingerprint-touch-trace", action="store_true",
+                        help="require an explicit fingerprint touch measurement image")
     parser.add_argument("--expect", choices=PROFILES, help="require these build feature flags")
     parser.add_argument("--config-policy", choices=("strict", "compat"),
                         help="require the image's management-write policy")
@@ -49,6 +54,9 @@ def main(argv=None):
         if bool(flags & NO_TOUCH) != args.test_no_touch:
             raise ValueError("no-touch test image refused" if flags & NO_TOUCH
                              else "expected a no-touch test image")
+        if bool(flags & FINGERPRINT_TOUCH_TRACE) != args.test_fingerprint_touch_trace:
+            raise ValueError("fingerprint touch measurement image refused" if flags & FINGERPRINT_TOUCH_TRACE
+                             else "expected a fingerprint touch measurement image")
         if args.expect is not None and flags != PROFILES[args.expect]:
             raise ValueError(f"build feature flags {flags:#x} do not match {args.expect}")
         if args.config_policy is not None and bool(flags & STRICT_CONFIG) != (args.config_policy == "strict"):

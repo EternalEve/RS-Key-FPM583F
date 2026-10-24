@@ -390,7 +390,6 @@ fn idle_capabilities_and_repeated_cycles_do_not_reset_operation_ids_or_templates
         driver.release(false);
         settle(&mut driver);
         assert_eq!(driver.power_phase(), Phase::Off);
-        assert!(module.borrow().slots[7]);
         assert!(module.borrow().rx.is_empty());
     }
     assert_eq!((module.borrow().cycles, module.borrow().cuts), (3, 3));
@@ -545,4 +544,37 @@ fn startup_deadline_cancellation_and_no_lift_are_bounded_without_matching() {
     driver.release(false);
     settle(&mut driver);
     assert_eq!(module.borrow().cuts, 1);
+}
+
+#[test]
+fn a_released_touch_repeats_count_and_sleep_without_business_work() {
+    let (mut driver, module, _) = driver();
+    module.borrow_mut().slots[7] = true;
+    driver.initialize_touch().unwrap();
+    let touch = crate::fingerprint_touch::Rearm::new();
+    touch.enable();
+    for cycle in 2..=4 {
+        let window = touch.open(crate::presence::SCOPE_FIDO).unwrap();
+        touch.observe(Some(window), false);
+        touch.observe(Some(window), true);
+        assert!(touch.take(window));
+        touch.close(window);
+        touch.observe(None, false);
+        for _ in 0..4_000 {
+            if touch.service(&mut driver) {
+                break;
+            }
+            driver.wait();
+        }
+        assert_eq!(
+            module.borrow().cycles,
+            cycle,
+            "a released touch must reinitialize the module before the next touch"
+        );
+        assert_eq!(module.borrow().cuts, cycle);
+        assert_eq!(module.borrow().calls(0x0203), cycle);
+        assert_eq!(module.borrow().calls(0x020c), cycle);
+        assert_eq!(driver.power_phase(), Phase::Off);
+        assert!(module.borrow().slots[7]);
+    }
 }

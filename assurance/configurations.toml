@@ -818,6 +818,21 @@ rest on here either, and the open question is the `keygen-bench` one plus \
 whichever `rsk-fido` statements a second timing entrypoint can reach."""
 
 [[question]]
+column = "fingerprint-touch-trace"
+owner = "contributor"
+settled_by = "evidence"
+text = """
+The opt-in measurement command INS 0x16 exposes idle GPIO levels and bounded \
+controller/window observations. It also adds a fixed RAM ring and short critical \
+sections around record copies. Which consent, cancellation and transport statements \
+remain valid under that scheduling change, including a long-held input? The \
+`clippy (fingerprint touch trace)` and `build firmware (fingerprint touch trace)` \
+rows compile it; neither establishes a P0-family invariant on this image. A \
+physical run must distinguish recorded GPIO wakes from a missed hardware edge \
+and test BOOTSEL/cancellation while recording. Normal images return unsupported; \
+being a measurement image does not settle any of this column's open cells."""
+
+[[question]]
 column = "fido-conformance"
 owner = "contributor"
 settled_by = "evidence"
