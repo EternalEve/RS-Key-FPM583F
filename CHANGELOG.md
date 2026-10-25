@@ -11151,7 +11151,7 @@ Audit run-30 fixes (bcdDevice `0x085D`, `rsk` 0.3.21, `rsk-tui` 0.3.2):
   HID stack. Nothing changed on the wire, and hosts re-enumerate the device once
   after the upgrade. KeePassXC also filters on Yubico's vendor id, so it still
   needs a `VIDPID=Yubikey5` build and Yubico's udev rules — see
-  [guides/otp.md](guides/otp.md#challenge-response-from-software).
+  [docs/guides/otp.md](docs/guides/otp.md#challenge-response-from-software).
   Verified end-to-end on Linux against `ykchalresp`, `ykinfo` and
   `keepassxc-cli` 2.7.11, with a real YubiKey as the control.
   **bcdDevice → `0x0859`.**

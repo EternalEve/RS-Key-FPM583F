@@ -78,8 +78,8 @@ TUI 原 P-256 0.13 还引入受影响的 `crypto-bigint 0.5.5`。TUI 0.3.14 使�
 | 删除诊断镜像构建行 | 1 | 保护测试要求该行存在，实际找不到 |
 | 每页观察数由 2 改成 3 | 101 | 页与状态字超过单个 CTAPHID 初始报告容量，编译期断言拒绝 |
 
-[结果](target/held-trace-validation-09ef-2026-10-24/mutations.json)和
-[执行脚本](target/held-trace-validation-09ef-2026-10-24/mutation-runner.py)保留原调用行及筛选条件。
+结果（本地文件：`target/held-trace-validation-09ef-2026-10-24/mutations.json`）和
+执行脚本（本地文件：`target/held-trace-validation-09ef-2026-10-24/mutation-runner.py`）保留原调用行及筛选条件。
 
 ## 固定镜像与资源
 
@@ -183,19 +183,19 @@ Edge 或 Taken，约 30001 毫秒后关闭。
 
 ## 本机证据
 
-- [完整门禁](target/held-trace-validation-09f0-2026-10-24/gate.log)
-- [源码及退出码检查点](target/held-trace-validation-09f0-2026-10-24/checkpoint.json)
-- [Kani](target/held-trace-validation-09f0-2026-10-24/kani.log)
-- [工作流测试](target/held-trace-validation-09f0-2026-10-24/workflow-final.log)
-- [依赖源码与测试证据](target/crypto-bigint-security-update-2026-10-24/review-evidence.json)
-- [供应链检查](target/crypto-bigint-security-update-2026-10-24/supply-chain-validation-final.log)
-- [镜像清单](target/held-touch-trace-candidate-09f0-2026-10-24/manifest.json)
-- [部署与采样说明](target/held-touch-trace-candidate-09f0-2026-10-24/README.md)
-- [写入与独立读回](target/held-touch-trace-candidate-09f0-2026-10-24/install-events.log)
-- [实机采样日志](target/held-touch-trace-candidate-09f0-2026-10-24/acceptance.log)
-- [分项结果](target/held-touch-trace-candidate-09f0-2026-10-24/diagnostic-result.json)
-- [原始分页重放及窗口分析](target/held-touch-trace-candidate-09f0-2026-10-24/hardware-analysis.json)
-- [追加实时 GPIO 样本](target/held-touch-trace-candidate-09f0-2026-10-24/live-gpio-01/samples.jsonl)
-- [追加采样结果](target/held-touch-trace-candidate-09f0-2026-10-24/live-gpio-01/result.json)
+- 完整门禁（本地文件：`target/held-trace-validation-09f0-2026-10-24/gate.log`）
+- 源码及退出码检查点（本地文件：`target/held-trace-validation-09f0-2026-10-24/checkpoint.json`）
+- Kani（本地文件：`target/held-trace-validation-09f0-2026-10-24/kani.log`）
+- 工作流测试（本地文件：`target/held-trace-validation-09f0-2026-10-24/workflow-final.log`）
+- 依赖源码与测试证据（本地文件：`target/crypto-bigint-security-update-2026-10-24/review-evidence.json`）
+- 供应链检查（本地文件：`target/crypto-bigint-security-update-2026-10-24/supply-chain-validation-final.log`）
+- 镜像清单（本地文件：`target/held-touch-trace-candidate-09f0-2026-10-24/manifest.json`）
+- 部署与采样说明（本地文件：`target/held-touch-trace-candidate-09f0-2026-10-24/README.md`）
+- 写入与独立读回（本地文件：`target/held-touch-trace-candidate-09f0-2026-10-24/install-events.log`）
+- 实机采样日志（本地文件：`target/held-touch-trace-candidate-09f0-2026-10-24/acceptance.log`）
+- 分项结果（本地文件：`target/held-touch-trace-candidate-09f0-2026-10-24/diagnostic-result.json`）
+- 原始分页重放及窗口分析（本地文件：`target/held-touch-trace-candidate-09f0-2026-10-24/hardware-analysis.json`）
+- 追加实时 GPIO 样本（本地文件：`target/held-touch-trace-candidate-09f0-2026-10-24/live-gpio-01/samples.jsonl`）
+- 追加采样结果（本地文件：`target/held-touch-trace-candidate-09f0-2026-10-24/live-gpio-01/result.json`）
 
 `target/` 下原始证据为本机忽略文件，未表示已加入版本控制。

@@ -36,8 +36,8 @@ D1-D5 采用模块手册图 8 推荐的 PESD5V0S1BL，分别从 V_TOUCH、TOUCHO
 
 依据：
 
-- [微雪 RP2350-Zero-CM 官方资料](https://docs.waveshare.com/RP2350-Zero-CM)，及仓库保存的[官方原理图快照](../../RSKEY-FPM583F-PHASE-1-EVIDENCE/sources/RP2350-Zero-CM.pdf)。
-- [FPM583F V1.0.2](../../FPM583F.pdf)，第 6 节和第 9 节图 5-8。
+- [微雪 RP2350-Zero-CM 官方资料](https://docs.waveshare.com/RP2350-Zero-CM)，及本地归档的官方原理图快照（本地文件：`../../RSKEY-FPM583F-PHASE-1-EVIDENCE/sources/RP2350-Zero-CM.pdf`）。
+- FPM583F V1.0.2（本地文件：`../../FPM583F.pdf`），第 6 节和第 9 节图 5-8。
 - [Torex XC6206 数据手册](https://product.torexsemi.com/system/files/series/xc6206.pdf)。
 - [AOS AO3401A 数据手册](https://www.aosmd.com/sites/default/files/res/data_sheets/AO3401A.pdf)。
 - [Nexperia PESD5V0S1BL 数据手册](https://assets.nexperia.com/documents/data-sheet/PESD5V0S1BL.pdf)。

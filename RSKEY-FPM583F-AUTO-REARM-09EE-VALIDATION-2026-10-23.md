@@ -12,8 +12,8 @@
 `09EE` 在维护期间忽略 GPIO 边沿，关电完成后等待低电平，再允许新上升沿确认。
 150 项设备库测试、更新的 Kani harness 和完整 `check.sh` 门禁通过。门禁包含
 3797 项脚本测试、322 项 CLI 测试与 46 项互操作测试；原始日志与源文件哈希见
-[软件检查点](target/touch-auto-rearm-validation-09ee-2026-10-23/checkpoint.json)和
-[完整门禁日志](target/touch-auto-rearm-validation-09ee-2026-10-23/gate.log)。
+软件检查点（本地文件：`target/touch-auto-rearm-validation-09ee-2026-10-23/checkpoint.json`）和
+完整门禁日志（本地文件：`target/touch-auto-rearm-validation-09ee-2026-10-23/gate.log`）。
 软件绿灯不能代替下面的硬件结果。
 
 镜像 SHA-256：`cbcf9d395308f5e1602d18ce52f63729926b8c795a25ffc20f41b9a9a4f900ab`。
@@ -63,13 +63,13 @@ BOOTSEL、取消及正常超时的独立对照均通过；末尾 10 次状态采
 
 ## 本地证据
 
-- [部署命令与独立读回](target/touch-auto-rearm-candidate-09ee-2026-10-23/install-events.log)
-- [原实机请求、状态及操作员确认](target/touch-auto-rearm-candidate-09ee-2026-10-23/acceptance-events.jsonl)
-- [原实机输出及失败断言](target/touch-auto-rearm-candidate-09ee-2026-10-23/acceptance.log)
-- [失败后只读采样](target/touch-auto-rearm-candidate-09ee-2026-10-23/status-after-held-failure.log)
-- [补充恢复对照输出](target/touch-auto-rearm-candidate-09ee-2026-10-23/followup.log)
-- [备用控制路径对照输出](target/touch-auto-rearm-candidate-09ee-2026-10-23/fallback-followup.log)
-- [汇总、最终 USB 身份及证据哈希](target/touch-auto-rearm-candidate-09ee-2026-10-23/hardware-analysis.json)
-- [会话检查点](target/touch-auto-rearm-candidate-09ee-2026-10-23/SESSION.json)
+- 部署命令与独立读回（本地文件：`target/touch-auto-rearm-candidate-09ee-2026-10-23/install-events.log`）
+- 原实机请求、状态及操作员确认（本地文件：`target/touch-auto-rearm-candidate-09ee-2026-10-23/acceptance-events.jsonl`）
+- 原实机输出及失败断言（本地文件：`target/touch-auto-rearm-candidate-09ee-2026-10-23/acceptance.log`）
+- 失败后只读采样（本地文件：`target/touch-auto-rearm-candidate-09ee-2026-10-23/status-after-held-failure.log`）
+- 补充恢复对照输出（本地文件：`target/touch-auto-rearm-candidate-09ee-2026-10-23/followup.log`）
+- 备用控制路径对照输出（本地文件：`target/touch-auto-rearm-candidate-09ee-2026-10-23/fallback-followup.log`）
+- 汇总、最终 USB 身份及证据哈希（本地文件：`target/touch-auto-rearm-candidate-09ee-2026-10-23/hardware-analysis.json`）
+- 会话检查点（本地文件：`target/touch-auto-rearm-candidate-09ee-2026-10-23/SESSION.json`）
 
 原始日志位于本机忽略目录 `target/`；本记录不表示这些日志已加入版本控制。

@@ -32,14 +32,14 @@ V_TOUCH 拟常供 3.3V，VCC 经外部开关；AO3401A、4.7kΩ G-S 上拉、1k�
 
 | 验证 | 观察到的结果 | 本地原件 |
 | --- | --- | --- |
-| 原生 python-fido2 生物管理与字节协议矩阵，常供电及按需供电 | 69 passed / 2 skipped；两项仅用于开关供电故障的用例在常供电组合跳过 | [bio-clients.log](target/fpm-power-evidence/raw/bio-clients.log) |
-| 原指纹标准客户端回归 | 42 passed | [fingerprint-clients.log](target/fpm-power-evidence/raw/fingerprint-clients.log) |
-| 原标准客户端基线 | 24 passed | [standard-clients.log](target/fpm-power-evidence/raw/standard-clients.log) |
-| 供电与触摸两项 Kani harness | 2 successfully verified harnesses, 0 failures | [kani.log](target/fpm-power-evidence/raw/kani.log) |
-| 原 FPM 帧 fuzz 目标（含普通休眠编码） | 20000 runs，退出 0，未发现 crash；不是硬件或状态机覆盖证明 | [fuzz.log](target/fpm-power-evidence/raw/fuzz.log) |
-| 实际候选引脚构建反例 | 9 项分别因对应配置冲突而拒绝，包含未启用 fingerprint、UART、同脚、按钮、LED 与固定 Pimoroni 脚 | [pin-collisions.log](target/fpm-power-evidence/raw/pin-collisions.log) |
-| 最终三个无屏 2MB 构建及 GP2/GP3 Clippy | 退出 0，无 display/no-touch | [resources.log](target/fpm-power-evidence/raw/resources.log) |
-| 原始完整 `scripts/check.sh`，Linux 显式 host target | 退出 0，末行 ALL CHECKS PASSED；设备 125 项、FIDO 737 项（另 1 项原有 ignored）、脚本 3714 项、host CLI 312 项、interop 45 项通过 | [gate.log](target/fpm-power-evidence/raw/gate.log) |
+| 原生 python-fido2 生物管理与字节协议矩阵，常供电及按需供电 | 69 passed / 2 skipped；两项仅用于开关供电故障的用例在常供电组合跳过 | bio-clients.log（本地文件：`target/fpm-power-evidence/raw/bio-clients.log`） |
+| 原指纹标准客户端回归 | 42 passed | fingerprint-clients.log（本地文件：`target/fpm-power-evidence/raw/fingerprint-clients.log`） |
+| 原标准客户端基线 | 24 passed | standard-clients.log（本地文件：`target/fpm-power-evidence/raw/standard-clients.log`） |
+| 供电与触摸两项 Kani harness | 2 successfully verified harnesses, 0 failures | kani.log（本地文件：`target/fpm-power-evidence/raw/kani.log`） |
+| 原 FPM 帧 fuzz 目标（含普通休眠编码） | 20000 runs，退出 0，未发现 crash；不是硬件或状态机覆盖证明 | fuzz.log（本地文件：`target/fpm-power-evidence/raw/fuzz.log`） |
+| 实际候选引脚构建反例 | 9 项分别因对应配置冲突而拒绝，包含未启用 fingerprint、UART、同脚、按钮、LED 与固定 Pimoroni 脚 | pin-collisions.log（本地文件：`target/fpm-power-evidence/raw/pin-collisions.log`） |
+| 最终三个无屏 2MB 构建及 GP2/GP3 Clippy | 退出 0，无 display/no-touch | resources.log（本地文件：`target/fpm-power-evidence/raw/resources.log`） |
+| 原始完整 `scripts/check.sh`，Linux 显式 host target | 退出 0，末行 ALL CHECKS PASSED；设备 125 项、FIDO 737 项（另 1 项原有 ignored）、脚本 3714 项、host CLI 312 项、interop 45 项通过 | gate.log（本地文件：`target/fpm-power-evidence/raw/gate.log`） |
 
 客户端使用固定 python-fido2 2.2.1、真实 FIDO 业务/目录/密码学及 RP 公钥验签。按需字节模型在掉电时清除临时采样、保留非易失库存；六样本间隙、保存后库存/提交、正常释放、错误认证参数以及启动/休眠丢应答都有实际入口覆盖。模型不代替实物 UART、触摸、USB 或模板耐久性。
 
@@ -51,10 +51,10 @@ V_TOUCH 拟常供 3.3V，VCC 经外部开关；AO3401A、4.7kΩ G-S 上拉、1k�
 
 | 临时修改 | 实际失败及方向 | 原件 |
 | --- | --- | --- |
-| 触摸转换不再核对原窗口和状态 | 重复 `record(first)` 意外为 true，`!touch.record(first)` 失败，gate 退出 101 | [mutation-pulse-state.log](target/fpm-power-evidence/raw/mutation-pulse-state.log) |
-| 保留状态但忽略触摸代次 | 旧窗口意外消费新入口的脉冲；“an old window must not consume the new transport's pulse” 失败，gate 退出 101 | [mutation-pulse-owner.log](target/fpm-power-evidence/raw/mutation-pulse-owner.log) |
-| 关闭供电时忽略业务持有 | 当前采样/会话仍持有时 cuts 为 1，预期为 0；设备驱动与状态模型共 3 项失败，gate 退出 101 | [mutation-power-hold.log](target/fpm-power-evidence/raw/mutation-power-hold.log) |
-| 恢复原先先库存、后认证的五个 token 消费入口 | 错误认证仍返回 PinAuthInvalid，但 prepare 从 7 增至 8，副作用断言失败，gate 退出 101；SDK 的两种供电组合也因额外上电/库存失败 | [mutation-auth-order.log](target/fpm-power-evidence/raw/mutation-auth-order.log)、[客户端复现](target/fpm-power-evidence/raw/auth-order-clients-repro.log) |
+| 触摸转换不再核对原窗口和状态 | 重复 `record(first)` 意外为 true，`!touch.record(first)` 失败，gate 退出 101 | mutation-pulse-state.log（本地文件：`target/fpm-power-evidence/raw/mutation-pulse-state.log`） |
+| 保留状态但忽略触摸代次 | 旧窗口意外消费新入口的脉冲；“an old window must not consume the new transport's pulse” 失败，gate 退出 101 | mutation-pulse-owner.log（本地文件：`target/fpm-power-evidence/raw/mutation-pulse-owner.log`） |
+| 关闭供电时忽略业务持有 | 当前采样/会话仍持有时 cuts 为 1，预期为 0；设备驱动与状态模型共 3 项失败，gate 退出 101 | mutation-power-hold.log（本地文件：`target/fpm-power-evidence/raw/mutation-power-hold.log`） |
+| 恢复原先先库存、后认证的五个 token 消费入口 | 错误认证仍返回 PinAuthInvalid，但 prepare 从 7 增至 8，副作用断言失败，gate 退出 101；SDK 的两种供电组合也因额外上电/库存失败 | mutation-auth-order.log（本地文件：`target/fpm-power-evidence/raw/mutation-auth-order.log`）、客户端复现（本地文件：`target/fpm-power-evidence/raw/auth-order-clients-repro.log`） |
 
 启动/休眠应答恰在截止时间完成的测试是正向边界覆盖：现有 Exchange 分步轮询正确拒绝该应答，未将一个通过的用例写成失败复现。恢复后的触摸及供电模型源码 SHA256 分别为 `22f964c35d216bea9a232c1d641317188a8dc63875651ac0a265a841ebaf138a` 与 `184ab988f95e6eb86858f162b3b7c2e20de59cd9db96bfc4068bdb84ce5dfbab`。
 
@@ -69,17 +69,17 @@ V_TOUCH 拟常供 3.3V，VCC 经外部开关；AO3401A、4.7kΩ G-S 上拉、1k�
 | Core0 栈区域 | 180000B | 179904B | 179904B |
 | 距 168KiB 下限 | 7968B | 7872B | 7872B |
 
-静态 RAM 取 `__ebss - __sdata`，栈取 `_stack_start - _stack_end`；按需组合比阶段五的静态 RAM 增加 128B。真实栈高水位、功耗和延迟尚未测量。构建与符号核算可由[资源脚本](target/fpm-power-evidence/raw/build-resources.sh)复现，原件保存在本地忽略的 `target/fpm-power-evidence/`。
+静态 RAM 取 `__ebss - __sdata`，栈取 `_stack_start - _stack_end`；按需组合比阶段五的静态 RAM 增加 128B。真实栈高水位、功耗和延迟尚未测量。构建与符号核算可由资源脚本（本地文件：`target/fpm-power-evidence/raw/build-resources.sh`）复现，原件保存在本地忽略的 `target/fpm-power-evidence/`。
 
 | raw ELF | SHA256 |
 | --- | --- |
-| [constant-button-2mb.elf](target/fpm-power-evidence/constant-button-2mb.elf) | `9953dbbe39afe7afb9a9c9e02f43ff5d1e317ce052d83e0fedcdcebbe5b3cfde` |
-| [constant-touch-2mb.elf](target/fpm-power-evidence/constant-touch-2mb.elf) | `e1866c93a150c7f33647da4c3ccdea8ccc4ded283af2056be6d6930375d7d9f9` |
-| [switched-2mb.elf](target/fpm-power-evidence/switched-2mb.elf) | `966a9550fbc5f5bd041345ec4b98fa013077ba9b0a6de3cb59616d435b258596` |
+| constant-button-2mb.elf（本地文件：`target/fpm-power-evidence/constant-button-2mb.elf`） | `9953dbbe39afe7afb9a9c9e02f43ff5d1e317ce052d83e0fedcdcebbe5b3cfde` |
+| constant-touch-2mb.elf（本地文件：`target/fpm-power-evidence/constant-touch-2mb.elf`） | `e1866c93a150c7f33647da4c3ccdea8ccc4ded283af2056be6d6930375d7d9f9` |
+| switched-2mb.elf（本地文件：`target/fpm-power-evidence/switched-2mb.elf`） | `966a9550fbc5f5bd041345ec4b98fa013077ba9b0a6de3cb59616d435b258596` |
 
 这些 ELF 未应用分区表，只作资源审阅，不是已验收的可部署镜像。完整 gate 留下的是 no-touch 测试镜像；需要交付时须另按构建流程生成并验收目标配置。
 
-最终 gate 原件 SHA256 为 `554e1de8c2cb90ca25a287f0631481e651c91b78527b7ba3a5aeacd6ef323e80`。[本地哈希清单](target/fpm-power-evidence/SHA256SUMS)登记 22 项镜像、脚本及原始日志，清单自身 SHA256 为 `a0b0e865acfb42506441d3d8bdb9e8be033860787021267c4a0d3d21a895ac22`；文档完成状态回写后的链接检查另保存在 `raw/docs.log`。
+最终 gate 原件 SHA256 为 `554e1de8c2cb90ca25a287f0631481e651c91b78527b7ba3a5aeacd6ef323e80`。本地哈希清单（本地文件：`target/fpm-power-evidence/SHA256SUMS`）登记 22 项镜像、脚本及原始日志，清单自身 SHA256 为 `a0b0e865acfb42506441d3d8bdb9e8be033860787021267c4a0d3d21a895ac22`；文档完成状态回写后的链接检查另保存在 `raw/docs.log`。
 
 ## 复现
 

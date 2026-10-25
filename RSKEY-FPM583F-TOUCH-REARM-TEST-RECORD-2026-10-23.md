@@ -22,7 +22,7 @@
 
 两版启动均在 USB 接入前完成 Count、普通 Sleep 和 UART 安全关电。09F1 新增受控的重新休眠实验命令：仅在 GP2 已低时执行，以序号拒绝重复操作，每次启动最多成功三轮，驱动失败后不自动重试。本轮在第 2、3 次触摸前各成功执行一次；期间未重新插拔 USB 或重启 MCU。
 
-普通 Sleep 使用既有 `02 0C 00` 流程，未使用深度休眠。厂家 [FPM583F.pdf](FPM583F.pdf) 第 14 页建议唤醒后屏蔽触摸中断、睡眠后重新启用；第 17 页的模块唤醒主控流程包含上电、执行命令、Sleep、关闭主 VCC。通用协议 §5.29 说明普通休眠可由按压唤醒。
+普通 Sleep 使用既有 `02 0C 00` 流程，未使用深度休眠。厂家 FPM583F.pdf（本地文件：`FPM583F.pdf`） 第 14 页建议唤醒后屏蔽触摸中断、睡眠后重新启用；第 17 页的模块唤醒主控流程包含上电、执行命令、Sleep、关闭主 VCC。通用协议 §5.29 说明普通休眠可由按压唤醒。
 
 ## 三轮对照
 
@@ -46,7 +46,7 @@
 
 其隔离覆盖层通过 145 项设备库、64 项 USB、60 项客户端／流程和 6 项刷写流程测试，以及主机和嵌入式严格 Clippy、链接及镜像分区检查。移除序号保护、忽略 GP2 松手条件、放开确认隔离的三种临时修改，均通过实际 `build.sh` 入口触发对应拒绝断言失败，恢复后重新构建通过。主项目完整 gate 的既有绿灯属于 09EC 候选，不等于对 09F1 覆盖层运行了同一完整 gate。
 
-补录本文时重新运行主项目完整 gate，因现有 `ctutils 0.4.2` 命中当日新增的 `RUSTSEC-2026-0385`，在 `cargo-audit (SCA)` 行退出 1；[本次检查日志](target/touch-conclusion-docs-2026-10-23/gate.log)保留原始告警。`Cargo.lock` 与本次文档修改前的 HEAD 一致。本次未处理该独立依赖问题，当前完整 gate 不能称为绿灯。
+补录本文时重新运行主项目完整 gate，因现有 `ctutils 0.4.2` 命中当日新增的 `RUSTSEC-2026-0385`，在 `cargo-audit (SCA)` 行退出 1；本次检查日志（本地文件：`target/touch-conclusion-docs-2026-10-23/gate.log`）保留原始告警。`Cargo.lock` 与本次文档修改前的 HEAD 一致。本次未处理该独立依赖问题，当前完整 gate 不能称为绿灯。
 
 09F1 的重新休眠只在实验步骤中显式执行，不会为后续每次触摸自动执行。正式实现仍需处理每次触摸、窗口外触摸、取消／超时、BOOTSEL 备份与模块故障禁用，并重新通过软件门禁和实际确认流程验收。本轮未验证这些正常操作，也未验证长期静置、不同供电条件或模板耐久性。
 
@@ -56,9 +56,9 @@
 
 | 原件 | SHA256 |
 | --- | --- |
-| [09F0 首轮事件](target/touch-startup-diagnostic-2026-10-23/hardware-events.jsonl) | `fb0ff364a2b1c0f1d4696f8d5814a9a1a4284c85edea7de038aed4ff00155374` |
-| [09F0 延长窗口事件](target/touch-startup-repeat-2026-10-23/hardware-events.jsonl) | `34b99c4330a48f2904f077a6337ad7b15b896c46e81eaac2ab62e66b01fc9ded` |
-| [09F1 重新休眠事件](target/touch-rearm-diagnostic-2026-10-23/hardware-events.jsonl) | `632a5adfd6324428948b8139d82d9b5626552bd49457f3c4b4604343cfb5c394` |
-| [09F1 UF2](target/touch-rearm-diagnostic-2026-10-23/touch-rearm-09f1.uf2) | `b22751b59eb506165214eb76f486b9ae4b093bc5d2517e11a42e8be03abf6650` |
+| 09F0 首轮事件（本地文件：`target/touch-startup-diagnostic-2026-10-23/hardware-events.jsonl`） | `fb0ff364a2b1c0f1d4696f8d5814a9a1a4284c85edea7de038aed4ff00155374` |
+| 09F0 延长窗口事件（本地文件：`target/touch-startup-repeat-2026-10-23/hardware-events.jsonl`） | `34b99c4330a48f2904f077a6337ad7b15b896c46e81eaac2ab62e66b01fc9ded` |
+| 09F1 重新休眠事件（本地文件：`target/touch-rearm-diagnostic-2026-10-23/hardware-events.jsonl`） | `632a5adfd6324428948b8139d82d9b5626552bd49457f3c4b4604343cfb5c394` |
+| 09F1 UF2（本地文件：`target/touch-rearm-diagnostic-2026-10-23/touch-rearm-09f1.uf2`） | `b22751b59eb506165214eb76f486b9ae4b093bc5d2517e11a42e8be03abf6650` |
 
-完整计数、各窗口间隔与高电平采样跨度见 [09F1 独立分析](target/touch-rearm-diagnostic-2026-10-23/analysis.json)；刷写、离线检查和保护反向测试见[对应目录记录](target/touch-rearm-diagnostic-2026-10-23/findings.md)。
+完整计数、各窗口间隔与高电平采样跨度见 09F1 独立分析（本地文件：`target/touch-rearm-diagnostic-2026-10-23/analysis.json`）；刷写、离线检查和保护反向测试见对应目录记录（本地文件：`target/touch-rearm-diagnostic-2026-10-23/findings.md`）。

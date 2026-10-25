@@ -14,7 +14,7 @@
 写入。刷写前后 GetInfo 的 `clientPin` 都为 false；本轮不证明已有凭据或模块模板的内容。
 
 镜像 SHA-256：`998eb62211abf776a5eba3970a084e264d6044794dec478f63898763d860a2d0`。
-部署退出码为 0，原始命令与返回见[部署日志](target/touch-auto-rearm-candidate-09ed-2026-10-23/install-events.log)。
+部署退出码为 0，原始命令与返回见部署日志（本地文件：`target/touch-auto-rearm-candidate-09ed-2026-10-23/install-events.log`）。
 
 使用现有 `authenticatorSelection` 确认测试，不创建凭据或改变 PIN。每轮前保持松手
 并等待 7 秒，看到 UPNEEDED 后至少静置 1 秒才提示操作；提示前完成的确认会被拒绝。
@@ -38,7 +38,7 @@ UP／UV 标志，也没有验证指纹匹配。
 原状态机将维护期间的高低边沿记为下一次维护，存在电源动作反复触发维护的路径。
 这是结合代码与状态采样的机制判断，尚未采集电源切换时 GP2 的精确波形。
 新增主机测试模拟维护期间高低边沿，原代码启动 10 次，断言只允许 2 次，退出 101；
-失败方向是多余启动，见[复现日志](target/touch-auto-rearm-validation-09ee-2026-10-23/repro.log)。
+失败方向是多余启动，见复现日志（本地文件：`target/touch-auto-rearm-validation-09ee-2026-10-23/repro.log`）。
 
 修正候选 `09EE` 忽略维护期间的边沿，成功关电后先等待低电平，再接受新的上升沿；
 高电平或旧窗口不能提供确认。当前 150 项设备库测试通过；其完整门禁和实机复测
@@ -51,17 +51,17 @@ UP／UV 标志，也没有验证指纹匹配。
 | 正常修正基线 | 0 | 完整工作区主机测试通过 |
 | 令 Running 期间的高边沿重新进入 High | 101 | 回归断言报告启动 8 次、要求 2 次；故障方向为多余上电 |
 
-[原始结果](target/touch-auto-rearm-validation-09ee-2026-10-23/mutations.json)与
-[执行脚本](target/touch-auto-rearm-validation-09ee-2026-10-23/mutation-runner.py)保留了完整门禁行。
+原始结果（本地文件：`target/touch-auto-rearm-validation-09ee-2026-10-23/mutations.json`）与
+执行脚本（本地文件：`target/touch-auto-rearm-validation-09ee-2026-10-23/mutation-runner.py`）保留了完整门禁行。
 
 用户已拔下 USB，停止反复上电。板上仍保存 `09ED`，当前断电；不得把本轮失败写成修复完成。
 
 ## 本地证据
 
-- [测试与操作员事件](target/touch-auto-rearm-candidate-09ed-2026-10-23/acceptance-events.jsonl)
-- [测试输出及失败断言](target/touch-auto-rearm-candidate-09ed-2026-10-23/acceptance.log)
-- [失败后状态采样](target/touch-auto-rearm-candidate-09ed-2026-10-23/status-sampling-after-failure.log)
-- [会话检查点](target/touch-auto-rearm-candidate-09ed-2026-10-23/SESSION.json)
+- 测试与操作员事件（本地文件：`target/touch-auto-rearm-candidate-09ed-2026-10-23/acceptance-events.jsonl`）
+- 测试输出及失败断言（本地文件：`target/touch-auto-rearm-candidate-09ed-2026-10-23/acceptance.log`）
+- 失败后状态采样（本地文件：`target/touch-auto-rearm-candidate-09ed-2026-10-23/status-sampling-after-failure.log`）
+- 会话检查点（本地文件：`target/touch-auto-rearm-candidate-09ed-2026-10-23/SESSION.json`）
 
 首次基线读取曾因主机 HID 读取超时而退出，未刷写。改用前轮已验证的定点 hidraw
 通道后，只读实测成功，34 项模拟测试通过，再执行上述部署；原失败日志保留在

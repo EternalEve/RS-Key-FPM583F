@@ -94,27 +94,27 @@ GetInfo 的 clientPin 存在标志保持一致；未逐项核验凭据或模板�
   拆分后该门禁通过。重构后的加载镜像与已测镜像仅在 `0x100c434c` 有一字节差异：
   `fingerprint_driver.rs` 的 panic 定位行号从 373 变为 374。
   全部指令与其他加载字节完全相同；当前 panic-halt 处理器忽略 PanicInfo。
-  [加载字节比较](target/touchout-low-fix-09f5-2026-10-24/post-refactor-load-diff.json)
+  加载字节比较（本地文件：`target/touchout-low-fix-09f5-2026-10-24/post-refactor-load-diff.json`）
   支持保留已测固件，不额外刷写。
 - 非模拟器检查已于 2026-10-25 分段续跑完成：门禁脚本测试 3807 项、
   主机工具测试 340 项、互操作测试 46 项通过，gitleaks 未发现泄漏。
   中途修正了 Nix 子进程配置、复杂度、9 处引用行号及其生成文档；
   引用的原语句与平台假设状态未改变，原失败日志保留。
-  [检查汇总](target/touchout-low-fix-09f5-2026-10-24/checks-summary.json)记录各段范围。
+  检查汇总（本地文件：`target/touchout-low-fix-09f5-2026-10-24/checks-summary.json`）记录各段范围。
   按用户要求省略 6 行模拟器运行测试，完整、未改动的 `scripts/check.sh` 未运行；
   项目门禁文件未修改。
 
 ## 本机原始证据
 
-以下 target 目录受 Git 忽略，链接是本机证据，不代表已纳入版本控制。
+以下 target 目录受 Git 忽略，所列路径指向本机证据，不代表已纳入版本控制。
 
-- [09F5 分析](target/touchout-low-fix-09f5-2026-10-24/hardware-analysis.json)
-- [09F5 原始交互](target/touchout-low-fix-09f5-2026-10-24/acceptance-events.jsonl)
-- [09F5 镜像、布局和源码清单](target/touchout-low-fix-09f5-2026-10-24/manifest.json)
-- [09F5 安装与独立校验](target/touchout-low-fix-09f5-2026-10-24/install-events.log)
-- [09F5 后台检查](target/touchout-low-fix-09f5-2026-10-24/check.log)
-- [09F3 分析](target/touchout-low-fix-09f3-2026-10-24-acceptance-01/hardware-analysis.json)
-- [09F4 分析](target/touchout-low-fix-09f4-2026-10-24/hardware-analysis.json)
+- 09F5 分析（本地文件：`target/touchout-low-fix-09f5-2026-10-24/hardware-analysis.json`）
+- 09F5 原始交互（本地文件：`target/touchout-low-fix-09f5-2026-10-24/acceptance-events.jsonl`）
+- 09F5 镜像、布局和源码清单（本地文件：`target/touchout-low-fix-09f5-2026-10-24/manifest.json`）
+- 09F5 安装与独立校验（本地文件：`target/touchout-low-fix-09f5-2026-10-24/install-events.log`）
+- 09F5 后台检查（本地文件：`target/touchout-low-fix-09f5-2026-10-24/check.log`）
+- 09F3 分析（本地文件：`target/touchout-low-fix-09f3-2026-10-24-acceptance-01/hardware-analysis.json`）
+- 09F4 分析（本地文件：`target/touchout-low-fix-09f4-2026-10-24/hardware-analysis.json`）
 
 本次按上述真机回归和软件检查结果完成验收；原始轨迹与失败候选记录一并保留，
 供后续维护时核对修复行为。

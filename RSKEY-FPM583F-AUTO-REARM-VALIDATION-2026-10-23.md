@@ -51,11 +51,11 @@ TOUCHOUT 持续观察；只有当前 FIDO 确认窗口内、先低后高的新�
 NIX_CONFIG='extra-experimental-features = nix-command flakes' nix develop -c env HOST_TARGET=x86_64-unknown-linux-gnu ./scripts/check.sh
 ```
 
-[完整日志](target/touch-auto-rearm-validation-2026-10-23/gate.log)与
-[检查点](target/touch-auto-rearm-validation-2026-10-23/checkpoint.json)已保存；门禁运行前后
+完整日志（本地文件：`target/touch-auto-rearm-validation-2026-10-23/gate.log`）与
+检查点（本地文件：`target/touch-auto-rearm-validation-2026-10-23/checkpoint.json`）已保存；门禁运行前后
 43 个受检文件的 SHA-256 一致。该记录页只在结果确定后补录，不包含在源码快照中。
 新增测试及 Kani harness 对应的数量登记和故障夹具已同步；上一轮因此产生的
-[失败日志](target/touch-auto-rearm-validation-2026-10-23/gate-fixture-failure.log)也已保留。
+失败日志（本地文件：`target/touch-auto-rearm-validation-2026-10-23/gate-fixture-failure.log`）也已保留。
 
 以下故障注入在临时副本执行实际 `check.sh` 测试行；正常接线及主机测试基线均为 0。
 接线检查通过 `PYTEST_ADDOPTS` 只选择新增测试，主机行没有测试名过滤。
@@ -68,8 +68,8 @@ NIX_CONFIG='extra-experimental-features = nix-command flakes' nix develop -c env
 | 同时放开高／低输入的 Ready 条件 | `test (host)` | 101 | `touch before ordinary sleep must be refused`，休眠前触摸被错误接受 |
 | 业务取消／到期时终止后台启动 | `test (host)` | 101 | `request cancellation or expiry must not disable background maintenance`，请求错误地禁用了维护 |
 
-[原始结果](target/touch-auto-rearm-validation-2026-10-23/mutations.json)和
-[执行脚本](target/touch-auto-rearm-validation-2026-10-23/mutation-runner.py)位于忽略的
+原始结果（本地文件：`target/touch-auto-rearm-validation-2026-10-23/mutations.json`）和
+执行脚本（本地文件：`target/touch-auto-rearm-validation-2026-10-23/mutation-runner.py`）位于忽略的
 `target/`，清理构建目录前应另行保存。故障修改未写入本工作区源码。
 
 ## 原定实机验收项目

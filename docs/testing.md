@@ -81,7 +81,7 @@ It pins python-fido2 2.2.1 in an isolated Nix environment and verifies PIN UV,
 discoverable registration/assertion, RP signature rejection, UP-only assertions,
 normal restart persistence and cancellation over loopback TCP. Each case owns
 its emulator and synthetic store; no hardware is enumerated. See the
-[client suite](../tests/standard_client/README.md) for confirmation inputs,
+client suite in `tests/standard_client/README.md` for confirmation inputs,
 transport deadlines and the difference from physical USB and screenless firmware.
 
 `cargo test` must target the host explicitly (the workspace defaults to
@@ -1115,10 +1115,10 @@ byte-module matrix on pull requests, main pushes and the daily schedule; the
 snapshots, runner/pipeline exit codes and observed termination signals as a
 `bio-client-*` artifact for 14 days, including failures. Failures and timeouts
 remain failures. These diagnostics do not resolve the historical outer SIGTERM
-tracked as E1 in the [review](../RSKEY-FPM583F-REVIEW-2026-10-15.md).
+tracked as E1 in `RSKEY-FPM583F-REVIEW-2026-10-15.md`.
 The production directory and shared
 FIDO policy are used over both HID and CCID; the fixture supplies module facts,
-not UV authorization. See [client acceptance](../tests/bio_client/README.md).
+not UV authorization. See `tests/bio_client/README.md` for client acceptance.
 Host tests in `bio_enrollment_tests.rs` cut actual Fs mutations and reopen the
 medium, while preserving the module's separate inventory. This is software
 recovery evidence; physical power-cut durability and real 583F responses remain

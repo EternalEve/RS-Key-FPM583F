@@ -134,13 +134,13 @@
 
 ## 8. 原始资料与续接入口
 
-- [用户最后提供的 PCB 布局图](/home/ee/.codex/attachments/c115bad4-baf6-47e6-9bba-a79d7ca22ecb/codex-clipboard-9a5b77dc-3bbf-4939-997b-360a434ade72.png)
-- [充电宝原始读数记录](target/touch-pulldown-diagnostic-2026-10-21/multimeter-powerbank-user-report.json)
-- [电脑同步采样统计与证据哈希](target/touch-meter-comparison-2026-10-21/comparison-results.json)
-- [未接表原始快照](target/touch-meter-comparison-2026-10-21/idle-probe-disconnected.jsonl)：SHA256 `b81d121b1b72ae986d554dd53a1e6b29ccc12ea6036cfdad64a1497b727ca94a`。
-- [接表原始快照](target/touch-meter-comparison-2026-10-21/idle-probe-connected.jsonl)：SHA256 `bd3caf039ada7cdf54fb90c4190d4ef361f9d087b3c5466c8e041d279531d848`。
-- [手动板级、排线和模块端检查记录](target/touch-meter-comparison-2026-10-21/manual-board-cable-checks.json)
-- [接表中断尝试记录](target/touch-meter-comparison-2026-10-21/probe-connected-attempt-1.json)
-- [续接状态](target/touch-meter-comparison-2026-10-21/session-state.json)
+- 用户最后提供的 PCB 布局图（本机附件：`/home/ee/.codex/attachments/c115bad4-baf6-47e6-9bba-a79d7ca22ecb/codex-clipboard-9a5b77dc-3bbf-4939-997b-360a434ade72.png`）
+- 充电宝原始读数记录（本地文件：`target/touch-pulldown-diagnostic-2026-10-21/multimeter-powerbank-user-report.json`）
+- 电脑同步采样统计与证据哈希（本地文件：`target/touch-meter-comparison-2026-10-21/comparison-results.json`）
+- 未接表原始快照（本地文件：`target/touch-meter-comparison-2026-10-21/idle-probe-disconnected.jsonl`）：SHA256 `b81d121b1b72ae986d554dd53a1e6b29ccc12ea6036cfdad64a1497b727ca94a`。
+- 接表原始快照（本地文件：`target/touch-meter-comparison-2026-10-21/idle-probe-connected.jsonl`）：SHA256 `bd3caf039ada7cdf54fb90c4190d4ef361f9d087b3c5466c8e041d279531d848`。
+- 手动板级、排线和模块端检查记录（本地文件：`target/touch-meter-comparison-2026-10-21/manual-board-cable-checks.json`）
+- 接表中断尝试记录（本地文件：`target/touch-meter-comparison-2026-10-21/probe-connected-attempt-1.json`）
+- 续接状态（本地文件：`target/touch-meter-comparison-2026-10-21/session-state.json`）
 
 以上 `target/` 证据为本工作区本地文件；若移动或清理构建目录，应另行保留原始日志。本文中的结果表保留了不依赖这些日志的用户报告摘要。
