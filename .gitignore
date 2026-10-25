@@ -67,3 +67,23 @@ sram.bin*
 # Phase-five local logs and raw build artifacts.
 /RSKEY-FPM583F-PHASE-5-EVIDENCE/raw/
 /RSKEY-FPM583F-PHASE-5-EVIDENCE/build/
+
+# Python test/runtime caches and local virtual environments.
+.pytest_cache/
+*.py[co]
+.venv/
+
+# Host-tool packages and release staging output.
+/tools/dist/
+/dist/
+*.egg-info/
+
+# Local coverage data and reports.
+.coverage
+.coverage.*
+htmlcov/
+
+# SQLite sidecars created while a native PCB project is open.
+/pcb/*.eprj2-wal
+/pcb/*.eprj2-shm
+/pcb/*.eprj2-journal
