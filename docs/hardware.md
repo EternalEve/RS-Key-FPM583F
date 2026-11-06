@@ -88,6 +88,45 @@ Most RP2350A boards work with at most a one-line change. Everything else
 
 ## Enclosures
 
+The local `enclosure-design/` directory contains a design targeting the
+RP2350-Zero-CM with a stacked interface PCB and fingerprint module. Its V11 fit
+prototype reinforces the outboard PCB carrier toes, front pillars and side
+beams, retaining V10's lower front-wall keys and base shoulders, the case
+envelope and 0.8 mm nominal USB blocking. Geometry checks cover the retained
+carrier cores, added sections, contact and assembly travel; physical fit, pull
+strength and lifetime remain untested.
+
+A separate local review, `enclosure-design/architecture-review-v12.md`, explores
+a 28 mm-wide deep base and shallow cover without the front T-shaped
+keys. It retains removable PCB carriers and the existing hardware layout;
+physical fit and load capacity remain unverified, and the V11 trial kit is retained.
+Its successor, `enclosure-design/concept-v13.md`, adds R0.4 fillets at both
+USB-slot bottom corners, retaining the V12 material, external envelope and
+nominal USB clearance. Both remain candidates awaiting physical validation.
+A V14 print kit, `enclosure-design/concept-v14.md`, preserves that nominal
+geometry and repairs the exported meshes, adding STL reimport checks and a
+four-part 3MF layout. Actual fit and load capacity still require a prototype.
+V15, `enclosure-design/concept-v15.md`, adds local blends at the sensor legs,
+lid ribs, rear carrier joints and full-height front corners. It retains the V14
+material cores, external dimensions and functional interfaces, checking a
+0.2 mm carrier-loading reservation at the front blends. The point-by-point review is in
+`enclosure-design/load-review-v15.md`; physical load and fatigue tests remain open.
+
+V15-R1, `enclosure-design/concept-v15-r1.md`, replaces the V15 print meshes after
+vendor warnings exposed precision-sensitive microscopic facets. Nominal CAD and
+parameters are unchanged. Binary STL is validated after serialization, including
+float32 and decimal precision checks; slicer import must preserve all facets with
+zero repairs. See `enclosure-design/mesh-repair-v15-r1.md`. Use the R1 kit instead
+of old V15 meshes; vendor re-upload and physical validation remain pending.
+
+V16, `enclosure-design/concept-v16.md`, addresses the vendor-flagged carrier
+sections with 1.25 mm ear walls, 1.2 mm rear pocket walls and a 1.38 mm ledge roof.
+The housing widens locally to 32.1 mm and the mount centers move outward, so all
+four plastic parts must be replaced together. PCB/module positions and cable
+space are retained. `enclosure-design/manufacturing-review-v16.md` identifies
+the remaining 0.8 mm USB wall for separate vendor review; guide ribs are now 1.2 mm;
+this does not certify every wall as exceeding 1 mm or establish a load rating.
+
 A bare board works fine, but a printed case makes it pocketable. Four community
 designs fit the boards above:
 

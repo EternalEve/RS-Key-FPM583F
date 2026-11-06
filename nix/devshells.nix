@@ -183,6 +183,23 @@
     '';
   };
 
+  # Mesh tooling stays out of the authenticator's dependencies and default shell.
+  enclosure = pkgs.mkShell {
+    packages = [
+      pkgs.openscad
+      pkgs.prusa-slicer
+      (pkgs.python3.withPackages (python: [
+        python.lxml
+        python.manifold3d
+        python.networkx
+        python.numpy
+        python.pillow
+        python.trimesh
+      ]))
+    ];
+    QT_QPA_PLATFORM = "offscreen";
+  };
+
   # Nightly shell for cargo-fuzz (`cargo fuzz run apdu`) and Miri
   # (`cargo miri test`, fuzz/tests/miri.rs). The nightly-complete toolchain
   # carries both; MIRIFLAGS is the policy the Miri suite expects.

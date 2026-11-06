@@ -38,6 +38,53 @@ tag: the USB `bcdDevice` build counter (bumped on every behavior change), and
 
 ## [Unreleased]
 
+- **FPM583F enclosure V16 thin walls:** thicken carrier ears, rear pad-pocket
+  walls and the upper ledge; widen rear feet and locally expand the housing.
+  Move the paired mounts outward while preserving PCB/module positions and the
+  cable corridor. Require continuous wall-section checks and a legacy-dimension
+  failure control. The four parts must be replaced together; the remaining thin
+  USB feature still needs vendor review and physical strength is untested.
+
+- **FPM583F enclosure V15-R1 mesh repair:** preserve V15 nominal CAD and
+  replace precision-sensitive STL surfaces with checked binary STL. Merge
+  microscopic short edges within a bounded displacement and material budget;
+  validate serialized coordinates and normals at float32 and decimal precision.
+  Require unchanged facet counts and zero slicer repairs, with legacy-file and
+  missing-cleanup controls. Vendor re-upload and physical validation remain pending.
+
+- **FPM583F enclosure V15 load roots:** review the load junctions and add
+  material at the sensor feet and ring joints, lid rib roots, rear carrier
+  joints and full-height front corners. Retain V14 cores, envelope and functional
+  interfaces, checking a 0.2 mm carrier loading reservation at the front. Add
+  material probes, retained-core checks, an enlarged-corner interference
+  control and V14/V15 print-solid comparisons. Physical strength remains untested.
+
+- **FPM583F enclosure V14 print kit:** preserve V13 nominal geometry and
+  prepare high-precision manifold STL files, including four actual STL boolean
+  reimport checks and a missing-cleanup control. Add a separate enclosure tool
+  environment, four-part 3MF layout, silicone template and assembly instructions.
+  Physical fit, strength and lifetime still require prototype validation.
+
+- **FPM583F enclosure V13 USB-slot roots:** add two R0.4 bottom fillets to
+  the V12 base without removing its existing material, enlarging its outer
+  envelope or reducing nominal USB clearance. Check both added roots, retained
+  material and USB clearance, including missing-fillet and larger-radius
+  controls. Physical strength and lifetime remain untested.
+
+- **FPM583F enclosure architecture review:** add a separate 28 mm-wide V12
+  candidate with a deep load-bearing base and shallow cover, retaining removable
+  PCB carriers while eliminating the front T-shaped keys. Include nominal
+  geometry and assembly checks and a V11 comparison; physical strength, lifetime
+  and manufacturing tolerances remain unverified. Preserve the V11 trial kit.
+
+- **FPM583F enclosure V11 fit prototype:** reinforce the PCB carriers with
+  thicker outboard toe roots, wider front pillars and deeper, wider side beams.
+  Bridge above the front-key holders and retain the complete V10 carrier cores,
+  PCB/pin clearance, case envelope and 0.8 mm nominal USB blocking. Preserve
+  V10's vertical T-shaped keys and base shoulders. Check added sections,
+  missing-reinforcement controls, contact location and assembly travel.
+  Physical strength and lifetime remain untested.
+
 - **Fix incomplete fingerprint cleanup (bcdDevice 0x09F6):** check the target
   module slot before deletion. If it is already empty, confirm the full inventory
   before retiring its management entry, without sending a delete to an absent
